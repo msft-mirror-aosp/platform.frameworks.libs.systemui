@@ -12,14 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package {
-    default_applicable_licenses: ["Android-Apache-2.0"],
-}
-
 android_library {
     name: "iconloader_base",
-    sdk_version: "current",
-    min_sdk_version: "26",
+    sdk_version: "28",
+    min_sdk_version: "21",
     static_libs: [
         "androidx.core_core",
     ],
@@ -34,7 +30,7 @@ android_library {
 android_library {
     name: "iconloader",
     sdk_version: "system_current",
-    min_sdk_version: "26",
+    min_sdk_version: "21",
     static_libs: [
         "androidx.core_core",
     ],
