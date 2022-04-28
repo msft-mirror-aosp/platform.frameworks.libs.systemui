@@ -311,7 +311,7 @@ public abstract class BaseIconCache {
         return mDefaultIcon.withFlags(getUserFlagOpLocked(user));
     }
 
-    private FlagOp getUserFlagOpLocked(UserHandle user) {
+    protected FlagOp getUserFlagOpLocked(UserHandle user) {
         int key = user.hashCode();
         int index;
         if ((index = mUserFlagOpMap.indexOfKey(key)) >= 0) {
@@ -594,6 +594,11 @@ public abstract class BaseIconCache {
                 Bitmap monoBitmap = Bitmap.createBitmap(
                         icon.getWidth(), icon.getHeight(), Config.ALPHA_8);
                 monoBitmap.copyPixelsFromBuffer(ByteBuffer.wrap(data));
+                Bitmap hwMonoBitmap = monoBitmap.copy(Config.HARDWARE, false /*isMutable*/);
+                if (hwMonoBitmap != null) {
+                    monoBitmap.recycle();
+                    monoBitmap = hwMonoBitmap;
+                }
                 try (BaseIconFactory factory = getIconFactory()) {
                     entry.bitmap.setMonoIcon(monoBitmap, factory);
                 }
