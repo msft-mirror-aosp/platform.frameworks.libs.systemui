@@ -370,6 +370,7 @@ public class ClockDrawableWrapper extends AdaptiveIconDrawable implements Bitmap
 
         private final Bitmap mBG;
         private final Paint mBgPaint = new Paint(Paint.FILTER_BITMAP_FLAG | Paint.ANTI_ALIAS_FLAG);
+        private final ColorFilter mBgFilter;
         private final int mThemedFgColor;
 
         private final AdaptiveIconDrawable mFullDrawable;
@@ -382,6 +383,7 @@ public class ClockDrawableWrapper extends AdaptiveIconDrawable implements Bitmap
             mAnimInfo = cs.mAnimInfo;
 
             mBG = cs.mBG;
+            mBgFilter = cs.mBgFilter;
             mBgPaint.setColorFilter(cs.mBgFilter);
             mThemedFgColor = cs.mThemedFgColor;
 
@@ -420,6 +422,18 @@ public class ClockDrawableWrapper extends AdaptiveIconDrawable implements Bitmap
         }
 
         @Override
+        public boolean setState(int[] stateSet) {
+            // If the user has just pressed the clock icon, and the clock app is launching,
+            // we don't want to change the time shown. Doing so can result in jank.
+            for (int state: stateSet) {
+                if (state == android.R.attr.state_pressed) {
+                    return false;
+                }
+            }
+            return super.setState(stateSet);
+        }
+
+        @Override
         public boolean isThemed() {
             return mBgPaint.getColorFilter() != null;
         }
@@ -427,7 +441,11 @@ public class ClockDrawableWrapper extends AdaptiveIconDrawable implements Bitmap
         @Override
         protected void updateFilter() {
             super.updateFilter();
-            mFullDrawable.setColorFilter(mPaint.getColorFilter());
+            int alpha = mIsDisabled ? (int) (mDisabledAlpha * FULLY_OPAQUE) : FULLY_OPAQUE;
+            mBgPaint.setAlpha(alpha);
+            mFG.setAlpha(alpha);
+            mBgPaint.setColorFilter(mIsDisabled ? getDisabledColorFilter() : mBgFilter);
+            mFG.setColorFilter(mIsDisabled ? getDisabledColorFilter() : null);
         }
 
         @Override
