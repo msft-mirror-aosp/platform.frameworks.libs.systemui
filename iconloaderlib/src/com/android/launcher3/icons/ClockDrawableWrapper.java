@@ -60,7 +60,6 @@ public class ClockDrawableWrapper extends AdaptiveIconDrawable implements Bitmap
 
     private static final boolean DISABLE_SECONDS = true;
     private static final int NO_COLOR = -1;
-    private static final int FULLY_OPAQUE = 255;
 
     // Time after which the clock icon should check for an update. The actual invalidate
     // will only happen in case of any change.
@@ -390,6 +389,10 @@ public class ClockDrawableWrapper extends AdaptiveIconDrawable implements Bitmap
 
             mFullDrawable = (AdaptiveIconDrawable) mAnimInfo.baseDrawableState.newDrawable();
             mFG = (LayerDrawable) mFullDrawable.getForeground();
+
+            // Time needs to be applied here since drawInternal is NOT guaranteed to be called
+            // before this foreground drawable is shown on the screen.
+            mAnimInfo.applyTime(mTime, mFG);
             mCanvasScale = 1 - 2 * mBoundsOffset;
         }
 
