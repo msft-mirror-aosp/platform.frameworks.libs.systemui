@@ -17,6 +17,7 @@
 package com.android.launcher3.icons;
 
 import static com.android.launcher3.icons.BaseIconFactory.getBadgeSizeForIconSize;
+import static com.android.launcher3.icons.GraphicsUtils.setColorAlphaBound;
 
 import android.animation.ObjectAnimator;
 import android.graphics.Bitmap;
@@ -35,6 +36,7 @@ import android.view.animation.DecelerateInterpolator;
 import android.view.animation.Interpolator;
 
 import androidx.annotation.Nullable;
+import androidx.core.graphics.ColorUtils;
 
 public class FastBitmapDrawable extends Drawable implements Drawable.Callback {
 
@@ -42,9 +44,11 @@ public class FastBitmapDrawable extends Drawable implements Drawable.Callback {
     private static final Interpolator DEACCEL = new DecelerateInterpolator();
 
     private static final float PRESSED_SCALE = 1.1f;
+    public static final int WHITE_SCRIM_ALPHA = 138;
 
     private static final float DISABLED_DESATURATION = 1f;
     private static final float DISABLED_BRIGHTNESS = 0.5f;
+    protected static final int FULLY_OPAQUE = 255;
 
     public static final int CLICK_FEEDBACK_DURATION = 200;
 
@@ -128,10 +132,11 @@ public class FastBitmapDrawable extends Drawable implements Drawable.Callback {
     }
 
     /**
-     * Returns the primary icon color
+     * Returns the primary icon color, slightly tinted white
      */
     public int getIconColor() {
-        return mIconColor;
+        int whiteScrim = setColorAlphaBound(Color.WHITE, WHITE_SCRIM_ALPHA);
+        return ColorUtils.compositeColors(whiteScrim, mIconColor);
     }
 
     /**
@@ -323,6 +328,14 @@ public class FastBitmapDrawable extends Drawable implements Drawable.Callback {
         mat[18] = disabledAlpha;
         tempFilterMatrix.preConcat(tempBrightnessMatrix);
         return new ColorMatrixColorFilter(tempFilterMatrix);
+    }
+
+    protected static final int getDisabledColor(int color) {
+        int component = (Color.red(color) + Color.green(color) + Color.blue(color)) / 3;
+        float scale = 1 - DISABLED_BRIGHTNESS;
+        int brightnessI = (int) (255 * DISABLED_BRIGHTNESS);
+        component = Math.min(Math.round(scale * component + brightnessI), FULLY_OPAQUE);
+        return Color.rgb(component, component, component);
     }
 
     /**

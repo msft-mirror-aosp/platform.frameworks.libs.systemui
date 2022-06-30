@@ -59,6 +59,7 @@ public class ClockDrawableWrapper extends AdaptiveIconDrawable implements Bitmap
     private static final String TAG = "ClockDrawableWrapper";
 
     private static final boolean DISABLE_SECONDS = true;
+    private static final int NO_COLOR = -1;
 
     // Time after which the clock icon should check for an update. The actual invalidate
     // will only happen in case of any change.
@@ -322,16 +323,19 @@ public class ClockDrawableWrapper extends AdaptiveIconDrawable implements Bitmap
                 @DrawableCreationFlags  int creationFlags) {
             AnimationInfo info;
             Bitmap bg;
+            int themedFgColor;
             ColorFilter bgFilter;
             if ((creationFlags & FLAG_THEMED) != 0 && themeData != null) {
                 int[] colors = ThemedIconDrawable.getColors(context);
                 Drawable tintedDrawable = themeData.baseDrawableState.newDrawable().mutate();
+                themedFgColor = colors[1];
                 tintedDrawable.setTint(colors[1]);
                 info = themeData.copyForIcon(tintedDrawable);
                 bg = themeBackground;
                 bgFilter = new BlendModeColorFilter(colors[0], BlendMode.SRC_IN);
             } else {
                 info = animInfo;
+                themedFgColor = NO_COLOR;
                 bg = mFlattenedBackground;
                 bgFilter = null;
             }
@@ -339,7 +343,7 @@ public class ClockDrawableWrapper extends AdaptiveIconDrawable implements Bitmap
                 return super.newIcon(context, creationFlags);
             }
             ClockIconDrawable.ClockConstantState cs = new ClockIconDrawable.ClockConstantState(
-                    icon, color, boundsOffset, info, bg, bgFilter);
+                    icon, color, themedFgColor, boundsOffset, info, bg, bgFilter);
             FastBitmapDrawable d = cs.newDrawable();
             applyFlags(context, d, creationFlags);
             return d;
@@ -366,6 +370,8 @@ public class ClockDrawableWrapper extends AdaptiveIconDrawable implements Bitmap
 
         private final Bitmap mBG;
         private final Paint mBgPaint = new Paint(Paint.FILTER_BITMAP_FLAG | Paint.ANTI_ALIAS_FLAG);
+        private final ColorFilter mBgFilter;
+        private final int mThemedFgColor;
 
         private final AdaptiveIconDrawable mFullDrawable;
         private final LayerDrawable mFG;
@@ -377,10 +383,16 @@ public class ClockDrawableWrapper extends AdaptiveIconDrawable implements Bitmap
             mAnimInfo = cs.mAnimInfo;
 
             mBG = cs.mBG;
+            mBgFilter = cs.mBgFilter;
             mBgPaint.setColorFilter(cs.mBgFilter);
+            mThemedFgColor = cs.mThemedFgColor;
 
             mFullDrawable = (AdaptiveIconDrawable) mAnimInfo.baseDrawableState.newDrawable();
             mFG = (LayerDrawable) mFullDrawable.getForeground();
+
+            // Time needs to be applied here since drawInternal is NOT guaranteed to be called
+            // before this foreground drawable is shown on the screen.
+            mAnimInfo.applyTime(mTime, mFG);
             mCanvasScale = 1 - 2 * mBoundsOffset;
         }
 
@@ -421,7 +433,16 @@ public class ClockDrawableWrapper extends AdaptiveIconDrawable implements Bitmap
         @Override
         protected void updateFilter() {
             super.updateFilter();
-            mFullDrawable.setColorFilter(mPaint.getColorFilter());
+            int alpha = mIsDisabled ? (int) (mDisabledAlpha * FULLY_OPAQUE) : FULLY_OPAQUE;
+            mBgPaint.setAlpha(alpha);
+            mFG.setAlpha(alpha);
+            mBgPaint.setColorFilter(mIsDisabled ? getDisabledColorFilter() : mBgFilter);
+            mFG.setColorFilter(mIsDisabled ? getDisabledColorFilter() : null);
+        }
+
+        @Override
+        public int getIconColor() {
+            return isThemed() ? mThemedFgColor : super.getIconColor();
         }
 
         @Override
@@ -457,8 +478,8 @@ public class ClockDrawableWrapper extends AdaptiveIconDrawable implements Bitmap
 
         @Override
         public FastBitmapConstantState newConstantState() {
-            return new ClockConstantState(mBitmap, mIconColor, mBoundsOffset, mAnimInfo, mBG,
-                    mBgPaint.getColorFilter());
+            return new ClockConstantState(mBitmap, mIconColor, mThemedFgColor, mBoundsOffset,
+                    mAnimInfo, mBG, mBgPaint.getColorFilter());
         }
 
         private static class ClockConstantState extends FastBitmapConstantState {
@@ -467,14 +488,16 @@ public class ClockDrawableWrapper extends AdaptiveIconDrawable implements Bitmap
             private final AnimationInfo mAnimInfo;
             private final Bitmap mBG;
             private final ColorFilter mBgFilter;
+            private final int mThemedFgColor;
 
-            ClockConstantState(Bitmap bitmap, int color,
+            ClockConstantState(Bitmap bitmap, int color, int themedFgColor,
                     float boundsOffset, AnimationInfo animInfo, Bitmap bg, ColorFilter bgFilter) {
                 super(bitmap, color);
                 mBoundsOffset = boundsOffset;
                 mAnimInfo = animInfo;
                 mBG = bg;
                 mBgFilter = bgFilter;
+                mThemedFgColor = themedFgColor;
             }
 
             @Override
