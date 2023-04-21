@@ -16,6 +16,7 @@
 
 package com.android.app.viewcapture
 
+import android.Manifest
 import android.content.Context
 import android.content.Intent
 import android.media.permission.SafeCloseable
@@ -26,6 +27,7 @@ import android.view.View
 import androidx.test.ext.junit.rules.ActivityScenarioRule
 import androidx.test.filters.SmallTest
 import androidx.test.platform.app.InstrumentationRegistry
+import androidx.test.rule.GrantPermissionRule
 import com.android.app.viewcapture.SettingsAwareViewCapture.Companion.VIEW_CAPTURE_ENABLED
 import com.android.app.viewcapture.ViewCapture.MAIN_EXECUTOR
 import junit.framework.Assert.assertEquals
@@ -40,6 +42,8 @@ class SettingsAwareViewCaptureTest {
     private val activityIntent = Intent(context, TestActivity::class.java)
 
     @get:Rule val activityScenarioRule = ActivityScenarioRule<TestActivity>(activityIntent)
+    @get:Rule val grantPermissionRule =
+        GrantPermissionRule.grant(Manifest.permission.WRITE_SECURE_SETTINGS)
 
     @Test
     fun do_not_capture_view_hierarchies_if_setting_is_disabled() {
@@ -55,7 +59,7 @@ class SettingsAwareViewCaptureTest {
                 rootView.viewTreeObserver.dispatchOnDraw()
 
                 assertEquals(0, viewCapture.getDumpTask(
-                        activity.findViewById(android.R.id.content)).get().get().frameData.size)
+                        activity.findViewById(android.R.id.content)).get().get().frameDataList.size)
                 closeable.close()
             }
         }
@@ -75,7 +79,7 @@ class SettingsAwareViewCaptureTest {
                 rootView.viewTreeObserver.dispatchOnDraw()
 
                 assertEquals(1, viewCapture.getDumpTask(activity.findViewById(
-                        android.R.id.content)).get().get().frameData.size)
+                        android.R.id.content)).get().get().frameDataList.size)
 
                 closeable.close()
             }

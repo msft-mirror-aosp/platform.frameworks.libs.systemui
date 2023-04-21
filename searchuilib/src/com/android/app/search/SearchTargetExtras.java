@@ -21,6 +21,7 @@ import static com.android.app.search.LayoutType.TALL_CARD_WITH_IMAGE_NO_ICON;
 import android.app.blob.BlobHandle;
 import android.app.search.SearchAction;
 import android.app.search.SearchTarget;
+import android.os.Bundle;
 import android.text.TextUtils;
 
 import androidx.annotation.Nullable;
@@ -32,15 +33,15 @@ import androidx.annotation.Nullable;
 public class SearchTargetExtras {
 
     /** on device data related extras and helper methods */
-    // Used to extra component name
+    // Used to extra component name.
     public static final String BUNDLE_EXTRA_CLASS = "class";
 
-    // Used for UI treatment. Labels whether search target should support quick launch
+    // Used for UI treatment. Labels whether search target should support quick launch.
     public static final String BUNDLE_EXTRA_QUICK_LAUNCH = "quick_launch";
     // Used for UI treatment. Targets grouped with same group id are decorated together.
     public static final String BUNDLE_EXTRA_GROUP_ID = "group_id";
     public static final String BUNDLE_EXTRA_GROUP_DECORATE_TOGETHER = "decorate_together";
-    // Used if slice title should be rendered else where outside of slice (e.g., edit text)
+    // Used if slice title should be rendered else where outside of slice (e.g., edit text).
     public static final String BUNDLE_EXTRA_SLICE_TITLE = "slice_title";
     // Used if slice view should be rendered using full height mode.
     public static final String BUNDLE_EXTRA_USE_FULL_HEIGHT = "use_full_height";
@@ -49,6 +50,8 @@ public class SearchTargetExtras {
     // Used if subtitle view should be overridden to string that is not natively defined by the
     // search target.
     public static final String BUNDLE_EXTRA_SUBTITLE_OVERRIDE = "subtitle_override";
+    // Used to override icon with the package name defined in SearchTarget.
+    public static final String BUNDLE_EXTRA_ICON_OVERRIDE = "icon_override";
 
     // Used for logging. Returns whether spelling correction was applied.
     public static final String BUNDLE_EXTRA_IS_QUERY_CORRECTED = "is_query_corrected";
@@ -56,11 +59,14 @@ public class SearchTargetExtras {
     public static final String BUNDLE_EXTRA_RESULT_MATCH_USER_TYPED = "result_match_user_typed";
     // Used for logging. Returns the timestamp when system service received the data.
     public static final String BUNDLE_EXTRA_START_TIMESTAMP = "start_timestamp";
-    // Indicates the search result app location column
+    // Indicates the search result app location column.
     public static final String BUNDLE_EXTRA_RESULT_APP_GRIDX = "app_gridx";
 
     // Used for thumbnail loading. Contains handle to retrieve Blobstore asset.
     public static final String BUNDLE_EXTRA_BLOBSTORE_HANDLE = "blobstore_handle_key";
+
+    // Used to denote this searchTarget is for recent block in 0-state.
+    public static final String EXTRAS_RECENT_BLOCK_TARGET = "recent_block_target";
 
     public static final int GROUPING = 1 << 1;
 
@@ -90,6 +96,14 @@ public class SearchTargetExtras {
                 BUNDLE_EXTRA_BLOBSTORE_HANDLE) instanceof BlobHandle;
     }
 
+    /** Check if SearchTarget contains information to tell if this target is from recent block. */
+    public static boolean isSearchTargetRecentItem(@Nullable SearchTarget target) {
+        if (isTargetOrExtrasNull(target)) {
+            return false;
+        }
+        return target.getExtras().getBoolean(EXTRAS_RECENT_BLOCK_TARGET, false);
+    }
+
     private static boolean isTargetOrExtrasNull(@Nullable SearchTarget target) {
         return target == null || target.getExtras() == null;
     }
@@ -109,11 +123,20 @@ public class SearchTargetExtras {
             "tall_card_image_description";
     public static final String BUNDLE_EXTRA_BITMAP_URL = "bitmap_url";
 
-    // Used for web suggestions count for both AA+ and QSB entry point.
+    // Used for web suggestions count in n-state for both AA+ and QSB entry point.
     // Returns the number of web suggestions to be shown.
-    public static final String WEB_SUG_COUNT = "web_sug_count";
+    public static final String BUNDLE_EXTRA_NSTATE_WEB_SUG_COUNT = "web_sug_count";
+
+    // Used for web suggestions count in 0-state for QSB entry point.
+    public static final String BUNDLE_EXTRA_ZERO_STATE_QSB_WEB_SUGGEST_COUNT =
+            "zero_state_qsb_web_suggest_count";
+    // Used for web suggestions count in 0-state for AA+ entry point.
+    public static final String BUNDLE_EXTRA_ZERO_STATE_ALL_APPS_WEB_SUGGEST_COUNT =
+            "zero_state_all_apps_web_suggest_count";
 
     /**
+     *  Replaced with thumbnail crop type
+     *
      *  Flag to control whether thumbnail(s) should fill the thumbnail container's width or not.
      *  When this flag is true, when there are less than the maximum number of thumbnails in the
      *  container, the thumbnails will stretch to fill the container's width.
@@ -122,8 +145,54 @@ public class SearchTargetExtras {
      *
      *  Only relevant in {@link LayoutType#THUMBNAIL_CONTAINER} and {@link LayoutType#THUMBNAIL}.
      */
+    @Deprecated
     public static final String BUNDLE_EXTRA_SHOULD_FILL_CONTAINER_WIDTH =
             "should_fill_container_width";
+
+    /**
+     * Flag to control thumbnail container's crop mode, controlling the layout
+     *
+     * <ul>
+     *     <li>SQUARE: Thumbnail(s) will be cropped to a square aspect ratio around the center.</li>
+     *     <li>FILL_WIDTH: Thumbnail(s) should collectively fill the thumbnail container's width.
+     *     When there are less than the maximum number of thumbnails in the container, the
+     *     layouts' width will stretch to fit the container, the images will fill the width
+     *     and then the top/bottom cropped to fit.</li>
+     *     <li>FILL_HEIGHT: Thumbnail(s) should fill height and be cropped to fit in the width
+     *     based on {@link BUNDLE_EXTRA_THUMBNAIL_MAX_COUNT} as the column count. When the image
+     *     width is larger than the width / column, both sides will be cropped while maintaining
+     *     the center.
+     *     When there are less thumbnails than the max count, the layout will be constrained to
+     *     equally divide the width of the container. If there are more thumbnails than the max
+     *     count, the excessive thumbnails will be ignored.</li>
+     * </ul>
+     *
+     * Only relevant in {@link LayoutType#THUMBNAIL_CONTAINER} and {@link LayoutType#THUMBNAIL}.
+     */
+    public static final String BUNDLE_EXTRA_THUMBNAIL_CROP_TYPE = "thumbnail_crop_type";
+    public enum ThumbnailCropType {
+        DEFAULT(0), // defaults to SQUARE behavior by {@link LayoutType#THUMBNAIL_CONTAINER}.
+        SQUARE(1),
+        FILL_WIDTH(2),
+        FILL_HEIGHT(3);
+
+        private final int mTypeId;
+
+        ThumbnailCropType(int typeId) {
+            mTypeId = typeId;
+        }
+
+        public int toTypeId() {
+            return mTypeId;
+        }
+    };
+
+    /**
+     * How many grid spaces for the thumbnail container should be reserved.
+     * Only relevant for {@link ThumbnailCropType#FILL_HEIGHT} crop type.
+     */
+    public static final String BUNDLE_EXTRA_THUMBNAIL_MAX_COUNT = "thumbnail_max_count";
+
     /**
      *  Flag to control whether the SearchTarget's label should be hidden.
      *  When this flag is true, label will be hidden.
@@ -136,6 +205,9 @@ public class SearchTargetExtras {
     public static final String BUNDLE_EXTRA_SUPPORT_QUERY_BUILDER = "support_query_builder";
     public static final String BUNDLE_EXTRA_SUGGEST_RAW_TEXT = "suggest_raw_text";
     public static final String BUNDLE_EXTRA_SUGGEST_TRUNCATE_START = "suggest_truncate_start";
+
+    /** Score threshold boosting the target. */
+    public static final String BUNDLE_EXTRA_SCORE_THRESHOLD = "score_threshold";
 
     /** Web data related helper methods */
     public static boolean isEntity(@Nullable SearchTarget target) {
@@ -152,5 +224,17 @@ public class SearchTargetExtras {
     public static boolean isRichAnswer(@Nullable SearchTarget target) {
         return target != null && isAnswer(target)
                 && target.getLayoutType().equals(TALL_CARD_WITH_IMAGE_NO_ICON);
+    }
+
+    /** Get the crop type thumbnails should use. Returns DEFAULT if not specified. */
+    public static ThumbnailCropType getThumbnailCropType(@Nullable SearchTarget target)
+            throws ArrayIndexOutOfBoundsException {
+        Bundle extras = target == null ? Bundle.EMPTY : target.getExtras();
+        if (extras.isEmpty()) {
+            return ThumbnailCropType.DEFAULT;
+        }
+        ThumbnailCropType cropType = ThumbnailCropType.values()[extras.getInt(
+                BUNDLE_EXTRA_THUMBNAIL_CROP_TYPE)];
+        return cropType != null ? cropType : ThumbnailCropType.DEFAULT;
     }
 }

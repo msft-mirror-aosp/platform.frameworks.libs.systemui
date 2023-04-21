@@ -20,6 +20,7 @@ import static com.android.app.search.SearchTargetExtras.isRichAnswer;
 import android.app.search.SearchTarget;
 import android.content.ComponentName;
 import android.os.Process;
+import android.os.UserHandle;
 
 import androidx.annotation.Nullable;
 
@@ -30,6 +31,22 @@ import androidx.annotation.Nullable;
 
 public class SearchTargetEventHelper {
 
+    public static final String PKG_NAME_AGSA = "com.google.android.googlequicksearchbox";
+
+    /**
+     * Generate web target id similar to AiAi targetId for logging search button tap and Launcher
+     * sends raw query to AGA.
+     * AiAi target id is of format "resultType:userId:packageName:extraInfo"
+     *
+     * @return string webTargetId
+     * Example webTargetId for
+     * web suggestion - WEB_SUGGEST:0:com.google.android.googlequicksearchbox:SUGGESTION
+     */
+    public static String generateWebTargetIdForRawQuery() {
+        // For raw query, there is no search target, so we pass null.
+        return generateWebTargetIdForLogging(null);
+    }
+
     /**
      * Generate web target id similar to AiAi targetId for logging both 0-state and n-state.
      * AiAi target id is of format "resultType:userId:packageName:extraInfo"
@@ -39,10 +56,14 @@ public class SearchTargetEventHelper {
      * web suggestion - WEB_SUGGEST:0:com.google.android.googlequicksearchbox:SUGGESTION
      * rich answer - WEB_SUGGEST:0:com.google.android.googlequicksearchbox:RICH_ANSWER
      */
-    public static String generateWebTargetIdForLogging(SearchTarget webTarget) {
+    public static String generateWebTargetIdForLogging(@Nullable SearchTarget webTarget) {
         StringBuilder webTargetId = new StringBuilder(
-                "WEB_SUGGEST" + ":" + Process.myUserHandle().getIdentifier() + ":"
-                        + webTarget.getPackageName());
+                "WEB_SUGGEST" + ":" + Process.myUserHandle().getIdentifier() + ":");
+        if (webTarget == null) {
+            webTargetId.append(PKG_NAME_AGSA + ":SUGGESTION");
+            return webTargetId.toString();
+        }
+        webTargetId.append(webTarget.getPackageName());
         if (isRichAnswer(webTarget)) {
             webTargetId.append(":RICH_ANSWER");
         } else {
@@ -52,23 +73,38 @@ public class SearchTargetEventHelper {
     }
 
     /**
-     * Generate application target id similar to AiAi targetId for logging only 0-state.
-     * For n-state, AiAi already populates the target id in right format.
-     * AiAi target id is of format "resultType:userId:packageName:extraInfo"
+     * Generate application target id that matches the AiAi targetId for only 0-state.
+     * For n-state, AiAi already populates the target id in right format and it's unnecessary for
+     * Launcher to generate it itself.
+     * AiAi target id is of format "resultType:userHandle.Id:packageName:extraInfo"
      *
-     * When the apps from AiAi's AppPredictionService are converted to {@link SearchTarget}, we need
-     * to construct the targetId using componentName.
+     * When the apps from AiAi's AppPredictionService are converted to {@link SearchTarget},
+     * we need to construct the targetId using {@link ComponentName} and {@link UserHandle}.
+     * Both are required to create a unique id for the SearchTarget.
      *
      * @return string appTargetId
      * Example appTargetId for
      * maps - APPLICATION:0:com.google.android.apps.maps:com.google.android.maps.MapsActivity
      * clock - APPLICATION:0:com.google.android.deskclock:com.android.deskclock.DeskClock
      */
-    public static String generateAppTargetIdForLogging(@Nullable ComponentName appComponentName) {
+    public static String generateAppTargetId(@Nullable ComponentName appComponentName,
+            UserHandle userHandle) {
         StringBuilder appTargetId = new StringBuilder(
-                "APPLICATION" + ":" + Process.myUserHandle().getIdentifier() + ":");
+                "APPLICATION" + ":" + userHandle.getIdentifier() + ":");
         if (appComponentName == null) return appTargetId.append(" : ").toString();
         return appTargetId + appComponentName.getPackageName() + ":"
                 + appComponentName.getClassName();
+    }
+
+    /**
+     * Generate gms play target id similar to AiAi targetId for logging only n-state.
+     * AiAi target id is of format "resultType:userId:packageName:extraInfo"
+     *
+     * @return string playTargetId
+     * Example playTargetId for Candy Crush
+     * PLAY:0:com.king.candycrushsaga:Gms
+     */
+    public static String generatePlayTargetIdForLogging(String appPackage) {
+        return "PLAY" + ":" + Process.myUserHandle().getIdentifier() + ":" + appPackage + ":Gms";
     }
 }

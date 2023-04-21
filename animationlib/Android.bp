@@ -1,4 +1,4 @@
-// Copyright (C) 2022 The Android Open Source Project
+// Copyright (C) 2018 The Android Open Source Project
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -16,58 +16,43 @@ package {
     default_applicable_licenses: ["Android-Apache-2.0"],
 }
 
-java_library {
-    name: "view_capture_proto",
-    srcs: ["src/com/android/app/viewcapture/proto/*.proto"],
-    proto: {
-        type: "lite",
-        local_include_dirs:[
-            "src/com/android/app/viewcapture/proto"
-        ],
-    },
-    static_libs: ["libprotobuf-java-lite"],
-    java_version: "1.8",
-}
 
 android_library {
-    name: "view_capture",
+    name: "animationlib",
     manifest: "AndroidManifest.xml",
-    platform_apis: true,
+    sdk_version: "system_current",
     min_sdk_version: "26",
-
     static_libs: [
-        "androidx.core_core",
-        "view_capture_proto",
+        "androidx.core_core-animation",
+        "androidx.core_core-ktx",
+        "androidx.annotation_annotation",
     ],
-
     srcs: [
         "src/**/*.java",
         "src/**/*.kt"
     ],
+    kotlincflags: ["-Xjvm-default=all"],
+    // This library is meant to access only public APIs
+    // do not flip this flag to true
+    platform_apis: false
 }
 
 android_test {
-    name: "view_capture_tests",
-    manifest: "tests/AndroidManifest.xml",
-    platform_apis: true,
-    min_sdk_version: "26",
+    name: "animationlib_tests",
 
     static_libs: [
-        "androidx.core_core",
-        "view_capture",
+        "animationlib",
         "androidx.test.ext.junit",
         "androidx.test.rules",
         "testables",
-        "mockito-target-extended-minus-junit4",
+    ],
+    libs: [
+        "android.test.base",
     ],
     srcs: [
         "**/*.java",
         "**/*.kt"
     ],
-    libs: [
-        "android.test.runner",
-        "android.test.base",
-        "android.test.mock",
-    ],
-    test_suites: ["device-tests"],
+    kotlincflags: ["-Xjvm-default=all"],
+    test_suites: ["general-tests"],
 }
