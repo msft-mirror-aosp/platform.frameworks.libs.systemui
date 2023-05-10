@@ -31,7 +31,7 @@ import android.app.search.Query;
  */
 public class QueryExtras {
 
-    // Can be either 1 (ALLAPPS) or 2 (QSB)
+    // Can be either 1 (ALLAPPS), 2 (QSB), or 3 (OVERVIEW)
     public static final String EXTRAS_KEY_ENTRY = "entry";
 
     // This value overrides the timeout that is defined inside {@link SearchContext#getTimeout}
@@ -39,4 +39,7 @@ public class QueryExtras {
 
     // Used to know which target is deleted.
     public static final String EXTRAS_BUNDLE_DELETED_TARGET_ID = "deleted_target_id";
+
+    // Contains "educard dismissed" which is used to know if educard is dismissed.
+    public static final String EXTRAS_BUNDLE_EDUCARD_DISMISSED = "educard_dismissed";
 }

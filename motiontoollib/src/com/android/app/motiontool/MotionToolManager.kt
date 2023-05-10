@@ -22,9 +22,8 @@ import android.view.Choreographer
 import android.view.View
 import android.view.WindowManagerGlobal
 import androidx.annotation.VisibleForTesting
-import com.android.app.motiontool.nano.WindowIdentifier
 import com.android.app.viewcapture.ViewCapture
-import com.android.app.viewcapture.data.nano.ExportedData
+import com.android.app.viewcapture.data.MotionWindowData
 
 /**
  * Singleton to manage motion tracing sessions.
@@ -78,29 +77,29 @@ class MotionToolManager private constructor(private val windowManagerGlobal: Win
     }
 
     /**
-     * Ends [ViewCapture] and returns the captured [ExportedData] since the [beginTrace] call or the
-     * last [pollTrace] call.
+     * Ends [ViewCapture] and returns the captured [MotionWindowData] since the [beginTrace] call or
+     * the last [pollTrace] call.
      */
     @Synchronized
-    fun endTrace(traceId: Int): ExportedData {
+    fun endTrace(traceId: Int): MotionWindowData {
         Log.d(TAG, "End Trace for id: $traceId")
         val traceMetadata = traces.getOrElse(traceId) { throw UnknownTraceIdException(traceId) }
-        val exportedData = pollTrace(traceId)
+        val data = pollTrace(traceId)
         traceMetadata.stopTrace()
         traces.remove(traceId)
-        return exportedData
+        return data
     }
 
     /**
-     * Returns the [ExportedData] captured since the [beginTrace] call or the last [pollTrace] call.
+     * Returns the [MotionWindowData] captured since the [beginTrace] call or last [pollTrace] call.
      * This function can only be used after [beginTrace] is called and before [endTrace] is called.
      */
     @Synchronized
-    fun pollTrace(traceId: Int): ExportedData {
+    fun pollTrace(traceId: Int): MotionWindowData {
         val traceMetadata = traces.getOrElse(traceId) { throw UnknownTraceIdException(traceId) }
-        val exportedData = getExportedDataFromViewCapture(traceMetadata)
-        traceMetadata.updateLastPolledTime(exportedData)
-        return exportedData
+        val data = getDataFromViewCapture(traceMetadata)
+        traceMetadata.updateLastPolledTime(data)
+        return data
     }
 
     /**
@@ -116,19 +115,21 @@ class MotionToolManager private constructor(private val windowManagerGlobal: Win
         traceIdCounter = 0
     }
 
-    private fun getExportedDataFromViewCapture(traceMetadata: TraceMetadata): ExportedData {
+    private fun getDataFromViewCapture(traceMetadata: TraceMetadata): MotionWindowData {
         val rootView =
             getRootView(traceMetadata.windowId)
                 ?: throw WindowNotFoundException(traceMetadata.windowId)
-        return viewCapture
-            .getDumpTask(rootView)
-            ?.orElse(null)
-            ?.get()
-            ?.apply {
-                frameData = frameData?.filter { it.timestamp > traceMetadata.lastPolledTime }
-                    ?.toTypedArray()
-            }
-            ?: ExportedData()
+
+        val data: MotionWindowData = viewCapture
+            .getDumpTask(rootView).get()
+            ?.orElse(null) ?: return MotionWindowData.newBuilder().build()
+        val filteredFrameData = data.frameDataList.filter {
+            it.timestamp > traceMetadata.lastPolledTime
+        }
+        return data.toBuilder()
+            .clearFrameData()
+            .addAllFrameData(filteredFrameData)
+            .build()
     }
 
     private fun getRootView(windowId: String): View? {
@@ -145,9 +146,9 @@ private data class TraceMetadata(
     var lastPolledTime: Long,
     var stopTrace: () -> Unit
 ) {
-    fun updateLastPolledTime(exportedData: ExportedData?) {
-        exportedData?.frameData?.maxOfOrNull { it.timestamp }?.let { maxFrameTimestamp ->
-            lastPolledTime = maxFrameTimestamp
+    fun updateLastPolledTime(data: MotionWindowData?) {
+        data?.frameDataList?.maxOfOrNull { it.timestamp }?.let {
+            lastPolledTime = it
         }
     }
 }
