@@ -56,6 +56,8 @@ import java.util.function.IntFunction;
 @TargetApi(Build.VERSION_CODES.O)
 public class ClockDrawableWrapper extends AdaptiveIconDrawable implements BitmapInfo.Extender {
 
+    public static boolean sRunningInTest = false;
+
     private static final String TAG = "ClockDrawableWrapper";
 
     private static final boolean DISABLE_SECONDS = true;
@@ -455,6 +457,9 @@ public class ClockDrawableWrapper extends AdaptiveIconDrawable implements Bitmap
 
         @Override
         public void run() {
+            if (sRunningInTest) {
+                Log.d("b/319168409", "running this: " + this);
+            }
             if (mAnimInfo.applyTime(mTime, mFG)) {
                 invalidateSelf();
             } else {
@@ -468,6 +473,9 @@ public class ClockDrawableWrapper extends AdaptiveIconDrawable implements Bitmap
             if (visible) {
                 reschedule();
             } else {
+                if (sRunningInTest) {
+                    Log.d("b/319168409", "unScheduling self invisible this: " + this);
+                }
                 unscheduleSelf(this);
             }
             return result;
@@ -477,10 +485,15 @@ public class ClockDrawableWrapper extends AdaptiveIconDrawable implements Bitmap
             if (!isVisible()) {
                 return;
             }
-
+            if (sRunningInTest) {
+                Log.d("b/319168409", "unScheduling self this: " + this);
+            }
             unscheduleSelf(this);
             final long upTime = SystemClock.uptimeMillis();
             final long step = TICK_MS; /* tick every 200 ms */
+            if (sRunningInTest) {
+                Log.d("b/319168409", "scheduling self this: " + this, new Throwable());
+            }
             scheduleSelf(this, upTime - ((upTime % step)) + step);
         }
 
