@@ -55,20 +55,22 @@ vec4 main(float2 fragCoord) {
 
     // Get color of the background texture.
     color.rgb = mix(colorBackground.rgb, glassTint.rgb, frostedGlassIntensity);
-    for (float i = 9.; i > 2.; i--) {
+    for (half i = 9.; i > 2.; i--) {
         // Generate snow behind the subject.
+        // Normalized layer index.
+        half idx = (i - 2.) / (9. - 2.);
         Snow snow = generateSnow(
               uv,
               screenAspectRatio,
-              time * 1.25,
-              /* Grid size = */ vec2(2.1, 1.4),
+              time * mix(1.25, 5., idx),
+              /* Grid size = */ vec2(mix(3.0, 6.0, idx), mix(1.0, 3.0, idx)),
               /* layer number = */ i);
 
         color.rgb = mix(color.rgb, snowColor.rgb, snowOpacity * snow.flakeMask);
     }
 
     // Add the foreground. Any effect from here will be in front of the subject.
-    color.rgb = mix(color.rgb, colorForeground.rgb, colorForeground.a);
+    color.rgb = normalBlend(color.rgb, colorForeground.rgb, colorForeground.a);
 
     // Add accumulated snow.
     vec2 accSnow = accumulatedSnow.eval(adjustedUvForeground).rg;
@@ -76,13 +78,13 @@ vec4 main(float2 fragCoord) {
     float snowTexture = smoothstep(0.2, 0.7, accSnow.g);
     color.rgb = mix(color.rgb, vec3(0.95), 0.98 * snowLayer * (0.05 + 0.95 * snowTexture));
 
-    for (float i = 2.; i >= 0.; i--) {
+    for (half i = 2.; i >= 0.; i--) {
         // Generate snow behind the subject.
         Snow snow = generateSnow(
               uv,
               screenAspectRatio,
               time * 1.25,
-              /* Grid size = */ vec2(2.1, 1.4),
+              /* Grid size = */ vec2(i + 1., 1.4),
               /* layer number = */ i);
 
         color.rgb = mix(color.rgb, snowColor.rgb, snowOpacity * snow.flakeMask);

@@ -41,6 +41,7 @@ class FogEffect(
         updateTextureUniforms()
         adjustCropping(surfaceSize)
         prepareColorGrading()
+        setIntensity(fogConfig.intensity)
     }
 
     override fun resize(newSurfaceSize: SizeF) = adjustCropping(newSurfaceSize)
@@ -68,6 +69,14 @@ class FogEffect(
 
     override fun release() {
         fogConfig.lut?.recycle()
+    }
+
+    override fun setIntensity(intensity: Float) {
+        fogConfig.shader.setFloatUniform("intensity", intensity)
+        fogConfig.colorGradingShader.setFloatUniform(
+            "intensity",
+            fogConfig.colorGradingIntensity * intensity
+        )
     }
 
     private fun adjustCropping(surfaceSize: SizeF) {

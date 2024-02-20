@@ -18,6 +18,7 @@ package com.google.android.wallpaper.weathereffects.graphics
 
 import android.graphics.Canvas
 import android.util.SizeF
+import androidx.annotation.FloatRange
 
 /** Defines a single weather effect with a main shader and a main LUT for color grading. */
 interface WeatherEffect {
@@ -50,4 +51,12 @@ interface WeatherEffect {
 
     /** Releases the weather effect. */
     fun release()
+
+    /**
+     * Adjusts the intensity of the effect (that means both weather intensity and color grading
+     * intensity, if any).
+     *
+     * @param intensity [0, 1] the intensity of the weather effect.
+     */
+    fun setIntensity(@FloatRange(from = 0.0, to = 1.0) intensity: Float)
 }

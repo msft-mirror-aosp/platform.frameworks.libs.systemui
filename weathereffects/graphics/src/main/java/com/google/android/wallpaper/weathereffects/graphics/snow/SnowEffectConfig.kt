@@ -32,40 +32,51 @@ data class SnowEffectConfig(
     val colorGradingShader: RuntimeShader,
     /** The main lut (color grading) for the effect. */
     val lut: Bitmap?,
-    /** The intensity of the color grading. 0: no color grading, 1: color grading in full effect. */
-    @FloatRange(from = 0.0, to = 1.0) val colorGradingIntensity: Float,
     /** A bitmap containing the foreground of the image. */
     val foreground: Bitmap,
     /** A bitmap containing the background of the image. */
     val background: Bitmap,
     /** A bitmap containing the blurred background. */
-    val blurredBackground: Bitmap
+    val blurredBackground: Bitmap,
+    /** The amount of the snow flakes. This contributes to the color grading as well. */
+    @FloatRange(from = 0.0, to = 1.0) val intensity: Float,
+    /** The intensity of the color grading. 0: no color grading, 1: color grading in full effect. */
+    @FloatRange(from = 0.0, to = 1.0) val colorGradingIntensity: Float,
 ) {
+    /**
+     * Constructor for [SnowEffectConfig].
+     *
+     * @param context the application context.
+     * @param foreground a bitmap containing the foreground of the image.
+     * @param background a bitmap containing the background of the image.
+     * @param intensity initial intensity that affects the amount of snow flakes and color grading.
+     *   Expected range is [0, 1]. You can always change the intensity dynamically. Defaults to 1.
+     */
+    constructor(
+        context: Context,
+        foreground: Bitmap,
+        background: Bitmap,
+        intensity: Float = DEFAULT_INTENSITY,
+    ) : this(
+        shader = GraphicsUtils.loadShader(context.assets, SHADER_PATH),
+        accumulatedSnowShader =
+            GraphicsUtils.loadShader(context.assets, ACCUMULATED_SNOW_SHADER_PATH),
+        colorGradingShader = GraphicsUtils.loadShader(context.assets, COLOR_GRADING_SHADER_PATH),
+        lut = GraphicsUtils.loadTexture(context.assets, LOOKUP_TABLE_TEXTURE_PATH),
+        foreground,
+        background,
+        blurredBackground = GraphicsUtils.blurImage(context, background, BLUR_RADIUS),
+        intensity,
+        COLOR_GRADING_INTENSITY
+    )
 
-    companion object {
-
-        /**
-         * A convenient way for creating a [SnowEffectConfig]. If the client does not want to use
-         * this constructor, a [SnowEffectConfig] object can still be created a directly.
-         *
-         * @param context the application context.
-         * @param foreground a bitmap containing the foreground of the image.
-         * @param background a bitmap containing the background of the image.
-         * @return the [SnowEffectConfig] object.
-         */
-        fun create(context: Context, foreground: Bitmap, background: Bitmap): SnowEffectConfig {
-            return SnowEffectConfig(
-                shader = GraphicsUtils.loadShader(context.assets, "shaders/snow_effect.agsl"),
-                accumulatedSnowShader =
-                    GraphicsUtils.loadShader(context.assets, "shaders/snow_accumulation.agsl"),
-                colorGradingShader =
-                    GraphicsUtils.loadShader(context.assets, "shaders/color_grading_lut.agsl"),
-                lut = GraphicsUtils.loadTexture(context.assets, "textures/lut_rain_and_fog.png"),
-                colorGradingIntensity = 0.7f,
-                foreground,
-                background,
-                GraphicsUtils.blurImage(context, background, 20f)
-            )
-        }
+    private companion object {
+        private const val SHADER_PATH = "shaders/snow_effect.agsl"
+        private const val ACCUMULATED_SNOW_SHADER_PATH = "shaders/snow_accumulation.agsl"
+        private const val COLOR_GRADING_SHADER_PATH = "shaders/color_grading_lut.agsl"
+        private const val LOOKUP_TABLE_TEXTURE_PATH = "textures/lut_rain_and_fog.png"
+        private const val BLUR_RADIUS = 20f
+        private const val DEFAULT_INTENSITY = 1f
+        private const val COLOR_GRADING_INTENSITY = 0.7f
     }
 }

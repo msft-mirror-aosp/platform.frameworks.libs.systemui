@@ -16,6 +16,7 @@
 
 uniform shader foreground;
 uniform float2 imageSize;
+uniform half intensity;
 
 #include "shaders/simplex2d.agsl"
 #include "shaders/utils.agsl"
@@ -27,7 +28,7 @@ float random(vec2 uv) {
 vec4 main(float2 fragCoord) {
     // fragCoord should be already the adjusted UVs to have the expected rect of the image.
     float variation = 0.5 + 0.5 * simplex2d(25. * fragCoord / imageSize.xx);
-    float distance = 8. * variation;
+    float distance = 8. * variation * intensity;
     float aN = foreground.eval(fragCoord + vec2(0., distance)).a;
     float aS = foreground.eval(fragCoord + vec2(0., -distance)).a;
     float dY = (aN - aS) * 0.5;

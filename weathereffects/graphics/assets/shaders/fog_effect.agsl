@@ -25,6 +25,7 @@ uniform half timeBackground;
 uniform half screenAspectRatio;
 uniform half2 screenSize;
 uniform half pixelDensity;
+uniform half intensity;
 
 #include "shaders/constants.agsl"
 #include "shaders/utils.agsl"
@@ -59,11 +60,11 @@ vec4 main(float2 fragCoord) {
 
     float dither = 1. - triangleNoise(fragCoord * pixelDensity) * 0.161;
 
-    color.rgb = normalBlendWithWhiteSrc(color.rgb, 0.8 * dither * bgdFog);
+    color.rgb = normalBlendWithWhiteSrc(color.rgb, 0.8 * dither * bgdFog * intensity);
     // Add the foreground. Any effect from here will be in front of the subject.
     color.rgb = normalBlend(color.rgb, colorForeground.rgb, colorForeground.a);
     // foreground fog.
-    color.rgb = normalBlendWithWhiteSrc(color.rgb, 0.5 * frontFog);
+    color.rgb = normalBlendWithWhiteSrc(color.rgb, 0.5 * frontFog * intensity);
 
     return color;
 }

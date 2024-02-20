@@ -54,4 +54,6 @@ class NoEffect(val foreground: Bitmap, val background: Bitmap, private var surfa
     override fun reset() {}
 
     override fun release() {}
+
+    override fun setIntensity(intensity: Float) {}
 }

@@ -41,6 +41,7 @@ class RainEffect(
         updateTextureUniforms()
         adjustCropping(surfaceSize)
         prepareColorGrading()
+        setIntensity(rainConfig.intensity)
     }
 
     override fun resize(newSurfaceSize: SizeF) = adjustCropping(newSurfaceSize)
@@ -62,6 +63,14 @@ class RainEffect(
     override fun release() {
         rainConfig.lut?.recycle()
         rainConfig.blurredBackground.recycle()
+    }
+
+    override fun setIntensity(intensity: Float) {
+        rainConfig.shader.setFloatUniform("intensity", intensity)
+        rainConfig.colorGradingShader.setFloatUniform(
+            "intensity",
+            rainConfig.colorGradingIntensity * intensity
+        )
     }
 
     private fun adjustCropping(surfaceSize: SizeF) {
@@ -135,7 +144,6 @@ class RainEffect(
                 BitmapShader(it, Shader.TileMode.MIRROR, Shader.TileMode.MIRROR)
             )
         }
-        rainConfig.colorGradingShader.setFloatUniform("intensity", rainConfig.colorGradingIntensity)
     }
 
     private companion object {

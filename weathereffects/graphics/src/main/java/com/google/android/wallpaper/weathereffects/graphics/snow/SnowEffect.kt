@@ -47,10 +47,13 @@ class SnowEffect(
 
     init {
         frameBuffer.setRenderEffect(RenderEffect.createBlurEffect(4f, 4f, Shader.TileMode.CLAMP))
-        generateAccumulatedSnow()
         updateTextureUniforms()
         adjustCropping(surfaceSize)
         prepareColorGrading()
+        setIntensity(snowConfig.intensity)
+
+        // Generate accumulated snow at the end after we updated all the uniforms.
+        generateAccumulatedSnow()
     }
 
     override fun resize(newSurfaceSize: SizeF) = adjustCropping(newSurfaceSize)
@@ -73,6 +76,18 @@ class SnowEffect(
         snowConfig.lut?.recycle()
         snowConfig.blurredBackground.recycle()
         frameBuffer.close()
+    }
+
+    override fun setIntensity(intensity: Float) {
+        snowConfig.shader.setFloatUniform("intensity", intensity)
+        snowConfig.colorGradingShader.setFloatUniform(
+            "intensity",
+            snowConfig.colorGradingIntensity * intensity
+        )
+        snowConfig.accumulatedSnowShader.setFloatUniform("intensity", intensity)
+
+        // Regenerate accumulated snow since the uniform changed.
+        generateAccumulatedSnow()
     }
 
     private fun adjustCropping(surfaceSize: SizeF) {
@@ -146,7 +161,6 @@ class SnowEffect(
                 BitmapShader(it, Shader.TileMode.MIRROR, Shader.TileMode.MIRROR)
             )
         }
-        snowConfig.colorGradingShader.setFloatUniform("intensity", snowConfig.colorGradingIntensity)
     }
 
     private fun generateAccumulatedSnow() {

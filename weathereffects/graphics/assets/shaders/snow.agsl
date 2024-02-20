@@ -24,6 +24,8 @@ const mat2 rot45 = mat2(
     -0.7071067812, 0.7071067812 // second column.
 );
 
+uniform half intensity;
+
 /**
  * Generates snow flakes.
  *
@@ -73,6 +75,16 @@ Snow generateSnow(
     // For each cell, we set the internal UV from -0.5 (left, bottom) to 0.5 (right, top).
     vec2 cellUv = fract(gridUv) - 0.5;
     cellUv.y *= -1.;
+
+   /*
+    * Disable snow flakes with some probabilty. This is done by 1) assigning a random intensity
+    * value to the cell 2) then compare it with the given intensity.
+    */
+    half cellIntensity = idGenerator(floor(vec2(cellId * 856.16, 272.2)));
+    if (cellIntensity < 1. - intensity) {
+        // Remove snow flakes by seeting flake mask to 0.
+        return Snow(/* flakeMask= */ 0, cellUv);
+    }
 
     /* Cell-id-based variations. */
     // Adjust time based on columnId.

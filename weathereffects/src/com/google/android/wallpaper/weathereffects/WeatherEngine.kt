@@ -126,19 +126,19 @@ class WeatherEngine(
 
         when (weatherEffect) {
             WallpaperInfoContract.WeatherEffect.RAIN -> {
-                val rainConfig = RainEffectConfig.create(context, foreground, background)
+                val rainConfig = RainEffectConfig(context, foreground, background)
                 activeEffect = RainEffect(rainConfig, screenSize.toSizeF())
             }
 
             WallpaperInfoContract.WeatherEffect.FOG -> {
-                val fogConfig = FogEffectConfig.create(
+                val fogConfig = FogEffectConfig(
                     context.assets, foreground, background, context.resources.displayMetrics.density
                 )
                 activeEffect = FogEffect(fogConfig, screenSize.toSizeF())
             }
 
             WallpaperInfoContract.WeatherEffect.SNOW -> {
-                val snowConfig = SnowEffectConfig.create(context, foreground, background)
+                val snowConfig = SnowEffectConfig(context, foreground, background)
                 activeEffect = SnowEffect(snowConfig, screenSize.toSizeF(), context.mainExecutor)
             }
 

@@ -24,6 +24,7 @@ uniform float2 uvScaleBgd;
 uniform float time;
 uniform float screenAspectRatio;
 uniform float2 screenSize;
+uniform half intensity;
 
 #include "shaders/constants.agsl"
 #include "shaders/utils.agsl"
@@ -66,7 +67,7 @@ vec4 main(float2 fragCoord) {
          screenAspectRatio,
          time,
          /* Grid size = */ vec2(4.0, 2.0),
-         /* rain intensity = */ 0.8);
+         intensity);
     float dropMask = drippingRain.dropMask;
     float droppletsMask = drippingRain.droppletsMask;
     float trailMask = drippingRain.trailMask;
@@ -79,7 +80,7 @@ vec4 main(float2 fragCoord) {
           screenAspectRatio,
           time * 1.267,
           /* Grid size = */ vec2(3.0, 1.0),
-          /* rain intensity = */ 0.6);
+          intensity);
     dropMask = max(drippingRain.dropMask, dropMask);
     droppletsMask = max(drippingRain.droppletsMask, droppletsMask);
     trailMask = max(drippingRain.trailMask, trailMask);
@@ -138,8 +139,19 @@ vec4 main(float2 fragCoord) {
           uv,
           screenAspectRatio,
           time * 18.,
+          /* Grid size = */ vec2(20.0, 2.0),
+          intensity);
+
+    color.rgb = mix(color.rgb, highlightColor.rgb, rainVisibility * rain.dropMask);
+
+    // Mid layer
+    // Generate rain behind the subject.
+    rain = generateRain(
+          uv,
+          screenAspectRatio,
+          time * 21.4,
           /* Grid size = */ vec2(30.0, 4.0),
-          /* rain intensity = */ rainIntensity);
+          intensity);
 
     color.rgb = mix(color.rgb, highlightColor.rgb, rainVisibility * rain.dropMask);
 
@@ -152,7 +164,7 @@ vec4 main(float2 fragCoord) {
           screenAspectRatio,
           time * 27.,
           /* Grid size = */ vec2(8.0, 3.0),
-          /* rain intensity = */ rainIntensity);
+          intensity);
 
     // The rain that is closer, make it less visible
     color.rgb = mix(color.rgb, highlightColor.rgb, 0.7 * rainVisibility * rain.dropMask);
