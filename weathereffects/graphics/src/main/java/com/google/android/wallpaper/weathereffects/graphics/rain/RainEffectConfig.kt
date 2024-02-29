@@ -24,9 +24,11 @@ import com.google.android.wallpaper.weathereffects.graphics.utils.GraphicsUtils
 
 /** Configuration for a rain effect. */
 data class RainEffectConfig(
-    /** The main shader of the effect. */
-    val shader: RuntimeShader,
-    /** The color grading shader. */
+    /** The first layer of the shader, rain showering in the environment. */
+    val rainShowerShader: RuntimeShader,
+    /** The second layer of the shader, rain running on the glass window. */
+    val glassRainShader: RuntimeShader,
+    /** The final layer of the shader, which adds color grading. */
     val colorGradingShader: RuntimeShader,
     /** The main lut (color grading) for the effect. */
     val lut: Bitmap?,
@@ -34,8 +36,6 @@ data class RainEffectConfig(
     val foreground: Bitmap,
     /** A bitmap containing the background of the image. */
     val background: Bitmap,
-    /** A bitmap containing the blurred background. */
-    val blurredBackground: Bitmap,
     /** The amount of the rain. This contributes to the color grading as well. */
     @FloatRange(from = 0.0, to = 1.0) val intensity: Float,
     /** The intensity of the color grading. 0: no color grading, 1: color grading in full effect. */
@@ -56,21 +56,21 @@ data class RainEffectConfig(
         background: Bitmap,
         intensity: Float = DEFAULT_INTENSITY,
     ) : this(
-        shader = GraphicsUtils.loadShader(context.assets, SHADER_PATH),
+        rainShowerShader = GraphicsUtils.loadShader(context.assets, RAIN_SHOWER_LAYER_SHADER_PATH),
+        glassRainShader = GraphicsUtils.loadShader(context.assets, GLASS_RAIN_LAYER_SHADER_PATH),
         colorGradingShader = GraphicsUtils.loadShader(context.assets, COLOR_GRADING_SHADER_PATH),
         lut = GraphicsUtils.loadTexture(context.assets, LOOKUP_TABLE_TEXTURE_PATH),
         foreground,
         background,
-        blurredBackground = GraphicsUtils.blurImage(context, background, BLUR_RADIUS),
         intensity,
         COLOR_GRADING_INTENSITY
     )
 
     private companion object {
-        private const val SHADER_PATH = "shaders/rain_effect.agsl"
+        private const val RAIN_SHOWER_LAYER_SHADER_PATH = "shaders/rain_shower_layer.agsl"
+        private const val GLASS_RAIN_LAYER_SHADER_PATH = "shaders/rain_glass_layer.agsl"
         private const val COLOR_GRADING_SHADER_PATH = "shaders/color_grading_lut.agsl"
         private const val LOOKUP_TABLE_TEXTURE_PATH = "textures/lut_rain_and_fog.png"
-        private const val BLUR_RADIUS = 10f
         private const val DEFAULT_INTENSITY = 1f
         private const val COLOR_GRADING_INTENSITY = 0.7f
     }

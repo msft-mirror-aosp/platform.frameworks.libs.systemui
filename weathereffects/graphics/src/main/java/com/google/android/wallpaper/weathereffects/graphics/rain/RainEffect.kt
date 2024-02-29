@@ -48,8 +48,12 @@ class RainEffect(
 
     override fun update(deltaMillis: Long, frameTimeNanos: Long) {
         elapsedTime += deltaMillis * MILLIS_TO_SECONDS
-        rainConfig.shader.setFloatUniform("time", elapsedTime)
-        rainConfig.colorGradingShader.setInputShader("texture", rainConfig.shader)
+
+        rainConfig.rainShowerShader.setFloatUniform("time", elapsedTime)
+        rainConfig.glassRainShader.setFloatUniform("time", elapsedTime * 0.7f)
+
+        rainConfig.glassRainShader.setInputShader("texture", rainConfig.rainShowerShader)
+        rainConfig.colorGradingShader.setInputShader("texture", rainConfig.glassRainShader)
     }
 
     override fun draw(canvas: Canvas) {
@@ -62,11 +66,11 @@ class RainEffect(
 
     override fun release() {
         rainConfig.lut?.recycle()
-        rainConfig.blurredBackground.recycle()
     }
 
     override fun setIntensity(intensity: Float) {
-        rainConfig.shader.setFloatUniform("intensity", intensity)
+        rainConfig.rainShowerShader.setFloatUniform("intensity", intensity)
+        rainConfig.glassRainShader.setFloatUniform("intensity", intensity * 0.6f)
         rainConfig.colorGradingShader.setFloatUniform(
             "intensity",
             rainConfig.colorGradingIntensity * intensity
@@ -81,16 +85,17 @@ class RainEffect(
                 rainConfig.foreground.width.toFloat(),
                 rainConfig.foreground.height.toFloat()
             )
-        rainConfig.shader.setFloatUniform(
+        rainConfig.rainShowerShader.setFloatUniform(
             "uvOffsetFgd",
             imageCropFgd.leftOffset,
             imageCropFgd.topOffset
         )
-        rainConfig.shader.setFloatUniform(
+        rainConfig.rainShowerShader.setFloatUniform(
             "uvScaleFgd",
             imageCropFgd.horizontalScale,
             imageCropFgd.verticalScale
         )
+
         val imageCropBgd =
             ImageCrop.centerCoverCrop(
                 surfaceSize.width,
@@ -98,46 +103,47 @@ class RainEffect(
                 rainConfig.background.width.toFloat(),
                 rainConfig.background.height.toFloat()
             )
-        rainConfig.shader.setFloatUniform(
+        rainConfig.rainShowerShader.setFloatUniform(
             "uvOffsetBgd",
             imageCropBgd.leftOffset,
             imageCropBgd.topOffset
         )
-        rainConfig.shader.setFloatUniform(
+        rainConfig.rainShowerShader.setFloatUniform(
             "uvScaleBgd",
             imageCropBgd.horizontalScale,
             imageCropBgd.verticalScale
         )
-        rainConfig.shader.setFloatUniform("screenSize", surfaceSize.width, surfaceSize.height)
-        rainConfig.shader.setFloatUniform(
-            "screenAspectRatio",
-            GraphicsUtils.getAspectRatio(surfaceSize)
+
+        rainConfig.rainShowerShader.setFloatUniform(
+            "screenSize",
+            surfaceSize.width,
+            surfaceSize.height
         )
+        rainConfig.glassRainShader.setFloatUniform(
+            "screenSize",
+            surfaceSize.width,
+            surfaceSize.height
+        )
+
+        val screenAspectRatio = GraphicsUtils.getAspectRatio(surfaceSize)
+        rainConfig.rainShowerShader.setFloatUniform("screenAspectRatio", screenAspectRatio)
+        rainConfig.glassRainShader.setFloatUniform("screenAspectRatio", screenAspectRatio)
     }
 
     private fun updateTextureUniforms() {
-        rainConfig.shader.setInputBuffer(
+        rainConfig.rainShowerShader.setInputBuffer(
             "foreground",
             BitmapShader(rainConfig.foreground, Shader.TileMode.MIRROR, Shader.TileMode.MIRROR)
         )
 
-        rainConfig.shader.setInputBuffer(
+        rainConfig.rainShowerShader.setInputBuffer(
             "background",
             BitmapShader(rainConfig.background, Shader.TileMode.MIRROR, Shader.TileMode.MIRROR)
-        )
-
-        rainConfig.shader.setInputBuffer(
-            "blurredBackground",
-            BitmapShader(
-                rainConfig.blurredBackground,
-                Shader.TileMode.MIRROR,
-                Shader.TileMode.MIRROR
-            )
         )
     }
 
     private fun prepareColorGrading() {
-        rainConfig.colorGradingShader.setInputShader("texture", rainConfig.shader)
+        rainConfig.colorGradingShader.setInputShader("texture", rainConfig.glassRainShader)
         rainConfig.lut?.let {
             rainConfig.colorGradingShader.setInputShader(
                 "lut",
@@ -147,7 +153,6 @@ class RainEffect(
     }
 
     private companion object {
-
         private const val MILLIS_TO_SECONDS = 1 / 1000f
     }
 }

@@ -20,7 +20,6 @@ java_library {
     name: "tracinglib-platform",
     defaults: ["tracinglib-defaults"],
     srcs: ["src/platform/kotlin/**/*.kt"],
-    platform_apis: true,
 }
 
 java_library {

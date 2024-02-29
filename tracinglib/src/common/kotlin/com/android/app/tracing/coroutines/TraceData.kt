@@ -95,7 +95,7 @@ internal class TraceData : TraceStatus {
      */
     @PublishedApi
     internal fun endSpan(id: Int) {
-        val v = slices.removeLast()
+        val v = slices.removeAt(slices.lastIndex)
         if (v.id != id) {
             if (STRICT_MODE) {
                 throw IllegalArgumentException(MISMATCHED_TRACE_ERROR_MESSAGE)

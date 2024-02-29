@@ -35,9 +35,6 @@ android_library {
         "res"
     ],
     kotlincflags: ["-Xjvm-default=all"],
-    // This library is meant to access only public APIs
-    // do not flip this flag to true
-    platform_apis: false
 }
 
 android_library {

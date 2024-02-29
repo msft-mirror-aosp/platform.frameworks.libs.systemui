@@ -24,7 +24,7 @@ struct GlassRain {
 };
 
 /**
- * Generates information to show some rain running down a foggy glass surface.
+ * Generates a single layer of rain running down on a foggy glass surface.
  *
  * @param uv the UV of the fragment where we will display the rain effect.
  * @param screenAspectRatio the aspect ratio of the fragment where we will display the effect.
