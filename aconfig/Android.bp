@@ -28,6 +28,7 @@ package {
 aconfig_declarations {
     name: "com_android_systemui_shared_flags",
     package: "com.android.systemui.shared",
+    container: "system",
     srcs: [
         "*.aconfig",
     ],
