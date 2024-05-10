@@ -1,0 +1,9 @@
+package: "com.android.systemui.shared"
+container: "system"
+
+flag {
+    name: "example_shared_flag"
+    namespace: "systemui"
+    description: "An Example Flag"
+    bug: "308482106"
+}
