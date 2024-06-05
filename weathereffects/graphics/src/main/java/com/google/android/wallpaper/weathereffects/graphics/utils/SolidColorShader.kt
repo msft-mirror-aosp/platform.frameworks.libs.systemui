@@ -13,15 +13,25 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.android.app.tracing.demo.experiments
 
-interface Experiment {
+package com.google.android.wallpaper.weathereffects.graphics.utils
 
-    /** The track name for async traces */
-    val tag: String
-        get() = "Experiment:${this::class.simpleName}"
+import android.graphics.RuntimeShader
 
-    fun getDescription(): String
+/** Simply renders a solid color. */
+class SolidColorShader(color: Int) : RuntimeShader(SHADER) {
+    // language=AGSL
+    private companion object {
+        private const val SHADER =
+            """
+                layout(color) uniform vec4 in_color;
+                vec4 main(vec2 p) {
+                    return in_color;
+                }
+            """
+    }
 
-    suspend fun run()
+    init {
+        setColorUniform("in_color", color)
+    }
 }
