@@ -1,0 +1,165 @@
+/*
+ * Copyright (C) 2023 The Android Open Source Project
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+struct Snow {
+    highp float flakeMask;
+    highp vec2 cellUv;
+};
+
+const mat2 rot45 = mat2(
+    0.7071067812, 0.7071067812, // First column.
+    -0.7071067812, 0.7071067812 // second column.
+);
+
+uniform half intensity;
+
+const float farthestSnowLayerWiggleSpeed = 5.8;
+const float closestSnowLayerWiggleSpeed = 2.6;
+
+/**
+ * Generates snow flakes.
+ *
+ * @param uv the UV of the fragment where we will display the snow effect.
+ * @param screenAspectRatio the aspect ratio of the fragment where we will display the effect.
+ * @param time the elapsed time.
+ * @param snowGridSize the size of the grid, where each cell contains a snow flake.
+ * @param layerIndex the index of the current layer of snow that we want to draw. (Higher index
+ *                      indicates that it's farther away from camera).
+ * @param minLayerIndex the index of the minimum layer.
+ * @param maxLayerIndex the index of the maximum layers.
+ *
+ * @returns Snow with the snow info.
+ */
+Snow generateSnow(
+    // UVs of the target fragment (normalized).
+    in vec2 uv,
+    in float screenAspectRatio,
+    in float time,
+    in vec2 snowGridSize,
+    in float layerIndex,
+    in float minLayerIndex,
+    in float maxLayerIndex
+) {
+    // Normalize the layer index. 0 is closest, 1 is farthest.
+    half normalizedLayerIndex = map(layerIndex, minLayerIndex, maxLayerIndex, 0, 1);
+
+    /* Grid. */
+    // Increase the last number to make each layer more separate from the previous one.
+    float depth = 0.65 + layerIndex * 0.41;
+    float speedAdj = 1. + layerIndex * 0.15;
+    float layerR = idGenerator(layerIndex);
+    snowGridSize *= depth;
+    time += layerR * 58.3;
+    // Number of rows and columns (each one is a cell, a drop).
+    float cellAspectRatio = snowGridSize.x / snowGridSize.y;
+    // Aspect ratio impacts visible cells.
+    snowGridSize.y /= screenAspectRatio;
+    // Skew uv.x so it goes to left or right
+    uv.x += uv.y * (0.8 * layerR - 0.4);
+    // scale the UV to allocate number of rows and columns.
+    vec2 gridUv = uv * snowGridSize;
+    // Invert y (otherwise it goes from 0=top to 1=bottom).
+    gridUv.y = 1. - gridUv.y;
+    float verticalGridPos = 0.4 * time / speedAdj;
+    // Move grid vertically down.
+    gridUv.y += verticalGridPos;
+    // Generate column id, to offset columns vertically (so snow flakes are not aligned).
+    float columnId = idGenerator(floor(gridUv.x));
+    // Have time affect the position of each column as well.
+    gridUv.y += columnId * 2.6 + time * 0.09 * (1 - columnId);
+
+    /* Cell. */
+    // Get the cell ID based on the grid position. Value from 0 to 1.
+    float cellId = idGenerator(floor(gridUv));
+    // For each cell, we set the internal UV from -0.5 (left, bottom) to 0.5 (right, top).
+    vec2 cellUv = fract(gridUv) - 0.5;
+    cellUv.y *= -1.;
+
+   /*
+    * Disable snow flakes with some probabilty. This is done by 1) assigning a random intensity
+    * value to the cell 2) then compare it with the given intensity.
+    */
+    half cellIntensity = idGenerator(floor(vec2(cellId * 856.16, 272.2)));
+    if (cellIntensity < 1. - intensity) {
+        // Remove snow flakes by seeting flake mask to 0.
+        return Snow(/* flakeMask= */ 0, cellUv);
+    }
+
+    /* Cell-id-based variations. */
+    // 0 = snow flake invisible, 1 = snow flake visible.
+    float visibilityFactor = smoothstep(
+        cellIntensity,
+        max(cellIntensity - (0.02 + 0.18 * intensity), 0.0),
+        1 - intensity);
+    // Adjust the size of each snow flake (higher is smaller) based on cell ID.
+    float decreaseFactor = 2.0 + map(cellId, 0., 1., -0.1, 2.8) + 5. * (1 - visibilityFactor);
+    // Adjust the opacity of the particle based on the cell id and distance from the camera.
+    float farLayerFadeOut = map(normalizedLayerIndex, 0.7, 1, 1, 0.4);
+    float closeLayerFadeOut = map(normalizedLayerIndex, 0, 0.2, 0.6, 1);
+    float opacityVariation =
+        (1. - 0.9 * cellId) *
+        visibilityFactor *
+        closeLayerFadeOut *
+        farLayerFadeOut;
+
+    /* Cell snow flake. */
+    // Horizontal movement: Wiggle (Adjust the wiggle speed based on the distance).
+    float wiggleSpeed = map(
+        normalizedLayerIndex,
+        0.2,
+        0.7,
+        closestSnowLayerWiggleSpeed,
+        farthestSnowLayerWiggleSpeed);
+    // Adjust wiggle based on layer number (0 = closer to screen => we want less movement).
+    float wiggleAmp = 0.6 + 0.4 * smoothstep(0.5, 2.5, layerIndex);
+    // Define the start based on the cell id.
+    float horizontalStartAmp = 0.5;
+    // Add the wiggle (equation decided by testing in Grapher).
+    float horizontalWiggle = wiggle(
+        // Current uv position.
+        uv.y
+        // Adjustment so the shape is not skewed.
+        - cellUv.y / snowGridSize.y
+        // variation based on cell ID.
+        + cellId * 2.1,
+        wiggleSpeed * speedAdj);
+
+    // Add the start and wiggle and make that when we are closer to the edge, we don't wiggle much
+    // (so the drop doesn't go outside it's cell).
+    horizontalWiggle = horizontalStartAmp * wiggleAmp * horizontalWiggle;
+
+    // Calculate main cell drop.
+    float snowFlakePosUncorrected = (cellUv.x - horizontalWiggle);
+
+    // Calculate snow flake.
+    vec2 snowFlakeShape = vec2(1., 1.2);
+    vec2 snowFlakePos = vec2(snowFlakePosUncorrected / cellAspectRatio, cellUv.y);
+    snowFlakePos -= vec2(0., uv.y - 0.5) * cellId;
+    snowFlakePos *= snowFlakeShape * decreaseFactor;
+    vec2 snowFlakeShapeVariation = vec2(0.055) * // max variation
+        vec2((cellId * 2. - 1.), // random A based on cell ID
+            (fract((cellId + 0.03521) * 34.21) * 2. - 1.)); // random B based on cell ID
+    vec2 snowFlakePosR = 1.016 * abs(rot45 * (snowFlakePos + snowFlakeShapeVariation));
+    snowFlakePos = abs(snowFlakePos);
+    // Create the snowFlake mask.
+    float flakeMask = smoothstep(
+        0.3,
+        0.200 - 0.3 * opacityVariation,
+        snowFlakePos.x + snowFlakePos.y + snowFlakePosR.x + snowFlakePosR.y
+    ) * opacityVariation;
+
+    return Snow(flakeMask, cellUv);
+}
