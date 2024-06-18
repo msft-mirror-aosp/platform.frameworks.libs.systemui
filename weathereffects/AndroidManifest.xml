@@ -16,38 +16,4 @@
 -->
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="com.google.android.wallpaper.weathereffects">
-
-    <!--TODO: Add privileged permission-->
-
-    <uses-feature
-        android:name="android.software.live_wallpaper"
-        android:required="true" />
-
-    <queries>
-        <package android:name="com.google.android.apps.wallpaper" />
-        <package android:name="com.android.wallpaper" />
-    </queries>
-
-    <application
-        android:icon="@mipmap/ic_launcher"
-        android:label="@string/app_name">
-        <provider
-            android:name="com.google.android.wallpaper.weathereffects.provider.WeatherEffectsContentProvider"
-            android:authorities="${applicationId}.effectprovider"
-            android:exported="true" />
-        <service android:name="com.google.android.wallpaper.weathereffects.WeatherWallpaperService"
-            android:directBootAware="true"
-            android:exported="true"
-            android:label="@string/app_name"
-            android:permission="android.permission.BIND_WALLPAPER">
-            <intent-filter>
-                <action android:name="android.service.wallpaper.WallpaperService" />
-            </intent-filter>
-
-            <meta-data
-                android:name="android.service.wallpaper"
-                android:resource="@xml/weather_wallpaper" />
-        </service>
-
-    </application>
 </manifest>

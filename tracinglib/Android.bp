@@ -17,12 +17,34 @@ package {
 }
 
 java_library {
-    name: "tracinglib",
+    name: "tracinglib-platform",
+    defaults: ["tracinglib-defaults"],
+    srcs: ["src/platform/kotlin/**/*.kt"],
+}
+
+java_library {
+    name: "tracinglib-androidx",
+    defaults: ["tracinglib-defaults"],
+    srcs: ["src/androidx/kotlin/**/*.kt"],
+    sdk_version: "31",
+    min_sdk_version: "19",
+    static_libs: [
+        "androidx.tracing_tracing",
+    ],
+}
+
+java_defaults {
+    name: "tracinglib-defaults",
+    common_srcs: ["src/common/kotlin/**/*.kt"],
     static_libs: [
         "kotlinx_coroutines_android",
+        "com_android_systemui_flags_lib",
     ],
-    srcs: [
-        "src/**/*.kt"
+    kotlincflags: [
+        "-Xjvm-default=all",
+        "-Xmulti-platform",
+        "-opt-in=kotlin.ExperimentalStdlibApi",
+        "-opt-in=kotlinx.coroutines.DelicateCoroutinesApi",
+        "-opt-in=kotlinx.coroutines.ExperimentalCoroutinesApi",
     ],
-    kotlincflags: ["-Xjvm-default=all"],
 }

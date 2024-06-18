@@ -16,13 +16,51 @@ package {
     default_applicable_licenses: ["Android-Apache-2.0"],
 }
 
+// The weather effects library only contains rendering logic.
 android_library {
-    name: "WeatherEffectsLib",
-    manifest: "AndroidManifest.xml",
+    name: "WeatherEffectsGraphicsLib",
     sdk_version: "system_current",
     // min_sdk version must be specified to not compile against platform apis.
     // Using HardwareBufferRenderer requires minimum of 34.
     min_sdk_version: "34",
+    static_libs: [
+        // Do not add Torus dependency here, since this package is only for rendering. The host app
+        // will include Torus or Livewallpaper frameworks.
+        "androidx.appcompat_appcompat",
+    ],
+    srcs: [
+        "graphics/src/**/*.java",
+        "graphics/src/**/*.kt",
+    ],
+    asset_dirs: [
+        "graphics/assets",
+    ],
+    javacflags: ["-Adagger.fastInit=enabled"],
+    kotlincflags: ["-Xjvm-default=all"],
+    plugins: ["dagger2-compiler"],
+    dxflags: ["--multi-dex"],
+}
+
+// Debug app.
+android_app {
+    name: "WeatherEffectsDebug",
+    manifest: "debug/AndroidManifest.xml",
+    owner: "google",
+    sdk_version: "system_current",
+    min_sdk_version: "34",
+    srcs: [
+        "src/**/*.java",
+        "src/**/*.kt",
+        "debug/src/**/*.java",
+        "debug/src/**/*.kt",
+    ],
+    resource_dirs: [
+        "res",
+        "debug/res",
+    ],
+    asset_dirs: [
+        "debug/assets",
+    ],
     static_libs: [
         "androidx.slice_slice-core",
         "androidx.slice_slice-builders",
@@ -34,37 +72,10 @@ android_library {
         "androidx.appcompat_appcompat",
         "androidx-constraintlayout_constraintlayout",
         "toruslib",
-    ],
-    srcs: [
-        "src/**/*.java",
-        "src/**/*.kt",
-        // TODO(b/300991599): Split out debug source.
-        "debug/src/**/*.java",
-        "debug/src/**/*.kt"
-    ],
-    resource_dirs: [
-        "res",
-        // TODO(b/300991599): Split out debug resources.
-        "debug/res"
-    ],
-    javacflags: ["-Adagger.fastInit=enabled"],
-    kotlincflags: ["-Xjvm-default=all"],
-    plugins: ["dagger2-compiler"],
-    dxflags: ["--multi-dex"],
-    // This library is meant to access only public APIs, do not flip this flag to true.
-    platform_apis: false
-}
-
-android_app {
-    name: "WeatherEffects",
-    owner: "google",
-    privileged: false,
-    sdk_version: "system_current",
-    min_sdk_version: "34",
-    static_libs: [
-        "WeatherEffectsLib"
+        "WeatherEffectsGraphicsLib",
     ],
     use_embedded_native_libs: true,
+    plugins: ["dagger2-compiler"],
     optimize: {
         enabled: true,
         shrink: true,
@@ -74,7 +85,7 @@ android_app {
 
 android_test {
     name: "weathereffects_tests",
-    instrumentation_for: "WeatherEffects",
+    instrumentation_for: "WeatherEffectsDebug",
     manifest: "AndroidManifest.xml",
     test_suites: ["general-tests"],
     sdk_version: "current",
@@ -83,13 +94,12 @@ android_test {
         "tests/src/**/*.kt",
     ],
     static_libs: [
-        "WeatherEffectsLib",
+        "WeatherEffectsGraphicsLib",
         "androidx.test.rules",
         "androidx.test.ext.junit",
         "androidx.test.core",
         "androidx.test.runner",
         "kotlinx_coroutines_test",
-        "truth"
+        "truth",
     ],
 }
-

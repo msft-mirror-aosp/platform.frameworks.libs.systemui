@@ -312,6 +312,11 @@ public class FastBitmapDrawable extends Drawable implements Drawable.Callback {
         updateFilter();
     }
 
+    @VisibleForTesting
+    public Drawable getBadge() {
+        return mBadge;
+    }
+
     /**
      * Updates the paint to reflect the current brightness and saturation.
      */

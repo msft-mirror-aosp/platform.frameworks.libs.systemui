@@ -18,7 +18,7 @@
     android:height="@dimen/profile_badge_size"
     android:viewportWidth="24"
     android:viewportHeight="24"
-    android:tint="#ff3C4043">
+    android:tint="@color/badge_tint_clone">
 
     <group android:scaleX=".6" android:scaleY=".6" android:pivotX="12" android:pivotY="12">
       <path

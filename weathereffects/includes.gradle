@@ -16,3 +16,5 @@
 
 include(':toruslib')
 project(':toruslib').projectDir = new File(rootDir, '../toruslib/lib-torus')
+
+include ':graphics'
