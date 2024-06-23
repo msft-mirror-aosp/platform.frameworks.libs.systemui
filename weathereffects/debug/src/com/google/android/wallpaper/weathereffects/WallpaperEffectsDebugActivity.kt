@@ -151,7 +151,9 @@ class WallpaperEffectsDebugActivity : TorusViewerActivity() {
             addAll(
                 listOf(
                     /* TODO(b/300991599): Add debug assets. */
-                    FOREGROUND_IMAGE_1
+                    FOREGROUND_IMAGE_1,
+                    FOREGROUND_IMAGE_2,
+                    FOREGROUND_IMAGE_3,
                 ).map { getFileFromAssets(it).absolutePath })
         }
         bgCachedAssetPaths.apply {
@@ -159,7 +161,9 @@ class WallpaperEffectsDebugActivity : TorusViewerActivity() {
             addAll(
                 listOf(
                     /* TODO(b/300991599): Add debug assets. */
-                    BACKGROUND_IMAGE_1
+                    BACKGROUND_IMAGE_1,
+                    BACKGROUND_IMAGE_2,
+                    BACKGROUND_IMAGE_3,
                 ).map { getFileFromAssets(it).absolutePath })
         }
     }
@@ -236,6 +240,10 @@ class WallpaperEffectsDebugActivity : TorusViewerActivity() {
         // TODO(b/300991599): Add debug assets.
         private const val FOREGROUND_IMAGE_1 = "test-foreground.png"
         private const val BACKGROUND_IMAGE_1 = "test-background.png"
+        private const val FOREGROUND_IMAGE_2 = "test-foreground2.png"
+        private const val BACKGROUND_IMAGE_2 = "test-background2.png"
+        private const val FOREGROUND_IMAGE_3 = "test-foreground3.png"
+        private const val BACKGROUND_IMAGE_3 = "test-background3.png"
         private const val SET_WALLPAPER_REQUEST_CODE = 2
     }
 }

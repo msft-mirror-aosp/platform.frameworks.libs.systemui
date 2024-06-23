@@ -18,7 +18,7 @@
     android:height="@dimen/profile_badge_size"
     android:viewportWidth="18"
     android:viewportHeight="18"
-    android:tint="@android:color/black">
+    android:tint="@color/badge_tint_instant">
 
     <path
         android:fillColor="#FFFFFFFF"

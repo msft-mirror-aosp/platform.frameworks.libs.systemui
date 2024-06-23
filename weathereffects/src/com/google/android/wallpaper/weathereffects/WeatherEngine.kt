@@ -23,16 +23,17 @@ import android.util.Size
 import android.util.SizeF
 import android.view.SurfaceHolder
 import com.google.android.torus.canvas.engine.CanvasWallpaperEngine
-import com.google.android.wallpaper.weathereffects.fog.FogEffect
-import com.google.android.wallpaper.weathereffects.fog.FogEffectConfig
-import com.google.android.wallpaper.weathereffects.none.NoEffect
-import com.google.android.wallpaper.weathereffects.provider.WallpaperInfoContract
-import com.google.android.wallpaper.weathereffects.rain.RainEffect
-import com.google.android.wallpaper.weathereffects.rain.RainEffectConfig
-import com.google.android.wallpaper.weathereffects.snow.SnowEffect
-import com.google.android.wallpaper.weathereffects.snow.SnowEffectConfig
 import com.google.android.wallpaper.weathereffects.shared.model.WallpaperImageModel
 import com.google.android.wallpaper.weathereffects.domain.WeatherEffectsInteractor
+import com.google.android.wallpaper.weathereffects.graphics.WeatherEffect
+import com.google.android.wallpaper.weathereffects.graphics.fog.FogEffect
+import com.google.android.wallpaper.weathereffects.graphics.fog.FogEffectConfig
+import com.google.android.wallpaper.weathereffects.graphics.none.NoEffect
+import com.google.android.wallpaper.weathereffects.graphics.rain.RainEffect
+import com.google.android.wallpaper.weathereffects.graphics.rain.RainEffectConfig
+import com.google.android.wallpaper.weathereffects.graphics.snow.SnowEffect
+import com.google.android.wallpaper.weathereffects.graphics.snow.SnowEffectConfig
+import com.google.android.wallpaper.weathereffects.provider.WallpaperInfoContract
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
@@ -125,19 +126,19 @@ class WeatherEngine(
 
         when (weatherEffect) {
             WallpaperInfoContract.WeatherEffect.RAIN -> {
-                val rainConfig = RainEffectConfig.create(context, foreground, background)
+                val rainConfig = RainEffectConfig(context, foreground, background)
                 activeEffect = RainEffect(rainConfig, screenSize.toSizeF())
             }
 
             WallpaperInfoContract.WeatherEffect.FOG -> {
-                val fogConfig = FogEffectConfig.create(
+                val fogConfig = FogEffectConfig(
                     context.assets, foreground, background, context.resources.displayMetrics.density
                 )
                 activeEffect = FogEffect(fogConfig, screenSize.toSizeF())
             }
 
             WallpaperInfoContract.WeatherEffect.SNOW -> {
-                val snowConfig = SnowEffectConfig.create(context, foreground, background)
+                val snowConfig = SnowEffectConfig(context, foreground, background)
                 activeEffect = SnowEffect(snowConfig, screenSize.toSizeF(), context.mainExecutor)
             }
 

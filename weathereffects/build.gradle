@@ -74,7 +74,6 @@ android {
             // TODO: Split out debug source.
             java.srcDirs = ["${rootDir}/src", "${rootDir}/debug/src"]
             res.srcDirs = ["${rootDir}/res", "${rootDir}/debug/res"]
-            assets.srcDirs = ["${rootDir}/assets"]
             manifest.srcFile "AndroidManifest.xml"
         }
 
@@ -128,6 +127,7 @@ android {
 
 dependencies {
     implementation project(':toruslib')
+    implementation project(':graphics')
 
     implementation "androidx.slice:slice-builders:$versions.androidXLib"
     implementation "androidx.slice:slice-core:$versions.androidXLib"
