@@ -14,15 +14,15 @@
  * limitations under the License.
  */
 
-package com.android.systemui
+package com.android.systemui.util
 
-object Flags {
+object Compile {
+    private var _isDebug = true
 
-    private var isCoroutineTracingFlagEnabledForTests = true
+    val IS_DEBUG: Boolean
+        get() = _isDebug
 
-    fun coroutineTracing() = isCoroutineTracingFlagEnabledForTests
-
-    fun setCoroutineTracingEnabled(enabled: Boolean) {
-        isCoroutineTracingFlagEnabledForTests = enabled
+    fun setIsDebug(isDebug: Boolean) {
+        _isDebug = isDebug
     }
 }
