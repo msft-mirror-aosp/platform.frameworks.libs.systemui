@@ -22,6 +22,7 @@ import android.util.Log
 import android.util.Size
 import android.util.SizeF
 import android.view.SurfaceHolder
+import androidx.annotation.FloatRange
 import com.google.android.torus.canvas.engine.CanvasWallpaperEngine
 import com.google.android.wallpaper.weathereffects.shared.model.WallpaperImageModel
 import com.google.android.wallpaper.weathereffects.domain.WeatherEffectsInteractor
@@ -40,11 +41,13 @@ import kotlinx.coroutines.launch
 
 class WeatherEngine(
     defaultHolder: SurfaceHolder,
+    private val applicationScope: CoroutineScope,
+    private val interactor: WeatherEffectsInteractor,
     private val context: Context,
     hardwareAccelerated: Boolean = true
 ) : CanvasWallpaperEngine(defaultHolder, hardwareAccelerated) {
 
-    private val currentAssets: WallpaperImageModel? = null
+    private var currentAssets: WallpaperImageModel? = null
     private var activeEffect: WeatherEffect? = null
         private set(value) {
             field = value
@@ -56,8 +59,16 @@ class WeatherEngine(
         }
 
     private var collectWallpaperImageJob: Job? = null
-    private lateinit var interactor: WeatherEffectsInteractor
-    private lateinit var applicationScope: CoroutineScope
+    private var effectIntensity: Float = 1f
+
+    init {
+        /* Load assets. */
+        if (interactor.wallpaperImageModel.value == null) {
+            applicationScope.launch {
+                interactor.loadWallpaper()
+            }
+        }
+    }
 
     override fun onCreate(isFirstActiveInstance: Boolean) {
         Log.d(TAG, "Engine created.")
@@ -70,31 +81,22 @@ class WeatherEngine(
         }
     }
 
-    fun initialize(
-        applicationScope: CoroutineScope,
-        interactor: WeatherEffectsInteractor,
-    ) {
-        this.interactor = interactor
-        this.applicationScope = applicationScope
-
-        if (interactor.wallpaperImageModel.value == null) {
-            applicationScope.launch {
-                interactor.loadWallpaper()
-            }
-        }
-    }
-
     override fun onResume() {
-        if (shouldTriggerUpdate()) {
-            startUpdateLoop()
-        }
         collectWallpaperImageJob = applicationScope.launch {
             interactor.wallpaperImageModel.collect { asset ->
                 if (asset == null || asset == currentAssets) return@collect
-
+                currentAssets = asset
                 createWeatherEffect(asset.foreground, asset.background, asset.weatherEffect)
             }
         }
+        if (shouldTriggerUpdate()) startUpdateLoop()
+    }
+
+    override fun onUpdate(deltaMillis: Long, frameTimeNanos: Long) {
+        super.onUpdate(deltaMillis, frameTimeNanos)
+        activeEffect?.update(deltaMillis, frameTimeNanos)
+
+        renderWithFpsLimit(frameTimeNanos) { canvas -> activeEffect?.draw(canvas) }
     }
 
     override fun onPause() {
@@ -103,17 +105,14 @@ class WeatherEngine(
         collectWallpaperImageJob?.cancel()
     }
 
-
     override fun onDestroy(isLastActiveInstance: Boolean) {
         activeEffect?.release()
         activeEffect = null
     }
 
-    override fun onUpdate(deltaMillis: Long, frameTimeNanos: Long) {
-        super.onUpdate(deltaMillis, frameTimeNanos)
-        activeEffect?.update(deltaMillis, frameTimeNanos)
-
-        renderWithFpsLimit(frameTimeNanos) { canvas -> activeEffect?.draw(canvas) }
+    fun setIntensity(@FloatRange(from = 0.0, to = 1.0) intensity: Float) {
+        effectIntensity = intensity
+        activeEffect?.setIntensity(intensity)
     }
 
     private fun createWeatherEffect(
