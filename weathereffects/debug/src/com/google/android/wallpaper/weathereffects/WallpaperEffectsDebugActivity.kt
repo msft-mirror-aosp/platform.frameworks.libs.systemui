@@ -41,11 +41,11 @@ import com.google.android.wallpaper.weathereffects.data.repository.WallpaperFile
 import com.google.android.wallpaper.weathereffects.domain.WeatherEffectsInteractor
 import com.google.android.wallpaper.weathereffects.provider.WallpaperInfoContract
 import com.google.android.wallpaper.weathereffects.shared.model.WallpaperFileModel
-import java.io.File
-import javax.inject.Inject
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import java.io.File
+import javax.inject.Inject
 
 class WallpaperEffectsDebugActivity : TorusViewerActivity() {
 
@@ -73,7 +73,13 @@ class WallpaperEffectsDebugActivity : TorusViewerActivity() {
 
     override fun getWallpaperEngine(context: Context, surfaceView: SurfaceView): TorusEngine {
         this.surfaceView = surfaceView
-        val engine = WeatherEngine(surfaceView.holder, mainScope, interactor, context)
+        val engine = WeatherEngine(
+            surfaceView.holder,
+            mainScope,
+            interactor,
+            context,
+            isDebugActivity = true
+        )
         this.engine = engine
         return engine
     }
@@ -150,7 +156,7 @@ class WallpaperEffectsDebugActivity : TorusViewerActivity() {
             override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
                 // Convert progress to a value between 0 and 1
                 val value = progress.toFloat() / 100f
-                engine?.setIntensity(value)
+                engine?.setTargetIntensity(value)
                 intensity = value
             }
 
@@ -216,7 +222,7 @@ class WallpaperEffectsDebugActivity : TorusViewerActivity() {
                     weatherEffect,
                 )
             )
-            engine?.setIntensity(intensity)
+            engine?.setTargetIntensity(intensity)
             setDebugText(
                 "Wallpaper updated successfully.\n* Weather: " +
                         "$weatherEffect\n* Foreground: $fgPath\n* Background: $bgPath"
