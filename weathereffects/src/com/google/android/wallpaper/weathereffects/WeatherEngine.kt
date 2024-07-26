@@ -206,7 +206,9 @@ class WeatherEngine(
             }
 
             WallpaperInfoContract.WeatherEffect.SNOW -> {
-                val snowConfig = SnowEffectConfig(context, foreground, background)
+                val snowConfig = SnowEffectConfig(
+                    context.assets, foreground, background, context.resources.displayMetrics.density
+                )
                 activeEffect = SnowEffect(snowConfig, screenSize.toSizeF(), context.mainExecutor)
             }
 
