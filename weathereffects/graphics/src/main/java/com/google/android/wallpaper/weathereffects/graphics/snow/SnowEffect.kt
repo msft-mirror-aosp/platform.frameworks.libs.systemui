@@ -28,6 +28,7 @@ import com.google.android.wallpaper.weathereffects.graphics.utils.GraphicsUtils
 import com.google.android.wallpaper.weathereffects.graphics.utils.ImageCrop
 import com.google.android.wallpaper.weathereffects.graphics.utils.MathUtils
 import java.util.concurrent.Executor
+import java.util.concurrent.TimeUnit
 import kotlin.random.Random
 
 /** Defines and generates the rain weather effect animation. */
@@ -52,16 +53,20 @@ class SnowEffect(
         updateTextureUniforms()
         adjustCropping(surfaceSize)
         prepareColorGrading()
+        updateSnowGridSize(surfaceSize)
         setIntensity(snowConfig.intensity)
 
         // Generate accumulated snow at the end after we updated all the uniforms.
         generateAccumulatedSnow()
     }
 
-    override fun resize(newSurfaceSize: SizeF) = adjustCropping(newSurfaceSize)
+    override fun resize(newSurfaceSize: SizeF) {
+        adjustCropping(newSurfaceSize)
+        updateSnowGridSize(newSurfaceSize)
+    }
 
     override fun update(deltaMillis: Long, frameTimeNanos: Long) {
-        elapsedTime += snowSpeed * deltaMillis * MILLIS_TO_SECONDS
+        elapsedTime += snowSpeed * TimeUnit.MILLISECONDS.toSeconds(deltaMillis)
 
         snowConfig.shader.setFloatUniform("time", elapsedTime)
         snowConfig.colorGradingShader.setInputShader("texture", snowConfig.shader)
@@ -193,7 +198,8 @@ class SnowEffect(
         )
     }
 
-    private companion object {
-        private const val MILLIS_TO_SECONDS = 1 / 1000f
+    private fun updateSnowGridSize(surfaceSize: SizeF) {
+        val gridSize = GraphicsUtils.computeDefaultGridSize(surfaceSize, snowConfig.pixelDensity)
+        snowConfig.shader.setFloatUniform("gridSize", 7 * gridSize, 2f * gridSize)
     }
 }
