@@ -16,7 +16,7 @@
 
 package com.google.android.wallpaper.weathereffects.graphics.snow
 
-import android.content.Context
+import android.content.res.AssetManager
 import android.graphics.Bitmap
 import android.graphics.RuntimeShader
 import androidx.annotation.FloatRange
@@ -41,6 +41,8 @@ data class SnowEffectConfig(
     val foreground: Bitmap,
     /** A bitmap containing the background of the image. */
     val background: Bitmap,
+    /** Pixel density of the display. Used for dithering. */
+    val pixelDensity: Float,
     /** The amount of the snow flakes. This contributes to the color grading as well. */
     @FloatRange(from = 0.0, to = 1.0) val intensity: Float,
     /** The intensity of the color grading. 0: no color grading, 1: color grading in full effect. */
@@ -54,24 +56,26 @@ data class SnowEffectConfig(
      * @param context the application context.
      * @param foreground a bitmap containing the foreground of the image.
      * @param background a bitmap containing the background of the image.
+     * @param pixelDensity pixel density of the display.
      * @param intensity initial intensity that affects the amount of snow flakes and color grading.
      *   Expected range is [0, 1]. You can always change the intensity dynamically. Defaults to 1.
      */
     constructor(
-        context: Context,
+        assets: AssetManager,
         foreground: Bitmap,
         background: Bitmap,
+        pixelDensity: Float,
         intensity: Float = DEFAULT_INTENSITY,
     ) : this(
-        shader = GraphicsUtils.loadShader(context.assets, SHADER_PATH),
-        accumulatedSnowShader =
-            GraphicsUtils.loadShader(context.assets, ACCUMULATED_SNOW_SHADER_PATH),
-        colorGradingShader = GraphicsUtils.loadShader(context.assets, COLOR_GRADING_SHADER_PATH),
-        noiseTexture = GraphicsUtils.loadTexture(context.assets, NOISE_TEXTURE_PATH)
-                ?: throw RuntimeException("Noise texture is missing."),
-        lut = GraphicsUtils.loadTexture(context.assets, LOOKUP_TABLE_TEXTURE_PATH),
+        shader = GraphicsUtils.loadShader(assets, SHADER_PATH),
+        accumulatedSnowShader = GraphicsUtils.loadShader(assets, ACCUMULATED_SNOW_SHADER_PATH),
+        colorGradingShader = GraphicsUtils.loadShader(assets, COLOR_GRADING_SHADER_PATH),
+        noiseTexture = GraphicsUtils.loadTexture(assets, NOISE_TEXTURE_PATH)
+            ?: throw RuntimeException("Noise texture is missing."),
+        lut = GraphicsUtils.loadTexture(assets, LOOKUP_TABLE_TEXTURE_PATH),
         foreground,
         background,
+        pixelDensity,
         intensity,
         COLOR_GRADING_INTENSITY,
         MAX_SNOW_THICKNESS
