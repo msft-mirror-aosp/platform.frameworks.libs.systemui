@@ -26,13 +26,11 @@ import kotlin.coroutines.CoroutineContext
 import kotlin.coroutines.EmptyCoroutineContext
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CoroutineStart
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.newSingleThreadContext
-import kotlinx.coroutines.test.TestScope
-import kotlinx.coroutines.test.UnconfinedTestDispatcher
-import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.withContext
 import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
@@ -99,7 +97,7 @@ class CoroutineTracingTest : TestBase() {
     fun nestedUpdateAndRestoreOnSingleThread_unconfinedDispatcher() = runTestWithTraceContext {
         traceCoroutine("parent-span") {
             expect(1, "parent-span")
-            launch(UnconfinedTestDispatcher(scheduler = testScheduler)) {
+            launch(Dispatchers.Unconfined) {
                 // While this may appear unusual, it is actually expected behavior:
                 //   1) The parent has an open trace section called "parent-span".
                 //   2) The child launches, it inherits from its parent, and it is resumed

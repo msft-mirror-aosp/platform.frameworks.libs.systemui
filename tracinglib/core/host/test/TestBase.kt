@@ -21,8 +21,10 @@ import com.android.app.tracing.setAndroidSystemTracingEnabled
 import com.android.systemui.Flags
 import com.android.systemui.util.Compile
 import java.util.concurrent.atomic.AtomicInteger
-import kotlinx.coroutines.test.TestScope
-import kotlinx.coroutines.test.runTest
+import kotlin.coroutines.CoroutineContext
+import kotlin.coroutines.EmptyCoroutineContext
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertTrue
@@ -49,7 +51,19 @@ open class TestBase {
         )
     }
 
+    protected fun runTestWithTraceContext(block: suspend CoroutineScope.() -> Unit) {
+        runTest(TraceContextElement(), block)
+    }
+
+    protected fun runTest(
+        context: CoroutineContext = EmptyCoroutineContext,
+        block: suspend CoroutineScope.() -> Unit,
+    ) {
+        runBlocking(context, block)
+    }
+
     protected fun expect(vararg expectedOpenTraceSections: String) {
+        println('s')
         expect(null, *expectedOpenTraceSections)
     }
 
@@ -98,11 +112,3 @@ open class TestBase {
         const val FINAL_EVENT = Int.MIN_VALUE
     }
 }
-
-/**
- * Helper util for calling [runTest] with a [TraceContextElement]. This is useful for formatting
- * purposes. Passing an arg to `runTest {}` directly, as in `fun testStuff() =
- * runTestWithTraceContext {}` would require more indentations according to our style guide.
- */
-fun runTestWithTraceContext(testBody: suspend TestScope.() -> Unit) =
-    runTest(context = TraceContextElement(), testBody = testBody)
