@@ -25,9 +25,15 @@ private fun debug(message: String) {
     if (DEBUG) println("Thread #${Thread.currentThread().id}: $message")
 }
 
+private var isTracingEnabled = true
+
+internal fun setAndroidSystemTracingEnabled(enabled: Boolean) {
+    isTracingEnabled = enabled
+}
+
 @PublishedApi
 internal actual fun isEnabled(): Boolean {
-    return true
+    return isTracingEnabled
 }
 
 val traceCounters = mutableMapOf<String, Int>()
@@ -39,6 +45,7 @@ internal actual fun traceCounter(counterName: String, counterValue: Int) {
 object FakeTraceState {
 
     private val allThreadStates = hashMapOf<Long, MutableList<String>>()
+
     fun begin(sectionName: String) {
         val threadId = Thread.currentThread().id
         synchronized(allThreadStates) {
