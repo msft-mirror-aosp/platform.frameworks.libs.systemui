@@ -28,7 +28,9 @@ import com.google.android.wallpaper.weathereffects.graphics.WeatherEffect
 import com.google.android.wallpaper.weathereffects.graphics.utils.GraphicsUtils
 import com.google.android.wallpaper.weathereffects.graphics.utils.ImageCrop
 import com.google.android.wallpaper.weathereffects.graphics.utils.SolidColorShader
+import com.google.android.wallpaper.weathereffects.graphics.utils.TimeUtils
 import java.util.concurrent.Executor
+import java.util.concurrent.TimeUnit
 import kotlin.random.Random
 
 /** Defines and generates the rain weather effect animation. */
@@ -41,6 +43,7 @@ class RainEffect(
 ) : WeatherEffect {
 
     private val rainPaint = Paint().also { it.shader = rainConfig.colorGradingShader }
+
     // Set blur effect to reduce the outline noise. No need to set blur effect every time we
     // re-generate the outline buffer.
     private val outlineBuffer =
@@ -55,16 +58,20 @@ class RainEffect(
         updateTextureUniforms()
         adjustCropping(surfaceSize)
         prepareColorGrading()
+        updateRainGridSize(surfaceSize)
         setIntensity(rainConfig.intensity)
     }
 
-    override fun resize(newSurfaceSize: SizeF) = adjustCropping(newSurfaceSize)
+    override fun resize(newSurfaceSize: SizeF) {
+        adjustCropping(newSurfaceSize)
+        updateRainGridSize(newSurfaceSize)
+    }
 
     override fun update(deltaMillis: Long, frameTimeNanos: Long) {
-        elapsedTime += deltaMillis * MILLIS_TO_SECONDS
+        elapsedTime += TimeUtils.millisToSeconds(deltaMillis)
 
         rainConfig.rainShowerShader.setFloatUniform("time", elapsedTime)
-        rainConfig.glassRainShader.setFloatUniform("time", elapsedTime * 0.7f)
+        rainConfig.glassRainShader.setFloatUniform("time", elapsedTime)
 
         rainConfig.glassRainShader.setInputShader("texture", rainConfig.rainShowerShader)
         rainConfig.colorGradingShader.setInputShader("texture", rainConfig.glassRainShader)
@@ -85,7 +92,7 @@ class RainEffect(
 
     override fun setIntensity(intensity: Float) {
         rainConfig.rainShowerShader.setFloatUniform("intensity", intensity)
-        rainConfig.glassRainShader.setFloatUniform("intensity", intensity * 0.6f)
+        rainConfig.glassRainShader.setFloatUniform("intensity", intensity)
         rainConfig.colorGradingShader.setFloatUniform(
             "intensity",
             rainConfig.colorGradingIntensity * intensity
@@ -190,7 +197,9 @@ class RainEffect(
         }
     }
 
-    private companion object {
-        private const val MILLIS_TO_SECONDS = 1 / 1000f
+    private fun updateRainGridSize(surfaceSize: SizeF) {
+        val widthScreenScale = GraphicsUtils.computeDefaultGridSize(surfaceSize, rainConfig.pixelDensity)
+        rainConfig.rainShowerShader.setFloatUniform("gridScale", widthScreenScale)
+        rainConfig.glassRainShader.setFloatUniform("gridScale", widthScreenScale)
     }
 }
