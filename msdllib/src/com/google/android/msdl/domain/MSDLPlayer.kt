@@ -19,8 +19,10 @@ package com.google.android.msdl.domain
 import android.content.Context
 import android.os.VibratorManager
 import com.google.android.msdl.data.model.FeedbackLevel
+import com.google.android.msdl.data.model.HapticComposition
 import com.google.android.msdl.data.model.MSDLToken
 import com.google.android.msdl.data.repository.MSDLRepositoryImpl
+import com.google.android.msdl.domain.MSDLPlayerImpl.Companion.REQUIRED_PRIMITIVES
 import java.util.concurrent.Executor
 import java.util.concurrent.Executors
 
@@ -44,7 +46,8 @@ interface MSDLPlayer {
      *   properties can modify how a token plays (e.g.,
      *   [InteractionProperties.DynamicVibrationScale] for slider haptics in the
      *   [MSDLToken.DRAG_INDICATOR] token) and can be supplied if custom
-     *   [android.os.VibrationAttributes] are required for haptic playback.
+     *   [android.os.VibrationAttributes] are required for haptic playback. If no properties are
+     *   supplied, haptic feedback will play using USAGE_TOUCH [android.os.VibrationAttributes].
      */
     fun playToken(token: MSDLToken, properties: InteractionProperties? = null)
 
@@ -66,11 +69,34 @@ interface MSDLPlayer {
             // Gather vibration dependencies
             val vibratorManager =
                 context.getSystemService(Context.VIBRATOR_MANAGER_SERVICE) as VibratorManager
+            val vibrator = vibratorManager.defaultVibrator
 
             // Create repository
             val repository = MSDLRepositoryImpl()
 
-            return MSDLPlayerImpl(repository, vibratorManager.defaultVibrator, executor)
+            // Determine the support for haptic primitives to know if fallbacks will be used
+            val supportedPrimitives =
+                REQUIRED_PRIMITIVES.associateWith { vibrator.arePrimitivesSupported(it).first() }
+            val useHapticFallbackForToken =
+                MSDLToken.entries.associateWith { token ->
+                    // For each token, determine if the haptic data from the repository should use
+                    // the fallback effect
+                    val hapticComposition =
+                        repository.getHapticData(token.hapticToken)?.get() as? HapticComposition
+                    hapticComposition?.shouldPlayFallback(supportedPrimitives)
+                }
+
+            return MSDLPlayerImpl(repository, vibrator, executor, useHapticFallbackForToken)
         }
     }
+}
+
+fun HapticComposition.shouldPlayFallback(supportedPrimitives: Map<Int, Boolean>): Boolean {
+    primitives.forEach { primitive ->
+        val isSupported = supportedPrimitives[primitive.primitiveId]
+        if (isSupported == null || isSupported == false) {
+            return true
+        }
+    }
+    return false
 }
