@@ -14,15 +14,13 @@
  * limitations under the License.
  */
 
-package com.android.systemui.util
+package com.android.app.tracing.coroutines.util
 
-object Compile {
-    private var _isDebug = true
+const val DEBUG = false
 
-    val IS_DEBUG: Boolean
-        get() = _isDebug
-
-    fun setIsDebug(isDebug: Boolean) {
-        _isDebug = isDebug
-    }
+/** Log a message with a tag indicating the current thread ID */
+internal fun debugLog(message: String) {
+    if (DEBUG) println("Thread #${currentThreadId()}: $message")
 }
+
+internal fun currentThreadId(): Long = Thread.currentThread().id
