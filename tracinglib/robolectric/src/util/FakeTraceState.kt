@@ -14,40 +14,18 @@
  * limitations under the License.
  */
 
-package com.android.app.tracing
+package com.android.app.tracing.coroutines.util
 
 import org.junit.Assert.assertFalse
 
-const val DEBUG = false
-
-/** Log a message with a tag indicating the current thread ID */
-private fun debug(message: String) {
-    if (DEBUG) println("Thread #${Thread.currentThread().id}: $message")
-}
-
-private var isTracingEnabled = true
-
-internal fun setAndroidSystemTracingEnabled(enabled: Boolean) {
-    isTracingEnabled = enabled
-}
-
-@PublishedApi
-internal actual fun isEnabled(): Boolean {
-    return isTracingEnabled
-}
-
-val traceCounters = mutableMapOf<String, Int>()
-
-internal actual fun traceCounter(counterName: String, counterValue: Int) {
-    traceCounters[counterName] = counterValue
-}
-
 object FakeTraceState {
+
+    var isTracingEnabled: Boolean = true
 
     private val allThreadStates = hashMapOf<Long, MutableList<String>>()
 
     fun begin(sectionName: String) {
-        val threadId = Thread.currentThread().id
+        val threadId = currentThreadId()
         synchronized(allThreadStates) {
             if (allThreadStates.containsKey(threadId)) {
                 allThreadStates[threadId]!!.add(sectionName)
@@ -58,7 +36,7 @@ object FakeTraceState {
     }
 
     fun end() {
-        val threadId = Thread.currentThread().id
+        val threadId = currentThreadId()
         synchronized(allThreadStates) {
             assertFalse(
                 "Attempting to close trace section on thread=$threadId, " +
@@ -71,7 +49,7 @@ object FakeTraceState {
     }
 
     fun getOpenTraceSectionsOnCurrentThread(): Array<String> {
-        val threadId = Thread.currentThread().id
+        val threadId = currentThreadId()
         synchronized(allThreadStates) {
             return allThreadStates[threadId]?.toTypedArray() ?: emptyArray()
         }
@@ -90,42 +68,4 @@ object FakeTraceState {
         }
         return sb.toString()
     }
-}
-
-internal actual fun traceBegin(methodName: String) {
-    debug("traceBegin: name=$methodName")
-    FakeTraceState.begin(methodName)
-}
-
-internal actual fun traceEnd() {
-    debug("traceEnd")
-    FakeTraceState.end()
-}
-
-internal actual fun asyncTraceBegin(methodName: String, cookie: Int) {
-    debug("asyncTraceBegin: name=$methodName cookie=${cookie.toHexString()}")
-}
-
-internal actual fun asyncTraceEnd(methodName: String, cookie: Int) {
-    debug("asyncTraceEnd: name=$methodName cookie=${cookie.toHexString()}")
-}
-
-@PublishedApi
-internal actual fun asyncTraceForTrackBegin(trackName: String, methodName: String, cookie: Int) {
-    debug(
-        "asyncTraceForTrackBegin: track=$trackName name=$methodName cookie=${cookie.toHexString()}"
-    )
-}
-
-@PublishedApi
-internal actual fun asyncTraceForTrackEnd(trackName: String, methodName: String, cookie: Int) {
-    debug("asyncTraceForTrackEnd: track=$trackName name=$methodName cookie=${cookie.toHexString()}")
-}
-
-internal actual fun instant(eventName: String) {
-    debug("instant: name=$eventName")
-}
-
-internal actual fun instantForTrack(trackName: String, eventName: String) {
-    debug("instantForTrack: track=$trackName name=$eventName")
 }
