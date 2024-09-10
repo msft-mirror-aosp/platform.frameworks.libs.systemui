@@ -18,54 +18,19 @@ package {
 
 java_library {
     name: "tracinglib-platform",
-    defaults: ["tracinglib-defaults"],
     static_libs: [
         "kotlinx_coroutines_android",
         "com_android_systemui_flags_lib",
         "//frameworks/libs/systemui:compilelib",
-    ],
-    srcs: ["android/src-platform-api/**/*.kt"],
-}
-
-java_library {
-    name: "tracinglib-androidx",
-    defaults: ["tracinglib-defaults"],
-    static_libs: [
-        "kotlinx_coroutines_android",
-        "com_android_systemui_flags_lib",
-        "//frameworks/libs/systemui:compilelib",
-        "androidx.tracing_tracing",
-    ],
-    srcs: ["android/src-public-api/**/*.kt"],
-    sdk_version: "31",
-    min_sdk_version: "19",
-    java_version: "17",
-}
-
-java_test_host {
-    name: "tracinglib-host-test",
-    defaults: ["tracinglib-defaults"],
-    srcs: [
-        "host/src-fake/**/*.kt",
-        "host/test/**/*.kt",
-    ],
-    static_libs: [
-        "kotlinx_coroutines",
-        "kotlinx_coroutines_test",
     ],
     libs: [
-        "junit",
+        "androidx.annotation_annotation",
     ],
-}
-
-java_defaults {
-    name: "tracinglib-defaults",
-    common_srcs: ["common/src/**/*.kt"],
     kotlincflags: [
         "-Xjvm-default=all",
-        "-Xmulti-platform",
         "-opt-in=kotlin.ExperimentalStdlibApi",
         "-opt-in=kotlinx.coroutines.DelicateCoroutinesApi",
         "-opt-in=kotlinx.coroutines.ExperimentalCoroutinesApi",
     ],
+    srcs: ["src/**/*.kt"],
 }

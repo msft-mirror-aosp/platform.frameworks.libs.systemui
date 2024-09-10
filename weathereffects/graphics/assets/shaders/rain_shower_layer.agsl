@@ -23,6 +23,7 @@ uniform float2 uvOffsetBgd;
 uniform float2 uvScaleBgd;
 uniform float time;
 uniform float screenAspectRatio;
+uniform float gridScale;
 uniform float2 screenSize;
 uniform half intensity;
 
@@ -40,7 +41,7 @@ const float rainVisibility = 0.4;
  */
 vec3 drawSplashes(vec2 uv, vec2 fragCoord, vec3 color) {
     /** 1. Make a grid */
-    vec2 gridSize = vec2(15., 15.);
+    vec2 gridSize = vec2(15., 15.) * gridScale;
     // Aspect ratio impacts visible cells.
     gridSize.y /= screenAspectRatio;
     // Scale the UV to allocate number of rows and columns.
@@ -76,7 +77,7 @@ vec3 drawSplashes(vec2 uv, vec2 fragCoord, vec3 color) {
 
     float splash = drawSplash(cellUv, cellTime) * smoothstep(0., 0.45, intensity);
 
-    return normalBlendWithWhiteSrc(color, splash);
+    return screenBlend(color, splash);
 }
 
 vec4 main(float2 fragCoord) {
@@ -91,24 +92,24 @@ vec4 main(float2 fragCoord) {
 
     // Add rotation for the rain (as a default sin(time * 0.05) can be used).
     float variation = wiggle(time - uv.y * 1.1, 0.10);
-    uv = rotateAroundPoint(uv, vec2(0.5, -1.42), variation * PI / 9.);
+    vec2 uvRot = rotateAroundPoint(uv, vec2(0.5, -1.42), variation * PI / 9.);
 
     // 1. Generate a layer of rain behind the subject.
     Rain rain = generateRain(
-          uv,
+          uvRot,
           screenAspectRatio,
           time * 18.,
-          /* Grid size = */ vec2(20.0, 2.0),
+          /* Grid size = */ vec2(20.0, 2.0) * gridScale,
           intensity);
 
     color.rgb = mix(color.rgb, highlightColor, rainVisibility * rain.dropMask);
 
     // 2. Generate mid layer of rain behind the subject.
     rain = generateRain(
-          uv,
+          uvRot,
           screenAspectRatio,
           time * 21.4,
-          /* Grid size = */ vec2(30.0, 4.0),
+          /* Grid size = */ vec2(30.0, 4.0) * gridScale,
           intensity);
 
     // 3. Blend those layers.
@@ -122,10 +123,10 @@ vec4 main(float2 fragCoord) {
 
     // 6. Generate a layer of rain in front of the subject (bigger and faster).
     rain = generateRain(
-          uv,
+          uvRot,
           screenAspectRatio,
           time * 27.,
-          /* Grid size = */ vec2(8.0, 3.0),
+          /* Grid size = */ vec2(8.0, 3.0) * gridScale,
           intensity);
 
     // Closer rain drops are less visible.
