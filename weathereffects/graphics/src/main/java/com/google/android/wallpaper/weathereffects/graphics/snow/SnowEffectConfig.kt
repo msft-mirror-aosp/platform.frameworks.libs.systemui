@@ -30,18 +30,23 @@ data class SnowEffectConfig(
     val accumulatedSnowShader: RuntimeShader,
     /** The color grading shader. */
     val colorGradingShader: RuntimeShader,
+    /**
+     * The noise texture, which will be used to add fluffiness to the snow flakes. The texture is
+     * expected to be tileable, and at least 16-bit per channel for render quality.
+     */
+    val noiseTexture: Bitmap,
     /** The main lut (color grading) for the effect. */
     val lut: Bitmap?,
     /** A bitmap containing the foreground of the image. */
     val foreground: Bitmap,
     /** A bitmap containing the background of the image. */
     val background: Bitmap,
-    /** A bitmap containing the blurred background. */
-    val blurredBackground: Bitmap,
     /** The amount of the snow flakes. This contributes to the color grading as well. */
     @FloatRange(from = 0.0, to = 1.0) val intensity: Float,
     /** The intensity of the color grading. 0: no color grading, 1: color grading in full effect. */
     @FloatRange(from = 0.0, to = 1.0) val colorGradingIntensity: Float,
+    /** Max thickness for the accumulated snow. */
+    val maxAccumulatedSnowThickness: Float,
 ) {
     /**
      * Constructor for [SnowEffectConfig].
@@ -62,21 +67,24 @@ data class SnowEffectConfig(
         accumulatedSnowShader =
             GraphicsUtils.loadShader(context.assets, ACCUMULATED_SNOW_SHADER_PATH),
         colorGradingShader = GraphicsUtils.loadShader(context.assets, COLOR_GRADING_SHADER_PATH),
+        noiseTexture = GraphicsUtils.loadTexture(context.assets, NOISE_TEXTURE_PATH)
+                ?: throw RuntimeException("Noise texture is missing."),
         lut = GraphicsUtils.loadTexture(context.assets, LOOKUP_TABLE_TEXTURE_PATH),
         foreground,
         background,
-        blurredBackground = GraphicsUtils.blurImage(context, background, BLUR_RADIUS),
         intensity,
-        COLOR_GRADING_INTENSITY
+        COLOR_GRADING_INTENSITY,
+        MAX_SNOW_THICKNESS
     )
 
     private companion object {
         private const val SHADER_PATH = "shaders/snow_effect.agsl"
         private const val ACCUMULATED_SNOW_SHADER_PATH = "shaders/snow_accumulation.agsl"
         private const val COLOR_GRADING_SHADER_PATH = "shaders/color_grading_lut.agsl"
+        private const val NOISE_TEXTURE_PATH = "textures/clouds.png"
         private const val LOOKUP_TABLE_TEXTURE_PATH = "textures/lut_rain_and_fog.png"
-        private const val BLUR_RADIUS = 20f
         private const val DEFAULT_INTENSITY = 1f
         private const val COLOR_GRADING_INTENSITY = 0.7f
+        private const val MAX_SNOW_THICKNESS = 10f
     }
 }
