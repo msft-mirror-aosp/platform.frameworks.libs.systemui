@@ -21,13 +21,11 @@ import android.content.Context
 import android.content.pm.LauncherActivityInfo
 import android.os.Build.VERSION
 import android.os.UserHandle
-import android.util.Log
 import com.android.launcher3.Flags.useNewIconForArchivedApps
 import com.android.launcher3.icons.BaseIconFactory.IconOptions
 import com.android.launcher3.icons.BitmapInfo
 
 object LauncherActivityCachingLogic : CachingLogic<LauncherActivityInfo> {
-    const val TAG = "LauncherActivityCachingLogic"
 
     override fun getComponent(info: LauncherActivityInfo): ComponentName = info.componentName
 
@@ -47,21 +45,10 @@ object LauncherActivityCachingLogic : CachingLogic<LauncherActivityInfo> {
             iconOptions.setIsArchived(
                 useNewIconForArchivedApps() && VERSION.SDK_INT >= 35 && info.activityInfo.isArchived
             )
-            val iconDrawable = cache.iconProvider.getIcon(info, li.fullResIconDpi)
-            if (
-                VERSION.SDK_INT >= 30 &&
-                    context.packageManager.isDefaultApplicationIcon(iconDrawable)
-            ) {
-                Log.w(
-                    TAG,
-                    "loadIcon: Default app icon returned from PackageManager." +
-                        " component=${info.componentName}, user=${info.user}",
-                    Exception(),
-                )
-                // Make sure this default icon always matches BaseIconCache#getDefaultIcon
-                return cache.getDefaultIcon(info.user)
-            }
-            return li.createBadgedIconBitmap(iconDrawable, iconOptions)
+            return li.createBadgedIconBitmap(
+                cache.iconProvider.getIcon(info, li.fullResIconDpi),
+                iconOptions,
+            )
         }
     }
 }
