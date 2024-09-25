@@ -589,6 +589,16 @@ public abstract class BaseIconCache {
     }
 
     /**
+     * Returns the package entry if it has already been cached in memory, null otherwise
+     */
+    @Nullable
+    protected CacheEntry getInMemoryPackageEntryLocked(@NonNull final String packageName,
+            @NonNull final UserHandle user) {
+        assertWorkerThread();
+        return mCache.get(getPackageKey(packageName, user));
+    }
+
+    /**
      * Gets an entry for the package, which can be used as a fallback entry for various components.
      * This method is not thread safe, it must be called from a synchronized method.
      */
