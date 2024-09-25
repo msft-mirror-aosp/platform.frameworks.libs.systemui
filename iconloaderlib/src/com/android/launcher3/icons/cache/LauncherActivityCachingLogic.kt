@@ -33,7 +33,7 @@ object LauncherActivityCachingLogic : CachingLogic<LauncherActivityInfo> {
 
     override fun getLabel(info: LauncherActivityInfo): CharSequence? = info.label
 
-    override fun getDescription(info: LauncherActivityInfo, fallback: CharSequence) = fallback
+    override fun getApplicationInfo(info: LauncherActivityInfo) = info.applicationInfo
 
     override fun loadIcon(
         context: Context,
