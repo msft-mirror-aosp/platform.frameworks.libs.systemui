@@ -17,7 +17,6 @@ package com.android.launcher3.icons.cache;
 
 import static android.graphics.BitmapFactory.decodeByteArray;
 
-import static com.android.launcher3.icons.BaseIconFactory.getFullResDefaultActivityIcon;
 import static com.android.launcher3.icons.BitmapInfo.LOW_RES_ICON;
 import static com.android.launcher3.icons.GraphicsUtils.flattenBitmap;
 import static com.android.launcher3.icons.GraphicsUtils.setColorAlphaBound;
@@ -32,7 +31,6 @@ import android.content.pm.ApplicationInfo;
 import android.content.pm.PackageInfo;
 import android.content.pm.PackageManager;
 import android.content.pm.PackageManager.NameNotFoundException;
-import android.content.res.Resources;
 import android.database.Cursor;
 import android.database.sqlite.SQLiteDatabase;
 import android.database.sqlite.SQLiteException;
@@ -52,6 +50,7 @@ import android.text.TextUtils;
 import android.util.Log;
 import android.util.SparseArray;
 
+import androidx.annotation.IntDef;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.annotation.VisibleForTesting;
@@ -66,6 +65,8 @@ import com.android.launcher3.util.ComponentKey;
 import com.android.launcher3.util.FlagOp;
 import com.android.launcher3.util.SQLiteCacheHelper;
 
+import java.lang.annotation.Retention;
+import java.lang.annotation.RetentionPolicy;
 import java.nio.ByteBuffer;
 import java.util.AbstractMap;
 import java.util.Arrays;
@@ -87,6 +88,31 @@ public abstract class BaseIconCache {
 
     // Empty class name is used for storing package default entry.
     public static final String EMPTY_CLASS_NAME = ".";
+
+    @Retention(RetentionPolicy.SOURCE)
+    @IntDef(value = {
+            LookupFlag.DEFAULT,
+            LookupFlag.USE_LOW_RES,
+            LookupFlag.USE_PACKAGE_ICON,
+    }, flag = true)
+    /** Various options to control cache lookup */
+    public @interface LookupFlag {
+        /**
+         * Default behavior of cache lookup is to load high-res icon with no fallback
+         */
+        int DEFAULT = 0;
+
+        /**
+         * When specified, the cache tries to load the low res version of the entry unless a
+         * high-res is already in memory
+         */
+        int USE_LOW_RES = 1 << 0;
+        /**
+         * When specified, the cache tries to lookup the package entry for the item, if the object
+         * entry fails
+         */
+        int USE_PACKAGE_ICON = 1 << 1;
+    }
 
     public static class CacheEntry {
 
@@ -222,33 +248,8 @@ public abstract class BaseIconCache {
     }
 
     @Nullable
-    private Drawable getFullResIcon(@Nullable final Resources resources, final int iconId) {
-        if (resources != null && iconId != 0) {
-            try {
-                return resources.getDrawableForDensity(iconId, mIconDpi);
-            } catch (Resources.NotFoundException e) {
-            }
-        }
-        return getFullResDefaultActivityIcon(mIconDpi);
-    }
-
-    @Nullable
-    public Drawable getFullResIcon(@NonNull final String packageName, final int iconId) {
-        try {
-            return getFullResIcon(mPackageManager.getResourcesForApplication(packageName), iconId);
-        } catch (PackageManager.NameNotFoundException e) {
-        }
-        return getFullResDefaultActivityIcon(mIconDpi);
-    }
-
-    @Nullable
     public Drawable getFullResIcon(@NonNull final ActivityInfo info) {
-        try {
-            return getFullResIcon(mPackageManager.getResourcesForApplication(info.applicationInfo),
-                    info.getIconResource());
-        } catch (PackageManager.NameNotFoundException e) {
-        }
-        return getFullResDefaultActivityIcon(mIconDpi);
+        return mIconProvider.getIcon(info, mIconDpi);
     }
 
     public void setIconUpdateInProgress(boolean updating) {
@@ -408,7 +409,7 @@ public abstract class BaseIconCache {
     public synchronized BitmapInfo getDefaultIcon(@NonNull final UserHandle user) {
         if (mDefaultIcon == null) {
             try (BaseIconFactory li = getIconFactory()) {
-                mDefaultIcon = li.makeDefaultIcon();
+                mDefaultIcon = li.makeDefaultIcon(mIconProvider);
             }
         }
         return mDefaultIcon.withFlags(getUserFlagOpLocked(user));
@@ -441,26 +442,25 @@ public abstract class BaseIconCache {
     protected <T> CacheEntry cacheLocked(
             @NonNull final ComponentName componentName, @NonNull final UserHandle user,
             @NonNull final Supplier<T> infoProvider, @NonNull final CachingLogic<T> cachingLogic,
-            final boolean usePackageIcon, final boolean useLowResIcon) {
+            @LookupFlag int lookupFlags) {
         return cacheLocked(
                 componentName,
                 user,
                 infoProvider,
                 cachingLogic,
-                null,
-                usePackageIcon,
-                useLowResIcon);
+                lookupFlags,
+                null);
     }
 
     @NonNull
     protected <T> CacheEntry cacheLocked(
             @NonNull final ComponentName componentName, @NonNull final UserHandle user,
             @NonNull final Supplier<T> infoProvider, @NonNull final CachingLogic<T> cachingLogic,
-            @Nullable final Cursor cursor, final boolean usePackageIcon,
-            final boolean useLowResIcon) {
+            @LookupFlag int lookupFlags, @Nullable final Cursor cursor) {
         assertWorkerThread();
         ComponentKey cacheKey = new ComponentKey(componentName, user);
         CacheEntry entry = mCache.get(cacheKey);
+        final boolean useLowResIcon = (lookupFlags & LookupFlag.USE_LOW_RES) != 0;
         if (entry == null || (entry.bitmap.isLowRes() && !useLowResIcon)) {
             entry = new CacheEntry();
             if (cachingLogic.addToMemCache()) {
@@ -481,7 +481,7 @@ public abstract class BaseIconCache {
                         object,
                         entry,
                         cachingLogic,
-                        usePackageIcon,
+                        (lookupFlags & LookupFlag.USE_PACKAGE_ICON) != 0,
                         /* usePackageTitle= */ true,
                         componentName,
                         user);
