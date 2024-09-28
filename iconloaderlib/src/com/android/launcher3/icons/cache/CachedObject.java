@@ -17,6 +17,7 @@
 package com.android.launcher3.icons.cache;
 
 import android.content.ComponentName;
+import android.content.pm.ApplicationInfo;
 import android.content.pm.PackageManager;
 import android.graphics.drawable.Drawable;
 import android.os.UserHandle;
@@ -53,4 +54,10 @@ public interface CachedObject<T extends BaseIconCache> {
     default Drawable getFullResIcon(@NonNull T cache) {
         return null;
     }
+
+    /**
+     * @see CachingLogic#getApplicationInfo
+     */
+    @Nullable
+    ApplicationInfo getApplicationInfo();
 }
