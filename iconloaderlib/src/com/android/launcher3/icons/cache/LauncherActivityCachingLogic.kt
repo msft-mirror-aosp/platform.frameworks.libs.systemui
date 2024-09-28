@@ -35,7 +35,7 @@ object LauncherActivityCachingLogic : CachingLogic<LauncherActivityInfo> {
 
     override fun getLabel(info: LauncherActivityInfo): CharSequence? = info.label
 
-    override fun getDescription(info: LauncherActivityInfo, fallback: CharSequence) = fallback
+    override fun getApplicationInfo(info: LauncherActivityInfo) = info.applicationInfo
 
     override fun loadIcon(
         context: Context,
@@ -47,11 +47,8 @@ object LauncherActivityCachingLogic : CachingLogic<LauncherActivityInfo> {
             iconOptions.setIsArchived(
                 useNewIconForArchivedApps() && VERSION.SDK_INT >= 35 && info.activityInfo.isArchived
             )
-            val iconDrawable = cache.iconProvider.getIcon(info, li.fullResIconDpi)
-            if (
-                VERSION.SDK_INT >= 30 &&
-                    context.packageManager.isDefaultApplicationIcon(iconDrawable)
-            ) {
+            val iconDrawable = cache.iconProvider.getIcon(info.activityInfo, li.fullResIconDpi)
+            if (context.packageManager.isDefaultApplicationIcon(iconDrawable)) {
                 Log.w(
                     TAG,
                     "loadIcon: Default app icon returned from PackageManager." +

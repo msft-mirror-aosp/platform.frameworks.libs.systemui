@@ -28,8 +28,9 @@ import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
-import android.content.pm.ActivityInfo;
-import android.content.pm.LauncherActivityInfo;
+import android.content.pm.ApplicationInfo;
+import android.content.pm.ComponentInfo;
+import android.content.pm.PackageItemInfo;
 import android.content.pm.PackageManager;
 import android.content.pm.PackageManager.NameNotFoundException;
 import android.content.res.Resources;
@@ -47,13 +48,14 @@ import android.os.UserManager;
 import android.text.TextUtils;
 import android.util.Log;
 
+import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.core.os.BuildCompat;
 
 import com.android.launcher3.util.SafeCloseable;
 
 import java.util.Calendar;
-import java.util.function.Supplier;
+import java.util.Objects;
 
 /**
  * Class to handle icon loading from different packages
@@ -95,31 +97,35 @@ public class IconProvider {
     }
 
     /**
-     * Loads the icon for the provided LauncherActivityInfo
-     */
-    public Drawable getIcon(LauncherActivityInfo info, int iconDpi) {
-        return getIconWithOverrides(info.getApplicationInfo().packageName, iconDpi,
-                () -> info.getIcon(iconDpi));
-    }
-
-    /**
      * Loads the icon for the provided activity info
      */
-    public Drawable getIcon(ActivityInfo info) {
+    public Drawable getIcon(ComponentInfo info) {
         return getIcon(info, mContext.getResources().getConfiguration().densityDpi);
     }
 
     /**
-     * Loads the icon for the provided activity info
+     * Loads the icon for the provided component info
      */
-    public Drawable getIcon(ActivityInfo info, int iconDpi) {
-        return getIconWithOverrides(info.applicationInfo.packageName, iconDpi,
-                () -> loadActivityInfoIcon(info, iconDpi));
+    public Drawable getIcon(ComponentInfo info, int iconDpi) {
+        return getIcon(info, info.applicationInfo, iconDpi);
     }
 
-    @TargetApi(Build.VERSION_CODES.TIRAMISU)
-    private Drawable getIconWithOverrides(String packageName, int iconDpi,
-            Supplier<Drawable> fallback) {
+    /**
+     * Loads the icon for the provided application info
+     */
+    public Drawable getIcon(ApplicationInfo info) {
+        return getIcon(info, mContext.getResources().getConfiguration().densityDpi);
+    }
+
+    /**
+     * Loads the icon for the provided application info
+     */
+    public Drawable getIcon(ApplicationInfo info, int iconDpi) {
+        return getIcon(info, info, iconDpi);
+    }
+
+    private Drawable getIcon(PackageItemInfo info, ApplicationInfo appInfo, int iconDpi) {
+        String packageName = info.packageName;
         ThemeData td = getThemeDataForPackage(packageName);
 
         Drawable icon = null;
@@ -129,7 +135,7 @@ public class IconProvider {
             icon = ClockDrawableWrapper.forPackage(mContext, mClock.getPackageName(), iconDpi, td);
         }
         if (icon == null) {
-            icon = fallback.get();
+            icon = loadPackageIcon(info, appInfo, iconDpi);
             if (ATLEAST_T && icon instanceof AdaptiveIconDrawable && td != null) {
                 AdaptiveIconDrawable aid = (AdaptiveIconDrawable) icon;
                 if  (aid.getMonochrome() == null) {
@@ -145,22 +151,31 @@ public class IconProvider {
         return null;
     }
 
-    private Drawable loadActivityInfoIcon(ActivityInfo ai, int density) {
-        final int iconRes = ai.getIconResource();
+    private Drawable loadPackageIcon(PackageItemInfo info, ApplicationInfo appInfo, int density) {
         Drawable icon = null;
-        // Get the preferred density icon from the app's resources
-        if (density != 0 && iconRes != 0) {
+        if (BuildCompat.isAtLeastV() && info.isArchived) {
+            // Icons for archived apps com from system service, let the default impl handle that
+            icon = info.loadIcon(mContext.getPackageManager());
+        }
+        if (icon == null && density != 0 && (info.icon != 0 || appInfo.icon != 0)) {
             try {
                 final Resources resources = mContext.getPackageManager()
-                        .getResourcesForApplication(ai.applicationInfo);
-                icon = resources.getDrawableForDensity(iconRes, density);
+                        .getResourcesForApplication(appInfo);
+                // Try to load the package item icon first
+                if (info.icon != 0) {
+                    try {
+                        icon = resources.getDrawableForDensity(info.icon, density);
+                    } catch (Resources.NotFoundException exc) { }
+                }
+                if (icon == null && appInfo.icon != 0) {
+                    // Load the fallback app icon
+                    try {
+                        icon = resources.getDrawableForDensity(appInfo.icon, density);
+                    } catch (Resources.NotFoundException exc) { }
+                }
             } catch (NameNotFoundException | Resources.NotFoundException exc) { }
         }
-        // Get the default density icon
-        if (icon == null) {
-            icon = ai.loadIcon(mContext.getPackageManager());
-        }
-        return icon;
+        return icon != null ? icon : getFullResDefaultActivityIcon(density);
     }
 
     @TargetApi(Build.VERSION_CODES.TIRAMISU)
@@ -199,6 +214,15 @@ public class IconProvider {
             }
         }
         return null;
+    }
+
+    /**
+     * Returns the default activity icon
+     */
+    @NonNull
+    public Drawable getFullResDefaultActivityIcon(final int iconDpi) {
+        return Objects.requireNonNull(Resources.getSystem().getDrawableForDensity(
+                android.R.drawable.sym_def_app_icon, iconDpi));
     }
 
     /**

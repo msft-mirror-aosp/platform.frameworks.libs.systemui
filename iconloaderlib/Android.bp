@@ -19,7 +19,7 @@ package {
 android_library {
     name: "iconloader_base",
     sdk_version: "current",
-    min_sdk_version: "26",
+    min_sdk_version: "31",
     static_libs: [
         "androidx.core_core",
         "com_android_launcher3_flags_lib",
@@ -36,7 +36,7 @@ android_library {
 android_library {
     name: "iconloader",
     sdk_version: "system_current",
-    min_sdk_version: "26",
+    min_sdk_version: "31",
     static_libs: [
         "androidx.core_core",
         "com_android_launcher3_flags_lib",
