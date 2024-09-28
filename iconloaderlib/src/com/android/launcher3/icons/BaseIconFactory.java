@@ -43,7 +43,6 @@ import com.android.launcher3.util.FlagOp;
 import com.android.launcher3.util.UserIconInfo;
 
 import java.lang.annotation.Retention;
-import java.util.Objects;
 
 /**
  * This class will be moved to androidx library. There shouldn't be any dependency outside
@@ -208,7 +207,7 @@ public class BaseIconFactory implements AutoCloseable {
      * The bitmap is visually normalized with other icons and has enough spacing to add shadow.
      *
      * @param icon source of the icon
-     * @return a bitmap suitable for disaplaying as an icon at various system UIs.
+     * @return a bitmap suitable for displaying as an icon at various system UIs.
      */
     @TargetApi(Build.VERSION_CODES.TIRAMISU)
     @NonNull
@@ -488,14 +487,8 @@ public class BaseIconFactory implements AutoCloseable {
     }
 
     @NonNull
-    public BitmapInfo makeDefaultIcon() {
-        return createBadgedIconBitmap(getFullResDefaultActivityIcon(mFullResIconDpi));
-    }
-
-    @NonNull
-    public static Drawable getFullResDefaultActivityIcon(final int iconDpi) {
-        return Objects.requireNonNull(Resources.getSystem().getDrawableForDensity(
-                android.R.drawable.sym_def_app_icon, iconDpi));
+    public BitmapInfo makeDefaultIcon(IconProvider iconProvider) {
+        return createBadgedIconBitmap(iconProvider.getFullResDefaultActivityIcon(mFullResIconDpi));
     }
 
     /**
