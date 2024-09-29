@@ -17,6 +17,7 @@ package com.android.launcher3.icons.cache;
 
 import android.content.ComponentName;
 import android.content.Context;
+import android.content.pm.ApplicationInfo;
 import android.content.pm.PackageInfo;
 import android.os.UserHandle;
 
@@ -44,6 +45,13 @@ public interface CachingLogic<T> {
             @NonNull final CharSequence fallback) {
         return fallback;
     }
+
+    /**
+     * Returns the application info associated with the object. This is used to maintain the
+     * "freshness" of the disk cache. If null, the item will not be persisted to the disk
+     */
+    @Nullable
+    ApplicationInfo getApplicationInfo(@NonNull T object);
 
     @NonNull
     BitmapInfo loadIcon(@NonNull Context context, @NonNull BaseIconCache cache, @NonNull T object);
