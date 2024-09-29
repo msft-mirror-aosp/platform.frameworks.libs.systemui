@@ -217,7 +217,7 @@ class WeatherEngine(
                         foreground,
                         background,
                         effectIntensity,
-                        screenSize.toSizeF()
+                        screenSize.toSizeF(),
                     )
             }
             WallpaperInfoContract.WeatherEffect.SNOW -> {
@@ -242,7 +242,7 @@ class WeatherEngine(
                         foreground,
                         background,
                         effectIntensity,
-                        screenSize.toSizeF()
+                        screenSize.toSizeF(),
                     )
             }
             else -> {
@@ -370,7 +370,7 @@ class WeatherEngine(
                     background,
                     256,
                     (background.width / background.height.toFloat() * 256).roundToInt(),
-                    /* filter = */ true
+                    /* filter = */ true,
                 )
             )
     }
@@ -382,7 +382,7 @@ class WeatherEngine(
     private enum class AnimationType {
         UNLOCK,
         WAKE,
-        NONE
+        NONE,
     }
 
     private companion object {
