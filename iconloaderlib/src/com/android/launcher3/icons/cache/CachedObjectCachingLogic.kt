@@ -52,4 +52,6 @@ constructor(
     }
 
     override fun addToMemCache() = addToMemCache
+
+    override fun getApplicationInfo(info: CachedObject<T>) = info.applicationInfo
 }

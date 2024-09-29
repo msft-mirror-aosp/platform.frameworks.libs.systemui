@@ -37,4 +37,6 @@ data class MSDLEvent(val tokenName: String, val properties: String?, val timeSta
         properties?.toString(),
         MSDLHistoryLogger.DATE_FORMAT.format(System.currentTimeMillis()),
     )
+
+    override fun toString(): String = "$timeStamp | token: $tokenName | properties: $properties"
 }
