@@ -15,6 +15,7 @@
  */
 package com.android.launcher3.icons.cache;
 
+import static android.content.pm.PackageManager.MATCH_UNINSTALLED_PACKAGES;
 import static android.graphics.BitmapFactory.decodeByteArray;
 
 import static com.android.launcher3.icons.BitmapInfo.LOW_RES_ICON;
@@ -28,7 +29,7 @@ import android.content.ContentValues;
 import android.content.Context;
 import android.content.pm.ActivityInfo;
 import android.content.pm.ApplicationInfo;
-import android.content.pm.PackageInfo;
+import android.content.pm.LauncherApps;
 import android.content.pm.PackageManager;
 import android.content.pm.PackageManager.NameNotFoundException;
 import android.database.Cursor;
@@ -39,11 +40,8 @@ import android.graphics.Bitmap;
 import android.graphics.Bitmap.Config;
 import android.graphics.BitmapFactory;
 import android.graphics.drawable.Drawable;
-import android.os.Build;
 import android.os.Handler;
-import android.os.LocaleList;
 import android.os.Looper;
-import android.os.Process;
 import android.os.Trace;
 import android.os.UserHandle;
 import android.text.TextUtils;
@@ -152,12 +150,6 @@ public abstract class BaseIconCache {
     @NonNull
     protected IconDB mIconDb;
 
-    @NonNull
-    protected LocaleList mLocaleList = LocaleList.getEmptyLocaleList();
-
-    @NonNull
-    protected String mSystemState = "";
-
     @Nullable
     private BitmapInfo mDefaultIcon;
 
@@ -193,7 +185,7 @@ public abstract class BaseIconCache {
             mCache = new HashMap<>(INITIAL_ICON_CACHE_CAPACITY);
         } else {
             // Use a dummy cache
-            mCache = new AbstractMap<ComponentKey, CacheEntry>() {
+            mCache = new AbstractMap<>() {
                 @Override
                 public Set<Entry<ComponentKey, CacheEntry>> entrySet() {
                     return Collections.emptySet();
@@ -298,6 +290,10 @@ public abstract class BaseIconCache {
     @NonNull
     public IconCacheUpdateHandler getUpdateHandler() {
         updateSystemState();
+
+        // Remove all active icon update tasks.
+        workerHandler.removeCallbacksAndMessages(iconUpdateToken);
+
         return new IconCacheUpdateHandler(this);
     }
 
@@ -307,14 +303,8 @@ public abstract class BaseIconCache {
      * and system-version.
      */
     private void updateSystemState() {
-        mLocaleList = mContext.getResources().getConfiguration().getLocales();
-        mSystemState = mLocaleList.toLanguageTags() + "," + Build.VERSION.SDK_INT;
+        mIconProvider.updateSystemState();
         mUserFormatString.clear();
-    }
-
-    @NonNull
-    protected String getIconSystemState(@Nullable final String packageName) {
-        return mIconProvider.getSystemStateForPackage(mSystemState, packageName);
     }
 
     public IconProvider getIconProvider() {
@@ -342,8 +332,7 @@ public abstract class BaseIconCache {
      * entry fails to load
      */
     protected synchronized <T> void addIconToDBAndMemCache(@NonNull final T object,
-            @NonNull final CachingLogic<T> cachingLogic, @NonNull final PackageInfo info,
-            final long userSerial) {
+            @NonNull final CachingLogic<T> cachingLogic, final long userSerial) {
         UserHandle user = cachingLogic.getUser(object);
         ComponentName componentName = cachingLogic.getComponent(object);
         final ComponentKey key = new ComponentKey(componentName, user);
@@ -371,24 +360,10 @@ public abstract class BaseIconCache {
             mCache.put(key, entry);
         }
 
-        ContentValues values = newContentValues(
-                bitmapInfo, entryTitle.toString(), componentName.getPackageName());
-        addIconToDB(values, componentName, info, userSerial,
-                cachingLogic.getLastUpdatedTime(object, info));
-    }
-
-    /**
-     * Updates {@param values} to contain versioning information and adds it to the DB.
-     *
-     * @param values {@link ContentValues} containing icon & title
-     */
-    private void addIconToDB(@NonNull final ContentValues values, @NonNull final ComponentName key,
-            @NonNull final PackageInfo info, final long userSerial, final long lastUpdateTime) {
-        values.put(IconDB.COLUMN_COMPONENT, key.flattenToString());
-        values.put(IconDB.COLUMN_USER, userSerial);
-        values.put(IconDB.COLUMN_LAST_UPDATED, lastUpdateTime);
-        values.put(IconDB.COLUMN_VERSION, info.versionCode);
-        mIconDb.insertOrReplace(values);
+        String freshnessId = cachingLogic.getFreshnessIdentifier(object, mIconProvider);
+        if (freshnessId != null) {
+            addOrUpdateCacheDbEntry(bitmapInfo, entryTitle, componentName, userSerial, freshnessId);
+        }
     }
 
     @NonNull
@@ -530,8 +505,7 @@ public abstract class BaseIconCache {
         if (TextUtils.isEmpty(entry.title)) {
             entry.title = cachingLogic.getComponent(object).getPackageName();
         }
-        entry.contentDescription = getUserBadgedLabel(
-                cachingLogic.getDescription(object, entry.title), user);
+        entry.contentDescription = getUserBadgedLabel(entry.title, user);
     }
 
     public synchronized void clearMemoryCache() {
@@ -613,28 +587,23 @@ public abstract class BaseIconCache {
             // Check the DB first.
             if (!getEntryFromDBLocked(cacheKey, entry, useLowResIcon)) {
                 try {
-                    long flags = Process.myUserHandle().equals(user) ? 0 :
-                            PackageManager.GET_UNINSTALLED_PACKAGES;
-                    flags |= PackageManager.MATCH_ARCHIVED_PACKAGES;
-                    PackageInfo info = mPackageManager.getPackageInfo(packageName,
-                            PackageManager.PackageInfoFlags.of(flags));
-                    ApplicationInfo appInfo = info.applicationInfo;
+                    ApplicationInfo appInfo = mContext.getSystemService(LauncherApps.class)
+                            .getApplicationInfo(packageName, MATCH_UNINSTALLED_PACKAGES, user);
                     if (appInfo == null) {
-                        NameNotFoundException e = new NameNotFoundException(
-                                "ApplicationInfo is null");
+                        NameNotFoundException e =
+                                new NameNotFoundException("ApplicationInfo is null");
                         logdPersistently(TAG,
-                                String.format("ApplicationInfo is null for %s", packageName),
-                                e);
+                                String.format("ApplicationInfo is null for %s", packageName), e);
                         throw e;
                     }
 
                     BaseIconFactory li = getIconFactory();
                     // Load the full res icon for the application, but if useLowResIcon is set, then
                     // only keep the low resolution icon instead of the larger full-sized icon
-                    Drawable appIcon = appInfo.loadIcon(mPackageManager);
+                    Drawable appIcon = mIconProvider.getIcon(appInfo);
                     if (mPackageManager.isDefaultApplicationIcon(appIcon)) {
                         logdPersistently(TAG,
-                                String.format("Default icon returned for %s", packageName),
+                                String.format("Default icon returned for %s", appInfo.packageName),
                                 null);
                     }
                     BitmapInfo iconInfo = li.createBadgedIconBitmap(appIcon,
@@ -649,11 +618,12 @@ public abstract class BaseIconCache {
 
                     // Add the icon in the DB here, since these do not get written during
                     // package updates.
-                    ContentValues values = newContentValues(
-                            iconInfo, entry.title.toString(), packageName);
-                    addIconToDB(values, cacheKey.componentName, info, getSerialNumberForUser(user),
-                            info.lastUpdateTime);
-
+                    String freshnessId = mIconProvider.getStateForApp(appInfo);
+                    if (freshnessId != null) {
+                        addOrUpdateCacheDbEntry(
+                                iconInfo, entry.title, cacheKey.componentName,
+                                getSerialNumberForUser(user), freshnessId);
+                    }
                 } catch (NameNotFoundException e) {
                     if (DEBUG) Log.d(TAG, "Application not installed " + packageName);
                     entryUpdated = false;
@@ -758,20 +728,18 @@ public abstract class BaseIconCache {
     public static final class IconDB extends SQLiteCacheHelper {
         // Ensures archived app icons are invalidated after flag is flipped.
         // TODO: Remove conditional with FLAG_USE_NEW_ICON_FOR_ARCHIVED_APPS
-        private static final int RELEASE_VERSION = Flags.useNewIconForArchivedApps() ? 35 : 34;
+        private static final int RELEASE_VERSION = Flags.useNewIconForArchivedApps() ? 2 : 1;
 
         public static final String TABLE_NAME = "icons";
         public static final String COLUMN_ROWID = "rowid";
         public static final String COLUMN_COMPONENT = "componentName";
         public static final String COLUMN_USER = "profileId";
-        public static final String COLUMN_LAST_UPDATED = "lastUpdated";
-        public static final String COLUMN_VERSION = "version";
+        public static final String COLUMN_FRESHNESS_ID = "freshnessId";
         public static final String COLUMN_ICON = "icon";
         public static final String COLUMN_ICON_COLOR = "icon_color";
         public static final String COLUMN_MONO_ICON = "mono_icon";
         public static final String COLUMN_FLAGS = "flags";
         public static final String COLUMN_LABEL = "label";
-        public static final String COLUMN_SYSTEM_STATE = "system_state";
 
         public static final String[] COLUMNS_LOW_RES = new String[]{
                 COLUMN_COMPONENT,
@@ -802,22 +770,24 @@ public abstract class BaseIconCache {
             db.execSQL("CREATE TABLE IF NOT EXISTS " + TABLE_NAME + " ("
                     + COLUMN_COMPONENT + " TEXT NOT NULL, "
                     + COLUMN_USER + " INTEGER NOT NULL, "
-                    + COLUMN_LAST_UPDATED + " INTEGER NOT NULL DEFAULT 0, "
-                    + COLUMN_VERSION + " INTEGER NOT NULL DEFAULT 0, "
+                    + COLUMN_FRESHNESS_ID + " TEXT, "
                     + COLUMN_ICON + " BLOB, "
                     + COLUMN_MONO_ICON + " BLOB, "
                     + COLUMN_ICON_COLOR + " INTEGER NOT NULL DEFAULT 0, "
                     + COLUMN_FLAGS + " INTEGER NOT NULL DEFAULT 0, "
                     + COLUMN_LABEL + " TEXT, "
-                    + COLUMN_SYSTEM_STATE + " TEXT, "
                     + "PRIMARY KEY (" + COLUMN_COMPONENT + ", " + COLUMN_USER + ") "
                     + ");");
         }
     }
 
     @NonNull
-    private ContentValues newContentValues(@NonNull final BitmapInfo bitmapInfo,
-            @NonNull final String label, @NonNull final String packageName) {
+    private void addOrUpdateCacheDbEntry(
+            @NonNull final BitmapInfo bitmapInfo,
+            @NonNull final CharSequence label,
+            @NonNull final ComponentName key,
+            final long userSerial,
+            @NonNull final String freshnessId) {
         ContentValues values = new ContentValues();
         if (bitmapInfo.canPersist()) {
             values.put(IconDB.COLUMN_ICON, flattenBitmap(bitmapInfo.icon));
@@ -839,10 +809,12 @@ public abstract class BaseIconCache {
         }
         values.put(IconDB.COLUMN_ICON_COLOR, bitmapInfo.color);
         values.put(IconDB.COLUMN_FLAGS, bitmapInfo.flags);
+        values.put(IconDB.COLUMN_LABEL, label.toString());
 
-        values.put(IconDB.COLUMN_LABEL, label);
-        values.put(IconDB.COLUMN_SYSTEM_STATE, getIconSystemState(packageName));
-        return values;
+        values.put(IconDB.COLUMN_COMPONENT, key.flattenToString());
+        values.put(IconDB.COLUMN_USER, userSerial);
+        values.put(IconDB.COLUMN_FRESHNESS_ID, freshnessId);
+        mIconDb.insertOrReplace(values);
     }
 
     private void assertWorkerThread() {
