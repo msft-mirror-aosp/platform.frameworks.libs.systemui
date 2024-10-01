@@ -29,7 +29,8 @@ open class TracingTestBase : TestBase() {
 
     @Before
     fun setupContexts() {
-        mainTraceContext = createCoroutineTracingContext("main")
+        mainTraceContext =
+            createCoroutineTracingContext("main", includeParentNames = true, strictMode = true)
     }
 
     protected fun runTestTraced(block: suspend CoroutineScope.() -> Unit) {
