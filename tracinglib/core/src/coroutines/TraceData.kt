@@ -39,10 +39,13 @@ class TraceCountThreadLocal : ThreadLocal<Int>() {
  * Used for storing trace sections so that they can be added and removed from the currently running
  * thread when the coroutine is suspended and resumed.
  *
+ * @property strictMode Whether to add additional checks to the coroutine machinery, throwing a
+ *   `ConcurrentModificationException` if TraceData is modified from the wrong thread. This should
+ *   only be set for testing.
  * @see traceCoroutine
  */
 @VisibleForTesting(otherwise = VisibleForTesting.PACKAGE_PRIVATE)
-class TraceData {
+class TraceData(private val strictMode: Boolean) {
 
     var slices: ArrayDeque<TraceSection>? = null
 
@@ -100,7 +103,7 @@ class TraceData {
             slices!!.pop()
             openSliceCount.set(slices!!.size)
             endSlice()
-        } else if (STRICT_MODE_FOR_TESTING) {
+        } else if (strictMode) {
             throw IllegalStateException(INVALID_SPAN_END_CALL_ERROR_MESSAGE)
         }
     }
@@ -110,18 +113,11 @@ class TraceData {
         else super.toString()
 
     private fun strictModeCheck() {
-        if (STRICT_MODE_FOR_TESTING && traceThreadLocal.get() !== this) {
+        if (strictMode && traceThreadLocal.get() !== this) {
             throw ConcurrentModificationException(STRICT_MODE_ERROR_MESSAGE)
         }
     }
 }
-
-/**
- * Whether to add additional checks to the coroutine machinery, throwing a
- * `ConcurrentModificationException` if TraceData is modified from the wrong thread. This should
- * only be set for testing.
- */
-var STRICT_MODE_FOR_TESTING: Boolean = false
 
 private const val INVALID_SPAN_END_CALL_ERROR_MESSAGE =
     "TraceData#endSpan called when there were no active trace sections in its scope."
