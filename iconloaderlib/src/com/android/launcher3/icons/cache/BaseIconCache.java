@@ -94,6 +94,7 @@ public abstract class BaseIconCache {
             LookupFlag.DEFAULT,
             LookupFlag.USE_LOW_RES,
             LookupFlag.USE_PACKAGE_ICON,
+            LookupFlag.SKIP_ADD_TO_MEM_CACHE
     }, flag = true)
     /** Various options to control cache lookup */
     public @interface LookupFlag {
@@ -112,6 +113,11 @@ public abstract class BaseIconCache {
          * entry fails
          */
         int USE_PACKAGE_ICON = 1 << 1;
+        /**
+         * When specified, the entry will not be added to the memory cache if it was not already
+         * added by a previous lookup
+         */
+        int SKIP_ADD_TO_MEM_CACHE = 1 << 2;
     }
 
     public static class CacheEntry {
@@ -136,8 +142,10 @@ public abstract class BaseIconCache {
     @NonNull
     private final Map<ComponentKey, CacheEntry> mCache;
 
+    public final Object iconUpdateToken = new Object();
+
     @NonNull
-    protected final Handler mWorkerHandler;
+    public final Handler workerHandler;
 
     protected int mIconDpi;
 
@@ -164,8 +172,6 @@ public abstract class BaseIconCache {
     @NonNull
     private final Looper mBgLooper;
 
-    private volatile boolean mIconUpdateInProgress = false;
-
     public BaseIconCache(@NonNull final Context context, @Nullable final String dbFileName,
             @NonNull final Looper bgLooper, final int iconDpi, final int iconPixelSize,
             final boolean inMemoryCache) {
@@ -181,7 +187,7 @@ public abstract class BaseIconCache {
         mIconProvider = iconProvider;
         mPackageManager = context.getPackageManager();
         mBgLooper = bgLooper;
-        mWorkerHandler = new Handler(mBgLooper);
+        workerHandler = new Handler(mBgLooper);
 
         if (inMemoryCache) {
             mCache = new HashMap<>(INITIAL_ICON_CACHE_CAPACITY);
@@ -223,7 +229,7 @@ public abstract class BaseIconCache {
     public abstract BaseIconFactory getIconFactory();
 
     public void updateIconParams(final int iconDpi, final int iconPixelSize) {
-        mWorkerHandler.post(() -> updateIconParamsBg(iconDpi, iconPixelSize));
+        workerHandler.post(() -> updateIconParamsBg(iconDpi, iconPixelSize));
     }
 
     private synchronized void updateIconParamsBg(final int iconDpi, final int iconPixelSize) {
@@ -250,14 +256,6 @@ public abstract class BaseIconCache {
     @Nullable
     public Drawable getFullResIcon(@NonNull final ActivityInfo info) {
         return mIconProvider.getIcon(info, mIconDpi);
-    }
-
-    public void setIconUpdateInProgress(boolean updating) {
-        mIconUpdateInProgress = updating;
-    }
-
-    public boolean isIconUpdateInProgress() {
-        return mIconUpdateInProgress;
     }
 
     /**
@@ -340,53 +338,41 @@ public abstract class BaseIconCache {
     }
 
     /**
-     * Adds an entry into the DB and the in-memory cache.
-     *
-     * @param replaceExisting if true, it will recreate the bitmap even if it already exists in
-     *                        the memory. This is useful then the previous bitmap was created using
-     *                        old data.
+     * Adds/updates an entry into the DB and the in-memory cache. The update is skipped if the
+     * entry fails to load
      */
-    @VisibleForTesting
-    public synchronized <T> void addIconToDBAndMemCache(@NonNull final T object,
+    protected synchronized <T> void addIconToDBAndMemCache(@NonNull final T object,
             @NonNull final CachingLogic<T> cachingLogic, @NonNull final PackageInfo info,
-            final long userSerial, final boolean replaceExisting) {
+            final long userSerial) {
         UserHandle user = cachingLogic.getUser(object);
         ComponentName componentName = cachingLogic.getComponent(object);
-
         final ComponentKey key = new ComponentKey(componentName, user);
-        CacheEntry entry = null;
-        if (!replaceExisting) {
-            entry = mCache.get(key);
-            // We can't reuse the entry if the high-res icon is not present.
-            if (entry == null || entry.bitmap.isNullOrLowRes()) {
-                entry = null;
-            }
-        }
-        if (entry == null) {
-            entry = new CacheEntry();
-            entry.bitmap = cachingLogic.loadIcon(mContext, this, object);
-        }
+
+        BitmapInfo bitmapInfo = cachingLogic.loadIcon(mContext, this, object);
+
         // Icon can't be loaded from cachingLogic, which implies alternative icon was loaded
         // (e.g. fallback icon, default icon). So we drop here since there's no point in caching
         // an empty entry.
-        if (entry.bitmap.isNullOrLowRes() || isDefaultIcon(entry.bitmap, user)) {
+        if (bitmapInfo.isNullOrLowRes() || isDefaultIcon(bitmapInfo, user)) {
             return;
         }
 
         CharSequence entryTitle = cachingLogic.getLabel(object);
         if (TextUtils.isEmpty(entryTitle)) {
-            if (entryTitle == null) {
-                Log.wtf(TAG, "No label returned from caching logic instance: " + cachingLogic);
-            }
             entryTitle = componentName.getPackageName();
         }
-        entry.title = entryTitle;
 
-        entry.contentDescription = getUserBadgedLabel(entry.title, user);
-        if (cachingLogic.addToMemCache()) mCache.put(key, entry);
+        // Only add an entry in memory, if there was already something previously
+        if (mCache.get(key) != null) {
+            CacheEntry entry = new CacheEntry();
+            entry.bitmap = bitmapInfo;
+            entry.title = entryTitle;
+            entry.contentDescription = getUserBadgedLabel(entryTitle, user);
+            mCache.put(key, entry);
+        }
 
         ContentValues values = newContentValues(
-                entry.bitmap, entry.title.toString(), componentName.getPackageName());
+                bitmapInfo, entryTitle.toString(), componentName.getPackageName());
         addIconToDB(values, componentName, info, userSerial,
                 cachingLogic.getLastUpdatedTime(object, info));
     }
@@ -462,8 +448,10 @@ public abstract class BaseIconCache {
         CacheEntry entry = mCache.get(cacheKey);
         final boolean useLowResIcon = (lookupFlags & LookupFlag.USE_LOW_RES) != 0;
         if (entry == null || (entry.bitmap.isLowRes() && !useLowResIcon)) {
+            boolean addToMemCache = entry != null
+                    || (lookupFlags & LookupFlag.SKIP_ADD_TO_MEM_CACHE) == 0;
             entry = new CacheEntry();
-            if (cachingLogic.addToMemCache()) {
+            if (addToMemCache) {
                 mCache.put(cacheKey, entry);
             }
 
@@ -596,8 +584,13 @@ public abstract class BaseIconCache {
     @Nullable
     protected CacheEntry getInMemoryPackageEntryLocked(@NonNull final String packageName,
             @NonNull final UserHandle user) {
+        return getInMemoryEntryLocked(getPackageKey(packageName, user));
+    }
+
+    @VisibleForTesting
+    public CacheEntry getInMemoryEntryLocked(ComponentKey key) {
         assertWorkerThread();
-        return mCache.get(getPackageKey(packageName, user));
+        return mCache.get(key);
     }
 
     /**
