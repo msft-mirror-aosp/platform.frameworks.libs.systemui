@@ -62,11 +62,4 @@ public interface CachingLogic<T> {
     default long getLastUpdatedTime(@Nullable final T object, @NonNull final PackageInfo info) {
         return info.lastUpdateTime;
     }
-
-    /**
-     * Returns true the object should be added to mem cache; otherwise returns false.
-     */
-    default boolean addToMemCache() {
-        return true;
-    }
 }
