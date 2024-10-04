@@ -20,15 +20,13 @@ uniform shader fog;
 uniform shader clouds;
 uniform half2 fogSize;
 uniform half2 cloudsSize;
-uniform float2 uvOffsetFgd;
-uniform float2 uvScaleFgd;
-uniform float2 uvOffsetBgd;
-uniform float2 uvScaleBgd;
 uniform half4 time;
 uniform half screenAspectRatio;
 uniform half2 screenSize;
 uniform half pixelDensity;
 uniform half intensity;
+uniform mat3 transformMatrixFgd;
+uniform mat3 transformMatrixBgd;
 
 #include "shaders/constants.agsl"
 #include "shaders/utils.agsl"
@@ -37,9 +35,6 @@ uniform half intensity;
 const vec3 fogColor = vec3(0.20);
 
 vec4 main(float2 fragCoord) {
-    float2 uv = fragCoord / screenSize;
-    uv.y /= screenAspectRatio;
-
     vec2 timeForeground = vec2(time.x, time.y);
     vec2 timeBackground = vec2(time.z, time.w);
 
@@ -52,12 +47,16 @@ vec4 main(float2 fragCoord) {
      * - fgdFogFar (layer 1) / fgdFogClose (layer 2)
      */
 
+    float2 fgdCoord = transformPoint(transformMatrixFgd, fragCoord);
+    float2 bgdCoord = transformPoint(transformMatrixBgd, fragCoord);
+    float2 uv = bgdCoord / screenSize;
+    uv.y /= screenAspectRatio;
     // Load foreground and blend it with constant solid fog color.
-    vec4 fgd = foreground.eval(fragCoord * uvScaleFgd + uvOffsetFgd);
+    vec4 fgd = foreground.eval(fgdCoord);
     fgd.rgb = mix(fgd.rgb, fogColor, 0.15 * intensity * fgd.a);
 
     // Load background and blend it with constant solid fog color.
-    vec4 bgd = background.eval(fragCoord * uvScaleBgd + uvOffsetBgd);
+    vec4 bgd = background.eval(bgdCoord);
     bgd.rgb = mix(bgd.rgb, fogColor, 0.32 * intensity * bgd.a);
 
     /* Add first layer: background. */
