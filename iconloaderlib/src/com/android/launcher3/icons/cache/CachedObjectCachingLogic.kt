@@ -23,13 +23,8 @@ import com.android.launcher3.icons.BaseIconFactory.IconOptions
 import com.android.launcher3.icons.BitmapInfo
 
 /** Caching logic for ComponentWithLabelAndIcon */
-class CachedObjectCachingLogic<T : BaseIconCache>
-@JvmOverloads
-constructor(
-    context: Context,
-    private val loadIcons: Boolean = true,
-    private val addToMemCache: Boolean = true,
-) : CachingLogic<CachedObject<T>> {
+class CachedObjectCachingLogic<T : BaseIconCache>(context: Context) :
+    CachingLogic<CachedObject<T>> {
 
     private val pm = context.packageManager
 
@@ -44,14 +39,11 @@ constructor(
         cache: BaseIconCache,
         info: CachedObject<T>,
     ): BitmapInfo {
-        if (!loadIcons) return BitmapInfo.LOW_RES_INFO
         val d = info.getFullResIcon(cache as T) ?: return BitmapInfo.LOW_RES_INFO
         cache.iconFactory.use { li ->
             return li.createBadgedIconBitmap(d, IconOptions().setUser(info.user))
         }
     }
-
-    override fun addToMemCache() = addToMemCache
 
     override fun getApplicationInfo(info: CachedObject<T>) = info.applicationInfo
 }
