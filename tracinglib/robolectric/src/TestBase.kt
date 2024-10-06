@@ -51,7 +51,6 @@ open class TestBase {
 
     @Before
     fun setup() {
-        STRICT_MODE_FOR_TESTING = true
         FakeTraceState.isTracingEnabled = true
         eventCounter.set(0)
         skipAfterCheck = false
