@@ -36,7 +36,7 @@ class CoroutineTracingFlagsTest : TestBase() {
     fun tracingDisabledWhenFlagIsOff() = runTest {
         assertFalse(com.android.systemui.Flags.coroutineTracing())
         assertNull(traceThreadLocal.get())
-        withContext(createCoroutineTracingContext()) {
+        withContext(createCoroutineTracingContext(strictMode = true)) {
             assertNull(traceThreadLocal.get())
             traceCoroutine("hello") { // should not crash
                 assertNull(traceThreadLocal.get())

@@ -59,8 +59,6 @@ public class IconCacheUpdateHandler {
      */
     private static final boolean MODE_CLEAR_VALID_ITEMS = false;
 
-    static final Object ICON_UPDATE_TOKEN = new Object();
-
     private final HashMap<String, PackageInfo> mPkgInfoMap;
     private final BaseIconCache mIconCache;
 
@@ -84,7 +82,7 @@ public class IconCacheUpdateHandler {
         mPkgInfoMap = new HashMap<>();
 
         // Remove all active icon update tasks.
-        mIconCache.mWorkerHandler.removeCallbacksAndMessages(ICON_UPDATE_TOKEN);
+        mIconCache.workerHandler.removeCallbacksAndMessages(cache.iconUpdateToken);
 
         createPackageInfoMap();
     }
@@ -178,7 +176,6 @@ public class IconCacheUpdateHandler {
         if (!componentMap.isEmpty() || !appsToUpdate.isEmpty()) {
             ArrayDeque<T> appsToAdd = new ArrayDeque<>();
             appsToAdd.addAll(componentMap.values());
-            mIconCache.setIconUpdateInProgress(true);
             new SerializedIconUpdateTask(userSerial, user, appsToAdd, appsToUpdate, cachingLogic,
                     onUpdateCallback).scheduleNext();
         }
@@ -309,8 +306,7 @@ public class IconCacheUpdateHandler {
                 String pkg = mCachingLogic.getComponent(app).getPackageName();
                 PackageInfo info = mPkgInfoMap.get(pkg);
 
-                mIconCache.addIconToDBAndMemCache(
-                        app, mCachingLogic, info, mUserSerial, true /*replace existing*/);
+                mIconCache.addIconToDBAndMemCache(app, mCachingLogic, info, mUserSerial);
                 mUpdatedPackages.add(pkg);
 
                 if (mAppsToUpdate.isEmpty() && !mUpdatedPackages.isEmpty()) {
@@ -327,23 +323,17 @@ public class IconCacheUpdateHandler {
                 // We do not check the mPkgInfoMap when generating the mAppsToAdd. Although every
                 // app should have package info, this is not guaranteed by the api
                 if (info != null) {
-                    mIconCache.addIconToDBAndMemCache(app, mCachingLogic, info,
-                            mUserSerial, false /*replace existing*/);
+                    mIconCache.addIconToDBAndMemCache(app, mCachingLogic, info, mUserSerial);
                 }
 
-                if (!mAppsToAdd.isEmpty()) {
-                    scheduleNext();
-                } else if (!mIconCache.mWorkerHandler.hasMessages(0, ICON_UPDATE_TOKEN)) {
-                    // This checks if there is a second icon update process happening
-                    // before notifying BaseIconCache that the updates are over
-                    mIconCache.setIconUpdateInProgress(false);
-                }
+                // Let it run one more time.
+                scheduleNext();
             }
         }
 
         public void scheduleNext() {
-            mIconCache.mWorkerHandler.postAtTime(this, ICON_UPDATE_TOKEN,
-                    SystemClock.uptimeMillis() + 1);
+            mIconCache.workerHandler.postAtTime(this,
+                    mIconCache.iconUpdateToken, SystemClock.uptimeMillis() + 1);
         }
     }
 
