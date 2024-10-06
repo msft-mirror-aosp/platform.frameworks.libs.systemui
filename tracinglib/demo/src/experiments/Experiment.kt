@@ -13,10 +13,14 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.android.app.tracing.demo
+package com.example.tracing.demo.experiments
 
-import android.app.Application
+interface Experiment {
+    /** The track name for async traces */
+    val tag: String
+        get() = "Experiment:${this::class.simpleName}"
 
-class MainApplication : Application() {
-    val appComponent: ApplicationComponent = DaggerApplicationComponent.create()
+    val description: String
+
+    suspend fun start()
 }
