@@ -17,8 +17,8 @@ package com.android.launcher3.icons.cache;
 
 import android.content.ComponentName;
 import android.content.Context;
+import android.content.pm.ApplicationInfo;
 import android.content.pm.PackageInfo;
-import android.os.LocaleList;
 import android.os.UserHandle;
 
 import androidx.annotation.NonNull;
@@ -34,7 +34,10 @@ public interface CachingLogic<T> {
     @NonNull
     UserHandle getUser(@NonNull final T object);
 
-    @NonNull
+    /**
+     * Loads the user visible label for the object
+     */
+    @Nullable
     CharSequence getLabel(@NonNull final T object);
 
     @NonNull
@@ -43,28 +46,20 @@ public interface CachingLogic<T> {
         return fallback;
     }
 
-    @NonNull
-    BitmapInfo loadIcon(@NonNull final Context context, @NonNull final T object);
-
     /**
-     * Provides a option list of keywords to associate with this object
+     * Returns the application info associated with the object. This is used to maintain the
+     * "freshness" of the disk cache. If null, the item will not be persisted to the disk
      */
     @Nullable
-    default String getKeywords(@NonNull final T object, @NonNull final LocaleList localeList) {
-        return null;
-    }
+    ApplicationInfo getApplicationInfo(@NonNull T object);
+
+    @NonNull
+    BitmapInfo loadIcon(@NonNull Context context, @NonNull BaseIconCache cache, @NonNull T object);
 
     /**
      * Returns the timestamp the entry was last updated in cache.
      */
     default long getLastUpdatedTime(@Nullable final T object, @NonNull final PackageInfo info) {
         return info.lastUpdateTime;
-    }
-
-    /**
-     * Returns true the object should be added to mem cache; otherwise returns false.
-     */
-    default boolean addToMemCache() {
-        return true;
     }
 }

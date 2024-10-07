@@ -21,7 +21,7 @@ import android.os.VibrationEffect
 import com.google.android.msdl.data.model.FeedbackLevel
 import com.google.android.msdl.data.model.HapticComposition
 import com.google.android.msdl.data.model.MSDLToken
-import com.google.android.msdl.data.repository.MSDLRepositoryImpl
+import com.google.android.msdl.data.repository.MSDLRepository
 import com.google.common.truth.Truth.assertThat
 import java.util.concurrent.Executor
 import org.junit.Before
@@ -34,15 +34,17 @@ class MSDLPlayerImplTest {
 
     @Parameterized.Parameter lateinit var token: MSDLToken
 
-    private val repository = MSDLRepositoryImpl()
+    private val repository = MSDLRepository.createRepository()
     private val vibrator = FakeVibrator()
     private val executor = Executor { it.run() }
+    private val useHapticFallbackForToken = MSDLToken.entries.associateWith { false }.toMutableMap()
 
-    private val msdlPlayer = MSDLPlayerImpl(repository, vibrator, executor)
+    private var msdlPlayer = MSDLPlayer.createPlayer(vibrator, executor, useHapticFallbackForToken)
 
     @Before
     fun setup() {
         MSDLPlayer.SYSTEM_FEEDBACK_LEVEL = FeedbackLevel.EXPRESSIVE
+        vibrator.setSupportForAllPrimitives(true)
     }
 
     @Test
@@ -82,6 +84,24 @@ class MSDLPlayerImplTest {
 
         // THEN the vibration delivers the same vibration effect with USAGE_TOUCH vibration
         // attributes and the correct token reason.
+        val touchAttributes =
+            VibrationAttributes.Builder().setUsage(VibrationAttributes.USAGE_TOUCH).build()
+        assertVibrationEffectDelivered(effect, touchAttributes)
+    }
+
+    @Test
+    fun playHapticComposition_withoutSupportedPrimitives_playsFallbackEffects() {
+        // GIVEN that no primitives are supported
+        useHapticFallbackForToken.replaceAll { _, _ -> true }
+
+        // GIVEN the fallback effect of a composition
+        val composition = repository.getHapticData(token.hapticToken)?.get() as? HapticComposition
+        val effect = composition?.fallbackEffect
+
+        // WHEN the composition is played for a token without interaction properties
+        msdlPlayer.playToken(token)
+
+        // THEN the vibration delivers the same fallback effect with USAGE_TOUCH vibration
         val touchAttributes =
             VibrationAttributes.Builder().setUsage(VibrationAttributes.USAGE_TOUCH).build()
         assertVibrationEffectDelivered(effect, touchAttributes)
