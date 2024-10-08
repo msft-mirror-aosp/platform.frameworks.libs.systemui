@@ -59,7 +59,7 @@ object GraphicsUtils {
             BitmapFactory.decodeStream(
                 it,
                 Rect(),
-                BitmapFactory.Options().apply { inPreferredConfig = Bitmap.Config.HARDWARE }
+                BitmapFactory.Options().apply { inPreferredConfig = Bitmap.Config.HARDWARE },
             )
         }
     }
@@ -77,7 +77,7 @@ object GraphicsUtils {
         context: Context,
         sourceBitmap: Bitmap,
         @FloatRange(from = 0.0, to = 25.0) blurRadius: Float,
-        config: Bitmap.Config = Bitmap.Config.ARGB_8888
+        config: Bitmap.Config = Bitmap.Config.ARGB_8888,
     ): Bitmap {
         // TODO: This might not be the ideal option, find a better one.
         val blurredImage = Bitmap.createBitmap(sourceBitmap.copy(config, true))
@@ -108,20 +108,22 @@ object GraphicsUtils {
     /**
      * Compute the weather effect default grid size. This takes into consideration the different
      * display densities and aspect ratio so the effect looks good on displays with different sizes.
+     *
      * @param surfaceSize the size of the surface where the wallpaper is being rendered.
      * @param density the current display density.
      * @return a [Float] representing the default size.
      */
     fun computeDefaultGridSize(surfaceSize: SizeF, density: Float): Float {
         val displayWidthDp = surfaceSize.width / density
-        val adjustedScale = when {
-            // "COMPACT"
-            displayWidthDp < 600 -> 1f
-            // "MEDIUM"
-            displayWidthDp >= 600 && displayWidthDp < 840 -> 0.9f
-            // "EXPANDED"
-            else -> 0.8f
-        }
+        val adjustedScale =
+            when {
+                // "COMPACT"
+                displayWidthDp < 600 -> 1f
+                // "MEDIUM"
+                displayWidthDp >= 600 && displayWidthDp < 840 -> 0.9f
+                // "EXPANDED"
+                else -> 0.8f
+            }
         return adjustedScale * displayWidthDp / DEFAULT_WIDTH_DP
     }
 
