@@ -108,4 +108,21 @@ interface LiveWallpaperEventListener {
      * See [WallpaperService.shouldZoomOutWallpaper].
      */
     fun shouldZoomOutWallpaper() = false
+
+    /**
+     * React to COMMAND_LOCKSCREEN_LAYOUT_CHANGED from SystemUI. Current usage is to show the
+     * remaining space in lockscreen to bound the position for wallpaper shape effects. We also pass
+     * the bottom of smartspace as a reference.
+     *
+     * @param extras contains the necessary value from lockscreen layout currently for magic
+     *   portrait, it contains
+     * - "screenLeft": the left of the screen
+     * - "screenRight": the left of the screen
+     * - "smartspaceBottom": the bottom of the smartspace date and weather part, not bc smartspace
+     * - "shortCutTop": the top of the shortcut in locksreen
+     * - "notificationBottom": the bottom of notifications in lockscreen With smartspaceBottom,
+     *   screenLeft, screenRight, shortCutTop, we can get the remaining space bounds in lockscreen
+     *   without notifications. And with notificationBottom, we have bounds with notifications
+     */
+    fun onLockscreenLayoutChanged(extras: Bundle) {}
 }
