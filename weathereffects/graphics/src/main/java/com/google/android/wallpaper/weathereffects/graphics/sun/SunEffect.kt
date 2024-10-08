@@ -36,7 +36,7 @@ class SunEffect(
     private var background: Bitmap,
     private var intensity: Float = WeatherEffect.DEFAULT_INTENSITY,
     /** The initial size of the surface where the effect will be shown. */
-    var surfaceSize: SizeF
+    var surfaceSize: SizeF,
 ) : WeatherEffect {
 
     private val sunnyPaint = Paint().also { it.shader = sunConfig.colorGradingShader }
@@ -76,7 +76,7 @@ class SunEffect(
         sunConfig.shader.setFloatUniform("intensity", intensity)
         sunConfig.colorGradingShader.setFloatUniform(
             "intensity",
-            sunConfig.colorGradingIntensity * intensity
+            sunConfig.colorGradingIntensity * intensity,
         )
     }
 
@@ -85,11 +85,11 @@ class SunEffect(
         this.background = background
         sunConfig.shader.setInputBuffer(
             "background",
-            BitmapShader(background, Shader.TileMode.MIRROR, Shader.TileMode.MIRROR)
+            BitmapShader(background, Shader.TileMode.MIRROR, Shader.TileMode.MIRROR),
         )
         sunConfig.shader.setInputBuffer(
             "foreground",
-            BitmapShader(foreground, Shader.TileMode.MIRROR, Shader.TileMode.MIRROR)
+            BitmapShader(foreground, Shader.TileMode.MIRROR, Shader.TileMode.MIRROR),
         )
         adjustCropping(surfaceSize)
     }
@@ -100,51 +100,51 @@ class SunEffect(
                 surfaceSize.width,
                 surfaceSize.height,
                 foreground.width.toFloat(),
-                foreground.height.toFloat()
+                foreground.height.toFloat(),
             )
         sunConfig.shader.setFloatUniform(
             "uvOffsetFgd",
             imageCropFgd.leftOffset,
-            imageCropFgd.topOffset
+            imageCropFgd.topOffset,
         )
         sunConfig.shader.setFloatUniform(
             "uvScaleFgd",
             imageCropFgd.horizontalScale,
-            imageCropFgd.verticalScale
+            imageCropFgd.verticalScale,
         )
         val imageCropBgd =
             ImageCrop.centerCoverCrop(
                 surfaceSize.width,
                 surfaceSize.height,
                 background.width.toFloat(),
-                background.height.toFloat()
+                background.height.toFloat(),
             )
         sunConfig.shader.setFloatUniform(
             "uvOffsetBgd",
             imageCropBgd.leftOffset,
-            imageCropBgd.topOffset
+            imageCropBgd.topOffset,
         )
         sunConfig.shader.setFloatUniform(
             "uvScaleBgd",
             imageCropBgd.horizontalScale,
-            imageCropBgd.verticalScale
+            imageCropBgd.verticalScale,
         )
         sunConfig.shader.setFloatUniform("screenSize", surfaceSize.width, surfaceSize.height)
         sunConfig.shader.setFloatUniform(
             "screenAspectRatio",
-            GraphicsUtils.getAspectRatio(surfaceSize)
+            GraphicsUtils.getAspectRatio(surfaceSize),
         )
     }
 
     private fun updateTextureUniforms() {
         sunConfig.shader.setInputBuffer(
             "foreground",
-            BitmapShader(foreground, Shader.TileMode.MIRROR, Shader.TileMode.MIRROR)
+            BitmapShader(foreground, Shader.TileMode.MIRROR, Shader.TileMode.MIRROR),
         )
 
         sunConfig.shader.setInputBuffer(
             "background",
-            BitmapShader(background, Shader.TileMode.MIRROR, Shader.TileMode.MIRROR)
+            BitmapShader(background, Shader.TileMode.MIRROR, Shader.TileMode.MIRROR),
         )
     }
 
@@ -153,7 +153,7 @@ class SunEffect(
         sunConfig.lut?.let {
             sunConfig.colorGradingShader.setInputShader(
                 "lut",
-                BitmapShader(it, Shader.TileMode.MIRROR, Shader.TileMode.MIRROR)
+                BitmapShader(it, Shader.TileMode.MIRROR, Shader.TileMode.MIRROR),
             )
         }
         sunConfig.colorGradingShader.setFloatUniform("intensity", sunConfig.colorGradingIntensity)
