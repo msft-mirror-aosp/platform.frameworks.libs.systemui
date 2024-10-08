@@ -43,7 +43,7 @@ class SnowEffect(
     /** The initial size of the surface where the effect will be shown. */
     private var surfaceSize: SizeF,
     /** App main executor. */
-    private val mainExecutor: Executor
+    private val mainExecutor: Executor,
 ) : WeatherEffect {
 
     private var snowSpeed: Float = 0.8f
@@ -101,11 +101,11 @@ class SnowEffect(
         snowConfig.shader.setFloatUniform("intensity", intensity)
         snowConfig.colorGradingShader.setFloatUniform(
             "intensity",
-            snowConfig.colorGradingIntensity * intensity
+            snowConfig.colorGradingIntensity * intensity,
         )
         snowConfig.accumulatedSnowShader.setFloatUniform(
             "snowThickness",
-            snowConfig.maxAccumulatedSnowThickness * intensity
+            snowConfig.maxAccumulatedSnowThickness * intensity,
         )
         // Regenerate accumulated snow since the uniform changed.
         generateAccumulatedSnow()
@@ -117,11 +117,11 @@ class SnowEffect(
         frameBuffer = FrameBuffer(background.width, background.height)
         snowConfig.shader.setInputBuffer(
             "background",
-            BitmapShader(background, Shader.TileMode.MIRROR, Shader.TileMode.MIRROR)
+            BitmapShader(background, Shader.TileMode.MIRROR, Shader.TileMode.MIRROR),
         )
         snowConfig.shader.setInputBuffer(
             "foreground",
-            BitmapShader(foreground, Shader.TileMode.MIRROR, Shader.TileMode.MIRROR)
+            BitmapShader(foreground, Shader.TileMode.MIRROR, Shader.TileMode.MIRROR),
         )
         adjustCropping(surfaceSize)
         // generateAccumulatedSnow needs foreground for accumulatedSnowShader, and needs frameBuffer
@@ -135,56 +135,56 @@ class SnowEffect(
                 surfaceSize.width,
                 surfaceSize.height,
                 foreground.width.toFloat(),
-                foreground.height.toFloat()
+                foreground.height.toFloat(),
             )
         snowConfig.shader.setFloatUniform(
             "uvOffsetFgd",
             imageCropFgd.leftOffset,
-            imageCropFgd.topOffset
+            imageCropFgd.topOffset,
         )
         snowConfig.shader.setFloatUniform(
             "uvScaleFgd",
             imageCropFgd.horizontalScale,
-            imageCropFgd.verticalScale
+            imageCropFgd.verticalScale,
         )
         val imageCropBgd =
             ImageCrop.centerCoverCrop(
                 surfaceSize.width,
                 surfaceSize.height,
                 background.width.toFloat(),
-                background.height.toFloat()
+                background.height.toFloat(),
             )
         snowConfig.shader.setFloatUniform(
             "uvOffsetBgd",
             imageCropBgd.leftOffset,
-            imageCropBgd.topOffset
+            imageCropBgd.topOffset,
         )
         snowConfig.shader.setFloatUniform(
             "uvScaleBgd",
             imageCropBgd.horizontalScale,
-            imageCropBgd.verticalScale
+            imageCropBgd.verticalScale,
         )
         snowConfig.shader.setFloatUniform("screenSize", surfaceSize.width, surfaceSize.height)
         snowConfig.shader.setFloatUniform(
             "screenAspectRatio",
-            GraphicsUtils.getAspectRatio(surfaceSize)
+            GraphicsUtils.getAspectRatio(surfaceSize),
         )
     }
 
     private fun updateTextureUniforms() {
         snowConfig.shader.setInputBuffer(
             "foreground",
-            BitmapShader(foreground, Shader.TileMode.MIRROR, Shader.TileMode.MIRROR)
+            BitmapShader(foreground, Shader.TileMode.MIRROR, Shader.TileMode.MIRROR),
         )
 
         snowConfig.shader.setInputBuffer(
             "background",
-            BitmapShader(background, Shader.TileMode.MIRROR, Shader.TileMode.MIRROR)
+            BitmapShader(background, Shader.TileMode.MIRROR, Shader.TileMode.MIRROR),
         )
 
         snowConfig.shader.setInputBuffer(
             "noise",
-            BitmapShader(snowConfig.noiseTexture, Shader.TileMode.REPEAT, Shader.TileMode.REPEAT)
+            BitmapShader(snowConfig.noiseTexture, Shader.TileMode.REPEAT, Shader.TileMode.REPEAT),
         )
     }
 
@@ -193,7 +193,7 @@ class SnowEffect(
         snowConfig.lut?.let {
             snowConfig.colorGradingShader.setInputShader(
                 "lut",
-                BitmapShader(it, Shader.TileMode.MIRROR, Shader.TileMode.MIRROR)
+                BitmapShader(it, Shader.TileMode.MIRROR, Shader.TileMode.MIRROR),
             )
         }
     }
@@ -202,11 +202,11 @@ class SnowEffect(
         val renderingCanvas = frameBuffer.beginDrawing()
         snowConfig.accumulatedSnowShader.setFloatUniform(
             "imageWidth",
-            renderingCanvas.width.toFloat()
+            renderingCanvas.width.toFloat(),
         )
         snowConfig.accumulatedSnowShader.setInputBuffer(
             "foreground",
-            BitmapShader(foreground, Shader.TileMode.MIRROR, Shader.TileMode.MIRROR)
+            BitmapShader(foreground, Shader.TileMode.MIRROR, Shader.TileMode.MIRROR),
         )
         renderingCanvas.drawPaint(frameBufferPaint)
         frameBuffer.endDrawing()
@@ -215,10 +215,10 @@ class SnowEffect(
             { image ->
                 snowConfig.shader.setInputBuffer(
                     "accumulatedSnow",
-                    BitmapShader(image, Shader.TileMode.MIRROR, Shader.TileMode.MIRROR)
+                    BitmapShader(image, Shader.TileMode.MIRROR, Shader.TileMode.MIRROR),
                 )
             },
-            mainExecutor
+            mainExecutor,
         )
     }
 
