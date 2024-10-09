@@ -21,6 +21,7 @@ import android.content.Context
 import android.os.UserHandle
 import com.android.launcher3.icons.BaseIconFactory.IconOptions
 import com.android.launcher3.icons.BitmapInfo
+import com.android.launcher3.icons.IconProvider
 
 /** Caching logic for ComponentWithLabelAndIcon */
 class CachedObjectCachingLogic<T : BaseIconCache>(context: Context) :
@@ -46,4 +47,7 @@ class CachedObjectCachingLogic<T : BaseIconCache>(context: Context) :
     }
 
     override fun getApplicationInfo(info: CachedObject<T>) = info.applicationInfo
+
+    override fun getFreshnessIdentifier(item: CachedObject<T>, provider: IconProvider): String? =
+        item.getFreshnessIdentifier(provider)
 }
