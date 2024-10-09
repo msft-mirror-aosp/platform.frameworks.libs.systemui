@@ -25,6 +25,7 @@ import android.util.Log
 import com.android.launcher3.Flags.useNewIconForArchivedApps
 import com.android.launcher3.icons.BaseIconFactory.IconOptions
 import com.android.launcher3.icons.BitmapInfo
+import com.android.launcher3.icons.IconProvider
 
 object LauncherActivityCachingLogic : CachingLogic<LauncherActivityInfo> {
     const val TAG = "LauncherActivityCachingLogic"
@@ -61,4 +62,9 @@ object LauncherActivityCachingLogic : CachingLogic<LauncherActivityInfo> {
             return li.createBadgedIconBitmap(iconDrawable, iconOptions)
         }
     }
+
+    override fun getFreshnessIdentifier(
+        item: LauncherActivityInfo,
+        provider: IconProvider,
+    ): String? = provider.getStateForApp(getApplicationInfo(item))
 }
