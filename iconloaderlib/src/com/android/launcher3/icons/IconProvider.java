@@ -78,6 +78,9 @@ public class IconProvider {
     private final ComponentName mCalendar;
     private final ComponentName mClock;
 
+    @NonNull
+    private String mSystemState = "";
+
     public IconProvider(Context context) {
         mContext = context;
         mCalendar = parseComponentOrNull(context, R.string.calendar_component_name);
@@ -85,15 +88,31 @@ public class IconProvider {
     }
 
     /**
-     * Adds any modification to the provided systemState for dynamic icons. This system state
-     * is used by caches to check for icon invalidation.
+     * Returns a string representing the current state of the app icon. It can be used as a
+     * identifier to invalidate any resources loaded from the app.
+     * It also incorporated ay system state, that can affect the loaded resource
+     *
+     * @see #updateSystemState()
      */
-    public String getSystemStateForPackage(String systemState, String packageName) {
-        if (mCalendar != null && mCalendar.getPackageName().equals(packageName)) {
-            return systemState + SYSTEM_STATE_SEPARATOR + getDay();
-        } else {
-            return systemState;
+    public String getStateForApp(@Nullable ApplicationInfo appInfo) {
+        if (appInfo == null) {
+            return mSystemState;
         }
+
+        if (mCalendar != null && mCalendar.getPackageName().equals(appInfo.packageName)) {
+            return mSystemState + SYSTEM_STATE_SEPARATOR + getDay() + SYSTEM_STATE_SEPARATOR
+                    + getApplicationInfoHash(appInfo);
+        } else {
+            return mSystemState + SYSTEM_STATE_SEPARATOR + getApplicationInfoHash(appInfo);
+        }
+    }
+
+    /**
+     * Returns a hash to uniquely identify a particular version of appInfo
+     */
+    protected String getApplicationInfoHash(@NonNull ApplicationInfo appInfo) {
+        // The hashString in source dir changes with every install
+        return appInfo.sourceDir;
     }
 
     /**
@@ -247,6 +266,16 @@ public class IconProvider {
             }
             return ID_NULL;
         }
+    }
+
+    /**
+     * Refreshes the system state definition used to check the validity of an app icon. It
+     * incorporates all the properties that can affect the app icon like the list of enabled locale
+     * and system-version.
+     */
+    public void updateSystemState() {
+        mSystemState = mContext.getResources().getConfiguration().getLocales().toLanguageTags()
+                + "," + Build.VERSION.SDK_INT;
     }
 
     /**

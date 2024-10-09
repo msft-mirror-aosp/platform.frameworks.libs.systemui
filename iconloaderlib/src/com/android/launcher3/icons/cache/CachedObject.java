@@ -25,6 +25,8 @@ import android.os.UserHandle;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 
+import com.android.launcher3.icons.IconProvider;
+
 /**
  * A simple interface to represent an object which can be added to icon cache
  *
@@ -60,4 +62,14 @@ public interface CachedObject<T extends BaseIconCache> {
      */
     @Nullable
     ApplicationInfo getApplicationInfo();
+
+
+    /**
+     * Returns a persistable string that can be used to indicate indicate the correctness of the
+     * cache for the provided item
+     */
+    @Nullable
+    default String getFreshnessIdentifier(@NonNull IconProvider iconProvider) {
+        return iconProvider.getStateForApp(getApplicationInfo());
+    }
 }
