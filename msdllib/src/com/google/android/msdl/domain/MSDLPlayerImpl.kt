@@ -106,6 +106,14 @@ internal class MSDLPlayerImpl(
 
     override fun getHistory(): List<MSDLEvent> = historyLogger.getHistory()
 
+    override fun toString(): String =
+        """
+            Default MSDL player implementation.
+            Vibrator: $vibrator
+            Repository: $repository
+        """
+            .trimIndent()
+
     companion object {
         val REQUIRED_PRIMITIVES =
             listOf(

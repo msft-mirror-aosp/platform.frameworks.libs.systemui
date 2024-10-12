@@ -17,6 +17,7 @@
 package com.google.android.msdl.domain
 
 import android.os.Vibrator
+import android.util.Log
 import com.google.android.msdl.data.model.FeedbackLevel
 import com.google.android.msdl.data.model.HapticComposition
 import com.google.android.msdl.data.model.MSDLToken
@@ -73,10 +74,18 @@ interface MSDLPlayer {
          *   created using the support information from the given vibrator.
          */
         fun createPlayer(
-            vibrator: Vibrator,
+            vibrator: Vibrator?,
             executor: Executor = Executors.newSingleThreadExecutor(),
             useHapticFeedbackForToken: Map<MSDLToken, Boolean>? = null,
         ): MSDLPlayer {
+            // Return an empty player if no vibrator is available
+            if (vibrator == null) {
+                Log.w(
+                    "MSDLPlayer",
+                    "A null vibrator was used to create a MSDLPlayer. An empty player was created",
+                )
+                return EmptyMSDLPlayer()
+            }
 
             // Create repository
             val repository = MSDLRepositoryImpl()
