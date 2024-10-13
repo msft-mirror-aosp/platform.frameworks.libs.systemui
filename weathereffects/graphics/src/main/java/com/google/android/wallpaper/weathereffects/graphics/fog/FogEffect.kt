@@ -37,7 +37,7 @@ class FogEffect(
     private var background: Bitmap,
     private var intensity: Float = DEFAULT_INTENSITY,
     /** The initial size of the surface where the effect will be shown. */
-    private var surfaceSize: SizeF
+    private var surfaceSize: SizeF,
 ) : WeatherEffect {
 
     private val fogPaint = Paint().also { it.shader = fogConfig.colorGradingShader }
@@ -99,7 +99,7 @@ class FogEffect(
         fogConfig.shader.setFloatUniform("intensity", intensity)
         fogConfig.colorGradingShader.setFloatUniform(
             "intensity",
-            fogConfig.colorGradingIntensity * intensity
+            fogConfig.colorGradingIntensity * intensity,
         )
     }
 
@@ -108,11 +108,11 @@ class FogEffect(
         this.background = background
         fogConfig.shader.setInputBuffer(
             "background",
-            BitmapShader(background, Shader.TileMode.MIRROR, Shader.TileMode.MIRROR)
+            BitmapShader(background, Shader.TileMode.MIRROR, Shader.TileMode.MIRROR),
         )
         fogConfig.shader.setInputBuffer(
             "foreground",
-            BitmapShader(foreground, Shader.TileMode.MIRROR, Shader.TileMode.MIRROR)
+            BitmapShader(foreground, Shader.TileMode.MIRROR, Shader.TileMode.MIRROR),
         )
         adjustCropping(surfaceSize)
     }
@@ -123,61 +123,61 @@ class FogEffect(
                 surfaceSize.width,
                 surfaceSize.height,
                 foreground.width.toFloat(),
-                foreground.height.toFloat()
+                foreground.height.toFloat(),
             )
         fogConfig.shader.setFloatUniform(
             "uvOffsetFgd",
             imageCropFgd.leftOffset,
-            imageCropFgd.topOffset
+            imageCropFgd.topOffset,
         )
         fogConfig.shader.setFloatUniform(
             "uvScaleFgd",
             imageCropFgd.horizontalScale,
-            imageCropFgd.verticalScale
+            imageCropFgd.verticalScale,
         )
         val imageCropBgd =
             ImageCrop.centerCoverCrop(
                 surfaceSize.width,
                 surfaceSize.height,
                 background.width.toFloat(),
-                background.height.toFloat()
+                background.height.toFloat(),
             )
         fogConfig.shader.setFloatUniform(
             "uvOffsetBgd",
             imageCropBgd.leftOffset,
-            imageCropBgd.topOffset
+            imageCropBgd.topOffset,
         )
         fogConfig.shader.setFloatUniform(
             "uvScaleBgd",
             imageCropBgd.horizontalScale,
-            imageCropBgd.verticalScale
+            imageCropBgd.verticalScale,
         )
         fogConfig.shader.setFloatUniform("screenSize", surfaceSize.width, surfaceSize.height)
         fogConfig.shader.setFloatUniform(
             "screenAspectRatio",
-            GraphicsUtils.getAspectRatio(surfaceSize)
+            GraphicsUtils.getAspectRatio(surfaceSize),
         )
     }
 
     private fun updateTextureUniforms() {
         fogConfig.shader.setInputBuffer(
             "foreground",
-            BitmapShader(foreground, Shader.TileMode.MIRROR, Shader.TileMode.MIRROR)
+            BitmapShader(foreground, Shader.TileMode.MIRROR, Shader.TileMode.MIRROR),
         )
 
         fogConfig.shader.setInputBuffer(
             "background",
-            BitmapShader(background, Shader.TileMode.MIRROR, Shader.TileMode.MIRROR)
+            BitmapShader(background, Shader.TileMode.MIRROR, Shader.TileMode.MIRROR),
         )
 
         fogConfig.shader.setInputBuffer(
             "clouds",
-            BitmapShader(fogConfig.cloudsTexture, Shader.TileMode.REPEAT, Shader.TileMode.REPEAT)
+            BitmapShader(fogConfig.cloudsTexture, Shader.TileMode.REPEAT, Shader.TileMode.REPEAT),
         )
 
         fogConfig.shader.setInputBuffer(
             "fog",
-            BitmapShader(fogConfig.fogTexture, Shader.TileMode.REPEAT, Shader.TileMode.REPEAT)
+            BitmapShader(fogConfig.fogTexture, Shader.TileMode.REPEAT, Shader.TileMode.REPEAT),
         )
 
         fogConfig.shader.setFloatUniform("pixelDensity", fogConfig.pixelDensity)
@@ -188,7 +188,7 @@ class FogEffect(
         fogConfig.lut?.let {
             fogConfig.colorGradingShader.setInputShader(
                 "lut",
-                BitmapShader(it, Shader.TileMode.MIRROR, Shader.TileMode.MIRROR)
+                BitmapShader(it, Shader.TileMode.MIRROR, Shader.TileMode.MIRROR),
             )
         }
         fogConfig.colorGradingShader.setFloatUniform("intensity", fogConfig.colorGradingIntensity)
@@ -200,13 +200,13 @@ class FogEffect(
         fogConfig.shader.setFloatUniform(
             "cloudsSize",
             widthScreenScale * fogConfig.cloudsTexture.width.toFloat(),
-            widthScreenScale * fogConfig.cloudsTexture.height.toFloat()
+            widthScreenScale * fogConfig.cloudsTexture.height.toFloat(),
         )
 
         fogConfig.shader.setFloatUniform(
             "fogSize",
             widthScreenScale * fogConfig.fogTexture.width.toFloat(),
-            widthScreenScale * fogConfig.fogTexture.height.toFloat()
+            widthScreenScale * fogConfig.fogTexture.height.toFloat(),
         )
     }
 }

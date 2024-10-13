@@ -50,6 +50,7 @@ abstract class LiveWallpaper : WallpaperService() {
         const val COMMAND_KEYGUARD_GOING_AWAY = "android.wallpaper.keyguardgoingaway"
         const val COMMAND_GOING_TO_SLEEP = "android.wallpaper.goingtosleep"
         const val COMMAND_PREVIEW_INFO = "android.wallpaper.previewinfo"
+        const val COMMAND_LOCKSCREEN_LAYOUT_CHANGED = "android.wallpaper.lockscreen_layout_changed"
         const val WALLPAPER_FLAG_NOT_FOUND = -1
     }
 
@@ -385,6 +386,11 @@ abstract class LiveWallpaper : WallpaperService() {
                 }
                 COMMAND_KEYGUARD_GOING_AWAY -> onKeyguardGoingAway()
                 COMMAND_PREVIEW_INFO -> onPreviewInfoReceived(extras)
+                COMMAND_LOCKSCREEN_LAYOUT_CHANGED -> {
+                    if (extras != null) {
+                        onLockscreenLayoutChanged(extras)
+                    }
+                }
             }
 
             if (resultRequested) return extras
@@ -440,6 +446,12 @@ abstract class LiveWallpaper : WallpaperService() {
         fun onPreviewInfoReceived(extras: Bundle?) {
             if (wallpaperEngine is LiveWallpaperEventListener) {
                 (wallpaperEngine as LiveWallpaperEventListener).onPreviewInfoReceived(extras)
+            }
+        }
+
+        fun onLockscreenLayoutChanged(extras: Bundle) {
+            if (wallpaperEngine is LiveWallpaperEventListener) {
+                (wallpaperEngine as LiveWallpaperEventListener).onLockscreenLayoutChanged(extras)
             }
         }
     }

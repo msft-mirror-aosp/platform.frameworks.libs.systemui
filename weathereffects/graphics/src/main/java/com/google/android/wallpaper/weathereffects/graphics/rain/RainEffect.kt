@@ -43,7 +43,7 @@ class RainEffect(
     private var intensity: Float = DEFAULT_INTENSITY,
     /** The initial size of the surface where the effect will be shown. */
     private var surfaceSize: SizeF,
-    private val mainExecutor: Executor
+    private val mainExecutor: Executor,
 ) : WeatherEffect {
 
     private val rainPaint = Paint().also { it.shader = rainConfig.colorGradingShader }
@@ -100,7 +100,7 @@ class RainEffect(
         rainConfig.glassRainShader.setFloatUniform("intensity", intensity)
         rainConfig.colorGradingShader.setFloatUniform(
             "intensity",
-            rainConfig.colorGradingIntensity * intensity
+            rainConfig.colorGradingIntensity * intensity,
         )
         val thickness = 1f + intensity * 10f
         rainConfig.outlineShader.setFloatUniform("thickness", thickness)
@@ -129,17 +129,17 @@ class RainEffect(
                 surfaceSize.width,
                 surfaceSize.height,
                 foreground.width.toFloat(),
-                foreground.height.toFloat()
+                foreground.height.toFloat(),
             )
         rainConfig.rainShowerShader.setFloatUniform(
             "uvOffsetFgd",
             imageCropFgd.leftOffset,
-            imageCropFgd.topOffset
+            imageCropFgd.topOffset,
         )
         rainConfig.rainShowerShader.setFloatUniform(
             "uvScaleFgd",
             imageCropFgd.horizontalScale,
-            imageCropFgd.verticalScale
+            imageCropFgd.verticalScale,
         )
 
         val imageCropBgd =
@@ -147,28 +147,28 @@ class RainEffect(
                 surfaceSize.width,
                 surfaceSize.height,
                 background.width.toFloat(),
-                background.height.toFloat()
+                background.height.toFloat(),
             )
         rainConfig.rainShowerShader.setFloatUniform(
             "uvOffsetBgd",
             imageCropBgd.leftOffset,
-            imageCropBgd.topOffset
+            imageCropBgd.topOffset,
         )
         rainConfig.rainShowerShader.setFloatUniform(
             "uvScaleBgd",
             imageCropBgd.horizontalScale,
-            imageCropBgd.verticalScale
+            imageCropBgd.verticalScale,
         )
 
         rainConfig.rainShowerShader.setFloatUniform(
             "screenSize",
             surfaceSize.width,
-            surfaceSize.height
+            surfaceSize.height,
         )
         rainConfig.glassRainShader.setFloatUniform(
             "screenSize",
             surfaceSize.width,
-            surfaceSize.height
+            surfaceSize.height,
         )
 
         val screenAspectRatio = GraphicsUtils.getAspectRatio(surfaceSize)
@@ -184,7 +184,7 @@ class RainEffect(
 
         rainConfig.rainShowerShader.setInputBuffer(
             "background",
-            BitmapShader(background, Shader.TileMode.MIRROR, Shader.TileMode.MIRROR)
+            BitmapShader(background, Shader.TileMode.MIRROR, Shader.TileMode.MIRROR),
         )
     }
 
@@ -197,10 +197,10 @@ class RainEffect(
             { buffer ->
                 rainConfig.rainShowerShader.setInputBuffer(
                     "outlineBuffer",
-                    BitmapShader(buffer, Shader.TileMode.MIRROR, Shader.TileMode.MIRROR)
+                    BitmapShader(buffer, Shader.TileMode.MIRROR, Shader.TileMode.MIRROR),
                 )
             },
-            mainExecutor
+            mainExecutor,
         )
     }
 
@@ -211,7 +211,7 @@ class RainEffect(
         rainConfig.lut?.let {
             rainConfig.colorGradingShader.setInputShader(
                 "lut",
-                BitmapShader(it, Shader.TileMode.MIRROR, Shader.TileMode.MIRROR)
+                BitmapShader(it, Shader.TileMode.MIRROR, Shader.TileMode.MIRROR),
             )
         }
     }

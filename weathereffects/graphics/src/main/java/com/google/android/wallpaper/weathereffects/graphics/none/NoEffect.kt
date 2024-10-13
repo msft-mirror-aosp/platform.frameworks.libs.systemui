@@ -36,17 +36,17 @@ class NoEffect(var foreground: Bitmap, var background: Bitmap, private var surfa
             background,
             MatrixUtils.centerCropMatrix(
                 surfaceSize,
-                SizeF(background.width.toFloat(), background.height.toFloat())
+                SizeF(background.width.toFloat(), background.height.toFloat()),
             ),
-            null
+            null,
         )
         canvas.drawBitmap(
             foreground,
             MatrixUtils.centerCropMatrix(
                 surfaceSize,
-                SizeF(foreground.width.toFloat(), foreground.height.toFloat())
+                SizeF(foreground.width.toFloat(), foreground.height.toFloat()),
             ),
-            null
+            null,
         )
     }
 
