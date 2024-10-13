@@ -21,29 +21,26 @@ import android.content.Context
 import android.os.UserHandle
 import com.android.launcher3.icons.BaseIconFactory.IconOptions
 import com.android.launcher3.icons.BitmapInfo
+import com.android.launcher3.icons.IconProvider
 
 /** Caching logic for ComponentWithLabelAndIcon */
-class CachedObjectCachingLogic<T : BaseIconCache>(context: Context) :
-    CachingLogic<CachedObject<T>> {
+object CachedObjectCachingLogic : CachingLogic<CachedObject> {
 
-    private val pm = context.packageManager
+    override fun getComponent(info: CachedObject): ComponentName = info.component
 
-    override fun getComponent(info: CachedObject<T>): ComponentName = info.component
+    override fun getUser(info: CachedObject): UserHandle = info.user
 
-    override fun getUser(info: CachedObject<T>): UserHandle = info.user
+    override fun getLabel(info: CachedObject): CharSequence? = info.label
 
-    override fun getLabel(info: CachedObject<T>): CharSequence? = info.getLabel(pm)
-
-    override fun loadIcon(
-        context: Context,
-        cache: BaseIconCache,
-        info: CachedObject<T>,
-    ): BitmapInfo {
-        val d = info.getFullResIcon(cache as T) ?: return BitmapInfo.LOW_RES_INFO
+    override fun loadIcon(context: Context, cache: BaseIconCache, info: CachedObject): BitmapInfo {
+        val d = info.getFullResIcon(cache) ?: return BitmapInfo.LOW_RES_INFO
         cache.iconFactory.use { li ->
             return li.createBadgedIconBitmap(d, IconOptions().setUser(info.user))
         }
     }
 
-    override fun getApplicationInfo(info: CachedObject<T>) = info.applicationInfo
+    override fun getApplicationInfo(info: CachedObject) = info.applicationInfo
+
+    override fun getFreshnessIdentifier(item: CachedObject, provider: IconProvider): String? =
+        item.getFreshnessIdentifier(provider)
 }
