@@ -19,7 +19,7 @@ package com.android.app.tracing
 import android.os.Trace
 import android.os.TraceNameSupplier
 
-inline fun namedRunnable(tag: String, crossinline block: () -> Unit): Runnable {
+public inline fun namedRunnable(tag: String, crossinline block: () -> Unit): Runnable {
     return object : Runnable, TraceNameSupplier {
         override fun getTraceName(): String = tag
 
@@ -27,7 +27,7 @@ inline fun namedRunnable(tag: String, crossinline block: () -> Unit): Runnable {
     }
 }
 
-inline fun instantForTrack(trackName: String, eventName: () -> String) {
+public inline fun instantForTrack(trackName: String, eventName: () -> String) {
     if (Trace.isEnabled()) {
         Trace.instantForTrack(Trace.TRACE_TAG_APP, trackName, eventName())
     }
