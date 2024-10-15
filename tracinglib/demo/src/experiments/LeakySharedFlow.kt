@@ -39,11 +39,11 @@ constructor(@FixedThreadA private var dispatcherA: CoroutineDispatcher) : Experi
         // BAD - does not follow structured concurrency. This creates a new job each time it is
         // called. There is no way to cancel the shared flow because the parent does not know about
         // it
-        coldFibonacciFlow("leaky1").shareIn(leakedScope, SharingStarted.Eagerly, replay = 10)
+        coldCounterFlow("leaky1").shareIn(leakedScope, SharingStarted.Eagerly, replay = 10)
 
         // BAD - this also leaks
         coroutineScope {
-            coldFibonacciFlow("leaky2").shareIn(leakedScope, SharingStarted.Eagerly, replay = 10)
+            coldCounterFlow("leaky2").shareIn(leakedScope, SharingStarted.Eagerly, replay = 10)
         }
     }
 }
