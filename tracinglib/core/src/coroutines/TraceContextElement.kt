@@ -109,10 +109,12 @@ fun createCoroutineTracingContext(
             inheritedTracePrefix = "",
             coroutineDepth = 0,
             parentId = -1,
-            walkStackForDefaultNames = walkStackForDefaultNames,
-            includeParentNames = includeParentNames,
-            strictMode = strictMode,
-            shouldIgnoreClassName = shouldIgnoreClassName,
+            TraceConfig(
+                walkStackForDefaultNames = walkStackForDefaultNames,
+                includeParentNames = includeParentNames,
+                strictMode = strictMode,
+                shouldIgnoreClassName = shouldIgnoreClassName,
+            ),
         )
     } else {
         EmptyCoroutineContext
@@ -187,6 +189,13 @@ open class CoroutineTraceName(val name: String) : CoroutineContext.Element {
     }
 }
 
+data class TraceConfig(
+    val walkStackForDefaultNames: Boolean,
+    val includeParentNames: Boolean,
+    val strictMode: Boolean,
+    val shouldIgnoreClassName: (String) -> Boolean,
+)
+
 /**
  * Used for tracking parent-child relationship of coroutines and persisting [TraceData] when
  * coroutines are suspended and resumed.
@@ -228,16 +237,13 @@ class TraceContextElement(
     inheritedTracePrefix: String,
     private val coroutineDepth: Int,
     parentId: Int,
-    private val walkStackForDefaultNames: Boolean,
-    private val includeParentNames: Boolean,
-    private val strictMode: Boolean,
-    private val shouldIgnoreClassName: (String) -> Boolean,
+    private val config: TraceConfig,
 ) : CopyableThreadContextElement<TraceData?>, CoroutineTraceName(name) {
 
     private var childCoroutineCount = AtomicInteger(0)
 
     private val fullCoroutineTraceName =
-        if (includeParentNames) "$inheritedTracePrefix$name" else ""
+        if (config.includeParentNames) "$inheritedTracePrefix$name" else ""
     private val continuationTraceMessage =
         "$fullCoroutineTraceName;$name;d=$coroutineDepth;c=$currentId;p=$parentId"
 
@@ -340,21 +346,19 @@ class TraceContextElement(
 
     private fun createChildContext(
         name: String =
-            if (walkStackForDefaultNames) walkStackForClassName(shouldIgnoreClassName) else ""
+            if (config.walkStackForDefaultNames) walkStackForClassName(config.shouldIgnoreClassName)
+            else ""
     ): TraceContextElement {
         debug { "#createChildContext: \"$name\" has new child with name \"${name}\"" }
         val childCount = childCoroutineCount.incrementAndGet()
         return TraceContextElement(
             name = name,
-            contextTraceData = TraceData(strictMode),
+            contextTraceData = TraceData(config.strictMode),
             inheritedTracePrefix =
-                if (includeParentNames) "$fullCoroutineTraceName:$childCount^" else "",
+                if (config.includeParentNames) "$fullCoroutineTraceName:$childCount^" else "",
             coroutineDepth = coroutineDepth + 1,
             parentId = currentId,
-            walkStackForDefaultNames = walkStackForDefaultNames,
-            includeParentNames = includeParentNames,
-            strictMode = strictMode,
-            shouldIgnoreClassName = shouldIgnoreClassName,
+            config = config,
         )
     }
 }
