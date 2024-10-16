@@ -14,9 +14,10 @@
  * limitations under the License.
  */
 
-package com.android.app.tracing.coroutines.util
+package com.android.test.tracing.coroutines.util
 
 import android.os.Trace
+import android.util.Log
 import org.robolectric.annotation.Implementation
 import org.robolectric.annotation.Implements
 
@@ -34,27 +35,27 @@ object ShadowTrace {
     @Implementation
     @JvmStatic
     fun traceBegin(traceTag: Long, methodName: String) {
-        debugLog("traceBegin: name=$methodName")
+        debug { "traceBegin: name=$methodName" }
         FakeTraceState.begin(methodName)
     }
 
     @Implementation
     @JvmStatic
     fun traceEnd(traceTag: Long) {
-        debugLog("traceEnd")
+        debug { "traceEnd" }
         FakeTraceState.end()
     }
 
     @Implementation
     @JvmStatic
     fun asyncTraceBegin(traceTag: Long, methodName: String, cookie: Int) {
-        debugLog("asyncTraceBegin: name=$methodName cookie=${cookie.toHexString()}")
+        debug { "asyncTraceBegin: name=$methodName cookie=${cookie.toHexString()}" }
     }
 
     @Implementation
     @JvmStatic
     fun asyncTraceEnd(traceTag: Long, methodName: String, cookie: Int) {
-        debugLog("asyncTraceEnd: name=$methodName cookie=${cookie.toHexString()}")
+        debug { "asyncTraceEnd: name=$methodName cookie=${cookie.toHexString()}" }
     }
 
     @Implementation
@@ -65,28 +66,35 @@ object ShadowTrace {
         methodName: String,
         cookie: Int,
     ) {
-        debugLog(
+        debug {
             "asyncTraceForTrackBegin: track=$trackName name=$methodName cookie=${cookie.toHexString()}"
-        )
+        }
     }
 
     @Implementation
     @JvmStatic
     fun asyncTraceForTrackEnd(traceTag: Long, trackName: String, methodName: String, cookie: Int) {
-        debugLog(
+        debug {
             "asyncTraceForTrackEnd: track=$trackName name=$methodName cookie=${cookie.toHexString()}"
-        )
+        }
     }
 
     @Implementation
     @JvmStatic
     fun instant(traceTag: Long, eventName: String) {
-        debugLog("instant: name=$eventName")
+        debug { "instant: name=$eventName" }
     }
 
     @Implementation
     @JvmStatic
     fun instantForTrack(traceTag: Long, trackName: String, eventName: String) {
-        debugLog("instantForTrack: track=$trackName name=$eventName")
+        debug { "instantForTrack: track=$trackName name=$eventName" }
     }
+}
+
+private const val DEBUG = false
+
+/** Log a message with a tag indicating the current thread ID */
+private fun debug(message: () -> String) {
+    if (DEBUG) Log.d("ShadowTrace", "Thread #${currentThreadId()}: $message")
 }
