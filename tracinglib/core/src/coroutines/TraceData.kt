@@ -16,7 +16,6 @@
 
 package com.android.app.tracing.coroutines
 
-import androidx.annotation.VisibleForTesting
 import com.android.app.tracing.beginSlice
 import com.android.app.tracing.endSlice
 import java.util.ArrayDeque
@@ -27,9 +26,9 @@ import java.util.ArrayDeque
  *
  * @see traceCoroutine
  */
-typealias TraceSection = String
+private typealias TraceSection = String
 
-class TraceCountThreadLocal : ThreadLocal<Int>() {
+private class TraceCountThreadLocal : ThreadLocal<Int>() {
     override fun initialValue(): Int {
         return 0
     }
@@ -44,10 +43,10 @@ class TraceCountThreadLocal : ThreadLocal<Int>() {
  *   only be set for testing.
  * @see traceCoroutine
  */
-@VisibleForTesting(otherwise = VisibleForTesting.PACKAGE_PRIVATE)
-class TraceData(private val strictMode: Boolean) {
+@PublishedApi
+internal class TraceData(private val strictMode: Boolean) {
 
-    var slices: ArrayDeque<TraceSection>? = null
+    internal var slices: ArrayDeque<TraceSection>? = null
 
     /**
      * ThreadLocal counter for how many open trace sections there are. This is needed because it is
@@ -60,7 +59,7 @@ class TraceData(private val strictMode: Boolean) {
     private val openSliceCount = TraceCountThreadLocal()
 
     /** Adds current trace slices back to the current thread. Called when coroutine is resumed. */
-    fun beginAllOnThread() {
+    internal fun beginAllOnThread() {
         strictModeCheck()
         slices?.descendingIterator()?.forEach { beginSlice(it) }
         openSliceCount.set(slices?.size ?: 0)
@@ -69,7 +68,7 @@ class TraceData(private val strictMode: Boolean) {
     /**
      * Removes all current trace slices from the current thread. Called when coroutine is suspended.
      */
-    fun endAllOnThread() {
+    internal fun endAllOnThread() {
         strictModeCheck()
         repeat(openSliceCount.get() ?: 0) { endSlice() }
         openSliceCount.set(0)
@@ -81,7 +80,8 @@ class TraceData(private val strictMode: Boolean) {
      * coroutines, or to child coroutines that have already started. The unique ID is used to verify
      * that the [endSpan] is corresponds to a [beginSpan].
      */
-    fun beginSpan(name: String) {
+    @PublishedApi
+    internal fun beginSpan(name: String) {
         strictModeCheck()
         if (slices == null) {
             slices = ArrayDeque()
@@ -96,7 +96,8 @@ class TraceData(private val strictMode: Boolean) {
      * trace slice will immediately be removed from the current thread. This information will not
      * propagate to parent coroutines, or to child coroutines that have already started.
      */
-    fun endSpan() {
+    @PublishedApi
+    internal fun endSpan() {
         strictModeCheck()
         // Should never happen, but we should be defensive rather than crash the whole application
         if (slices != null && slices!!.size > 0) {
@@ -108,7 +109,7 @@ class TraceData(private val strictMode: Boolean) {
         }
     }
 
-    override fun toString(): String =
+    public override fun toString(): String =
         if (DEBUG) "{${slices?.joinToString(separator = "\", \"", prefix = "\"", postfix = "\"")}}"
         else super.toString()
 
@@ -126,5 +127,3 @@ private const val STRICT_MODE_ERROR_MESSAGE =
     "TraceData should only be accessed using " +
         "the ThreadLocal: CURRENT_TRACE.get(). Accessing TraceData by other means, such as " +
         "through the TraceContextElement's property may lead to concurrent modification."
-
-@OptIn(ExperimentalStdlibApi::class) val hexFormatForId = HexFormat { number.prefix = "0x" }

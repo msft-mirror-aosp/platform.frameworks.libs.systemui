@@ -39,7 +39,6 @@ import kotlinx.coroutines.flow.shareIn
 import kotlinx.coroutines.newSingleThreadContext
 import kotlinx.coroutines.withContext
 import org.junit.Assert.assertEquals
-import org.junit.Ignore
 import org.junit.Test
 
 /** Tests behavior of default names, whether that's via stack walking or reflection */
@@ -336,24 +335,29 @@ class DefaultNamingTest : TestBase() {
         finish(8, "main:1^")
     }
 
-    @Ignore("Need to add support for expected exceptions to TestBase")
     @OptIn(ExperimentalCoroutinesApi::class, DelicateCoroutinesApi::class)
     @Test
-    fun collectTraced11_badTransform() = runTest {
-        val thread1 = newSingleThreadContext("thread-#1")
-        expect(1, "main:1^")
-        flow {
-                expect(2, "main:1^", "collect:COLLECT")
-                emit(42)
-                expect(4, "main:1^", "collect:COLLECT")
+    fun collectTraced12_badTransform() =
+        runTest(
+            expectedException = { e ->
+                return@runTest e is java.lang.IllegalStateException &&
+                    (e.message?.startsWith("Flow invariant is violated") ?: false)
             }
-            .transformTraced("TRANSFORM") {
-                // SHOULD THROW AN EXCEPTION:
-                withContext(thread1) { emit(it * 2) }
-            }
-            .collectTraced("COLLECT") {}
-        finish(5, "main:1^")
-    }
+        ) {
+            val thread1 = newSingleThreadContext("thread-#1")
+            expect(1, "main:1^")
+            flow {
+                    expect(2, "main:1^", "collect:COLLECT")
+                    emit(42)
+                    expect(4, "main:1^", "collect:COLLECT")
+                }
+                .transformTraced("TRANSFORM") {
+                    // SHOULD THROW AN EXCEPTION:
+                    withContext(thread1) { emit(it * 2) }
+                }
+                .collectTraced("COLLECT") {}
+            finish(5, "main:1^")
+        }
 }
 
 fun topLevelFun(value: Int) {
