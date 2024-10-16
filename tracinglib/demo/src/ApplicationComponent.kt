@@ -52,6 +52,8 @@ import kotlinx.coroutines.android.asCoroutineDispatcher
 
 @Qualifier @MustBeDocumented @Retention(RUNTIME) annotation class FixedThreadC
 
+@Qualifier @MustBeDocumented @Retention(RUNTIME) annotation class FixedThreadD
+
 @Module
 class ConcurrencyModule {
 
@@ -80,21 +82,28 @@ class ConcurrencyModule {
     @Singleton
     @FixedThreadA
     fun provideDispatcherA(): CoroutineDispatcher {
-        return startThreadWithLooper("Thread A").threadHandler.asCoroutineDispatcher()
+        return startThreadWithLooper("Thread:A").threadHandler.asCoroutineDispatcher()
     }
 
     @Provides
     @Singleton
     @FixedThreadB
     fun provideDispatcherB(): CoroutineDispatcher {
-        return startThreadWithLooper("Thread B").threadHandler.asCoroutineDispatcher()
+        return startThreadWithLooper("Thread:B").threadHandler.asCoroutineDispatcher()
     }
 
     @Provides
     @Singleton
     @FixedThreadC
     fun provideDispatcherC(): CoroutineDispatcher {
-        return startThreadWithLooper("Thread C").threadHandler.asCoroutineDispatcher()
+        return startThreadWithLooper("Thread:C").threadHandler.asCoroutineDispatcher()
+    }
+
+    @Provides
+    @Singleton
+    @FixedThreadD
+    fun provideDispatcherD(): CoroutineDispatcher {
+        return startThreadWithLooper("Thread:D").threadHandler.asCoroutineDispatcher()
     }
 }
 

@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package com.android.app.tracing.coroutines.util
+package com.android.test.tracing.coroutines.util
 
 import org.junit.Assert.assertFalse
 
