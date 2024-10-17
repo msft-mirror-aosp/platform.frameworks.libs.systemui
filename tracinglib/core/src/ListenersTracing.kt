@@ -17,7 +17,7 @@
 package com.android.app.tracing
 
 /** Utilities to trace automatically computations happening for each element of a list. */
-object ListenersTracing {
+public object ListenersTracing {
 
     /**
      * Like [forEach], but outputs a trace for each element.
@@ -33,7 +33,7 @@ object ListenersTracing {
      * listeners.forEachTraced(TAG) { it.dispatch(state) }
      * ```
      */
-    inline fun <T : Any> List<T>.forEachTraced(tag: String = "", f: (T) -> Unit) {
+    public inline fun <T : Any> List<T>.forEachTraced(tag: String = "", f: (T) -> Unit) {
         forEach { traceSection({ "$tag#${it::javaClass.get().name}" }) { f(it) } }
     }
 }
