@@ -16,7 +16,6 @@
 
 package com.android.test.tracing.coroutines
 
-import android.os.HandlerThread
 import android.platform.test.annotations.EnableFlags
 import com.android.app.tracing.coroutines.TraceContextElement
 import com.android.app.tracing.coroutines.TraceData
@@ -31,19 +30,14 @@ import java.util.concurrent.TimeUnit
 import kotlin.coroutines.EmptyCoroutineContext
 import kotlinx.coroutines.DelicateCoroutinesApi
 import kotlinx.coroutines.ExperimentalCoroutinesApi
-import kotlinx.coroutines.android.asCoroutineDispatcher
 import kotlinx.coroutines.channels.Channel
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.newSingleThreadContext
 import kotlinx.coroutines.withContext
 import org.junit.Assert.assertArrayEquals
-import org.junit.Assert.assertEquals
-import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertNotSame
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertSame
-import org.junit.Ignore
 import org.junit.Test
 
 @OptIn(ExperimentalCoroutinesApi::class, DelicateCoroutinesApi::class)
@@ -235,22 +229,5 @@ class CoroutineTracingMachineryTest : TestBase() {
             expect("main:1^")
         }
         expect()
-    }
-
-    @Ignore("Fails with java.net.SocketTimeoutException: Read timed out")
-    @Test
-    fun testHandlerDispatcher() = runTest {
-        val handlerThread = HandlerThread("test-handler-thread")
-        handlerThread.start()
-        val dispatcher = handlerThread.threadHandler.asCoroutineDispatcher()
-        val previousThread = Thread.currentThread().id
-        launch(dispatcher) {
-            val currentThreadBeforeDelay = Thread.currentThread().id
-            delay(1)
-            assertEquals(currentThreadBeforeDelay, Thread.currentThread().id)
-            assertNotEquals(previousThread, currentThreadBeforeDelay)
-            delay(1)
-            assertEquals(currentThreadBeforeDelay, Thread.currentThread().id)
-        }
     }
 }

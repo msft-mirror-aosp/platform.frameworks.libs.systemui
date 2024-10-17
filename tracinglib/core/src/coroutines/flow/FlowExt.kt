@@ -69,7 +69,7 @@ internal inline fun <T, R> Flow<T>.unsafeTransform(
  *   }
  * ```
  */
-fun <T> Flow<T>.flowName(name: String): Flow<T> = flowOn(nameCoroutine(name))
+public fun <T> Flow<T>.flowName(name: String): Flow<T> = flowOn(nameCoroutine(name))
 
 /**
  * Applying [flowName][Flow.flowName] to [SharedFlow] has no effect. See the [SharedFlow]
@@ -84,7 +84,7 @@ fun <T> Flow<T>.flowName(name: String): Flow<T> = flowOn(nameCoroutine(name))
     replaceWith = ReplaceWith("this"),
 )
 @Suppress("UnusedReceiverParameter")
-fun <T> SharedFlow<T>.flowName(@Suppress("UNUSED_PARAMETER") name: String): Flow<T> =
+public fun <T> SharedFlow<T>.flowName(@Suppress("UNUSED_PARAMETER") name: String): Flow<T> =
     throw UnsupportedOperationException("Not implemented, should not be called")
 
 /**
@@ -101,7 +101,7 @@ fun <T> SharedFlow<T>.flowName(@Suppress("UNUSED_PARAMETER") name: String): Flow
  * flowOf(1).collect(null) { ... } // this will call `collectTraced`
  * ```
  */
-suspend fun <T> Flow<T>.collectTraced(name: String, collector: FlowCollector<T>) {
+public suspend fun <T> Flow<T>.collectTraced(name: String, collector: FlowCollector<T>) {
     if (Flags.coroutineTracing()) {
         val collectName = "collect:$name"
         val emitName = "$collectName:emit"
@@ -112,7 +112,7 @@ suspend fun <T> Flow<T>.collectTraced(name: String, collector: FlowCollector<T>)
 }
 
 /** @see Flow.collectTraced */
-suspend fun <T> Flow<T>.collectTraced(collector: FlowCollector<T>) {
+public suspend fun <T> Flow<T>.collectTraced(collector: FlowCollector<T>) {
     if (Flags.coroutineTracing()) {
         collectTraced(
             name = collector::class.java.name.substringAfterLast("."),
@@ -138,7 +138,7 @@ internal suspend fun <T> Flow<T>.collectLatestTraced(
     }
 }
 
-suspend fun <T> Flow<T>.collectLatestTraced(action: suspend (value: T) -> Unit) {
+public suspend fun <T> Flow<T>.collectLatestTraced(action: suspend (value: T) -> Unit) {
     if (Flags.coroutineTracing()) {
         collectLatestTraced(action::class.java.name.substringAfterLast("."), action)
     } else {
@@ -148,7 +148,7 @@ suspend fun <T> Flow<T>.collectLatestTraced(action: suspend (value: T) -> Unit) 
 
 /** @see kotlinx.coroutines.flow.transform */
 @OptIn(ExperimentalTypeInference::class)
-inline fun <T, R> Flow<T>.transformTraced(
+public inline fun <T, R> Flow<T>.transformTraced(
     name: String,
     @BuilderInference crossinline transform: suspend FlowCollector<R>.(value: T) -> Unit,
 ): Flow<R> =
@@ -159,7 +159,7 @@ inline fun <T, R> Flow<T>.transformTraced(
         transform(transform)
     }
 
-inline fun <T> Flow<T>.filterTraced(
+public inline fun <T> Flow<T>.filterTraced(
     name: String,
     crossinline predicate: suspend (T) -> Boolean,
 ): Flow<T> {
@@ -178,7 +178,7 @@ inline fun <T> Flow<T>.filterTraced(
     }
 }
 
-inline fun <T, R> Flow<T>.mapTraced(
+public inline fun <T, R> Flow<T>.mapTraced(
     name: String,
     crossinline transform: suspend (value: T) -> R,
 ): Flow<R> {
