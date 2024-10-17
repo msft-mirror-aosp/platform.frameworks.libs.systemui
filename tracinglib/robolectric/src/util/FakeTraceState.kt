@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package com.android.app.tracing.coroutines.util
+package com.android.test.tracing.coroutines.util
 
 import org.junit.Assert.assertFalse
 
@@ -43,8 +43,7 @@ object FakeTraceState {
                     "but there are no open sections",
                 allThreadStates[threadId].isNullOrEmpty(),
             )
-            // TODO: Replace with .removeLast() once available
-            allThreadStates[threadId]!!.removeAt(allThreadStates[threadId]!!.lastIndex)
+            allThreadStates[threadId]!!.removeLast()
         }
     }
 

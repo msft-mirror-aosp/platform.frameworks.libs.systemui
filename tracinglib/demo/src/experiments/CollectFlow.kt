@@ -15,9 +15,12 @@
  */
 package com.example.tracing.demo.experiments
 
-import com.android.app.tracing.coroutines.flow.withTraceName
-import com.android.app.tracing.coroutines.launch
-import com.android.app.tracing.coroutines.traceCoroutine
+import android.os.Trace
+import com.android.app.tracing.coroutines.flow.collectTraced
+import com.android.app.tracing.coroutines.flow.filterTraced as filter
+import com.android.app.tracing.coroutines.flow.flowName
+import com.android.app.tracing.coroutines.flow.mapTraced as map
+import com.android.app.tracing.coroutines.launchTraced as launch
 import com.example.tracing.demo.FixedThreadA
 import com.example.tracing.demo.FixedThreadB
 import com.example.tracing.demo.FixedThreadC
@@ -25,10 +28,7 @@ import javax.inject.Inject
 import javax.inject.Singleton
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.coroutineScope
-import kotlinx.coroutines.flow.filter
-import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOn
-import kotlinx.coroutines.flow.map
 
 @Singleton
 class CollectFlow
@@ -41,33 +41,27 @@ constructor(
     override val description: String = "Collect a cold flow with intermediate operators"
 
     private val coldFlow =
-        flow {
-                for (n in 0..4) {
-                    traceCoroutine("delay-and-emit for $n") {
-                        // use artificial delays to make the trace more readable for demo
-                        forceSuspend("A", 250)
-                        emit(n)
-                    }
-                }
-            }
-            .withTraceName("flowOf numbers")
-            .filter {
-                forceSuspend("B", 250)
+        coldCounterFlow("count", 4)
+            .flowName("original-cold-flow-scope")
+            .flowOn(dispatcherA)
+            .filter("evens") {
+                forceSuspend("B", 20)
                 it % 2 == 0
             }
-            .flowOn(dispatcherA)
-            .withTraceName("filter for even")
-            .map {
-                forceSuspend("C", 250)
+            .flowOn(dispatcherB)
+            .flowName("even-filter-scope")
+            .map("3x") {
+                forceSuspend("C", 15)
                 it * 3
             }
-            .withTraceName("map 3x")
-            .flowOn(dispatcherB)
-            .withTraceName("flowOn thread #2")
+            .flowOn(dispatcherC)
 
     override suspend fun start(): Unit = coroutineScope {
-        launch("launch", dispatcherC) {
-            coldFlow.collect { traceCoroutine("got: $it") { forceSuspend("C", 250) } }
+        launch(context = dispatcherA) {
+            coldFlow.collectTraced {
+                Trace.instant(Trace.TRACE_TAG_APP, "got: $it")
+                forceSuspend("A2", 60)
+            }
         }
     }
 }

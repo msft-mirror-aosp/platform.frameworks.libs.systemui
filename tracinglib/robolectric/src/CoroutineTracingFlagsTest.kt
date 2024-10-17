@@ -14,12 +14,16 @@
  * limitations under the License.
  */
 
-package com.android.app.tracing.coroutines
+package com.android.test.tracing.coroutines
 
 import android.platform.test.annotations.DisableFlags
 import android.platform.test.annotations.EnableFlags
-import com.android.app.tracing.coroutines.util.FakeTraceState
+import com.android.app.tracing.coroutines.TraceData
+import com.android.app.tracing.coroutines.createCoroutineTracingContext
+import com.android.app.tracing.coroutines.traceCoroutine
+import com.android.app.tracing.coroutines.traceThreadLocal
 import com.android.systemui.Flags.FLAG_COROUTINE_TRACING
+import com.android.test.tracing.coroutines.util.FakeTraceState
 import kotlinx.coroutines.withContext
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
