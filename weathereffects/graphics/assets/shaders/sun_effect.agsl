@@ -16,14 +16,13 @@
 
 uniform shader foreground;
 uniform shader background;
-uniform float2 uvOffsetFgd;
-uniform float2 uvScaleFgd;
-uniform float2 uvOffsetBgd;
-uniform float2 uvScaleBgd;
 uniform float screenAspectRatio;
 uniform float2 screenSize;
 uniform float time;
 uniform float intensity;
+uniform mat3 transformMatrixFgd;
+uniform mat3 transformMatrixBgd;
+
 
 #include "shaders/constants.agsl"
 #include "shaders/utils.agsl"
@@ -32,11 +31,16 @@ uniform float intensity;
 #include "shaders/lens_flare.agsl"
 
 vec4 main(float2 fragCoord) {
-    float2 uv = fragCoord / screenSize;
+    // Apply transform matrix to fragCoord
+    float2 adjustedUvForeground = transformPoint(transformMatrixFgd, fragCoord);
+    float2 adjustedUvBackground = transformPoint(transformMatrixBgd, fragCoord);
+
+
+    float2 uv = adjustedUvBackground / screenSize;
     uv.y /= screenAspectRatio;
 
-    vec4 colorForeground = foreground.eval(fragCoord * uvScaleFgd + uvOffsetFgd);
-    vec4 color = background.eval(fragCoord * uvScaleBgd + uvOffsetBgd);
+    vec4 colorForeground = foreground.eval(adjustedUvForeground);
+    vec4 color = background.eval(adjustedUvBackground);
 
     // TODO(b/347299395): to add flare and sun effect background
 
