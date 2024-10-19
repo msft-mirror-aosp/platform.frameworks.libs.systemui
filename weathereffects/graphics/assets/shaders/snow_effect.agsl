@@ -18,14 +18,12 @@ uniform shader foreground;
 uniform shader background;
 uniform shader accumulatedSnow;
 uniform shader noise;
-uniform float2 uvOffsetFgd;
-uniform float2 uvScaleFgd;
-uniform float2 uvOffsetBgd;
-uniform float2 uvScaleBgd;
 uniform float2 gridSize;
 uniform float time;
 uniform float screenAspectRatio;
 uniform float2 screenSize;
+uniform mat3 transformMatrixFgd;
+uniform mat3 transformMatrixBgd;
 
 #include "shaders/constants.agsl"
 #include "shaders/utils.agsl"
@@ -42,9 +40,6 @@ const float midSnowLayerIndex = 3;
 const float closestSnowLayerIndex = 0;
 
 vec4 main(float2 fragCoord) {
-    float2 uv = fragCoord / screenSize;
-    float2 uvAdjusted = vec2(uv.x, uv.y / screenAspectRatio);
-
     /**
      * The effect is consisted of 2 image textures (foreground and background) + 10 layers of
      * snow + 1 layer of snow accumulation. Below describes the rendering order (back to front):
@@ -55,11 +50,16 @@ vec4 main(float2 fragCoord) {
      * 5. Foreground snow layers (from mid layer to closest layer)
      */
 
-    // Adjusts the UVs to have the expected rect of the image.
-    float2 adjustedUvForeground = fragCoord * uvScaleFgd + uvOffsetFgd;
-    vec4 colorForeground = foreground.eval(adjustedUvForeground);
-    vec4 colorBackground = background.eval(fragCoord * uvScaleBgd + uvOffsetBgd);
+    // Apply transform matrix to fragCoord
+    float2 adjustedUvForeground = transformPoint(transformMatrixFgd, fragCoord);
+    float2 adjustedUvBackground = transformPoint(transformMatrixBgd, fragCoord);
 
+    // Calculate uv for snow based on transformed coordinates
+    float2 uv = adjustedUvBackground / screenSize;
+    float2 uvAdjusted = vec2(uv.x, uv.y / screenAspectRatio);
+
+    vec4 colorForeground = foreground.eval(adjustedUvForeground);
+    vec4 colorBackground = background.eval(adjustedUvBackground);
     // 1. Draw background.
     vec4 color = colorBackground;
 
