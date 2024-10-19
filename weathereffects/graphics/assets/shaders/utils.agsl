@@ -121,3 +121,12 @@ float map(float value, float inMin, float inMax, float outMin, float outMax) {
     return p * (outMax - outMin) + outMin;
 }
 
+// Adjusts the UVs to have the expected rect of the image.
+float2 transformPoint(mat3 transformMatrix, float2 point) {
+    // Convert the point to homogeneous coordinates (x, y, 1)
+    vec3 homogeneousPoint = vec3(point, 1.0);
+    // Multiply the matrix by the point
+    vec3 transformedPoint = transformMatrix * homogeneousPoint;
+    // Convert back to Cartesian coordinates (x, y)
+    return transformedPoint.xy / transformedPoint.z;
+}
