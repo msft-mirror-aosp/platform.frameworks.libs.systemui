@@ -25,11 +25,15 @@ android_app {
 android_robolectric_test {
     enabled: true,
     name: "tracinglib-robo-test",
-    srcs: ["src/**/*.kt"],
+    srcs: [
+        "src/**/*.kt",
+        ":tracinglib-core-srcs",
+    ],
     java_resource_dirs: ["config"],
     static_libs: [
-        "tracinglib-platform",
+        "kotlinx_coroutines_android",
         "flag-junit",
+        "com_android_systemui_flags_lib",
     ],
     libs: [
         "androidx.test.core",
