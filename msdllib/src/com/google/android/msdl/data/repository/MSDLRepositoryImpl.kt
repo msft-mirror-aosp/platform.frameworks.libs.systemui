@@ -252,7 +252,7 @@ internal class MSDLRepositoryImpl : MSDLRepository {
                         HapticComposition(
                             listOf(
                                 HapticCompositionPrimitive(
-                                    VibrationEffect.Composition.PRIMITIVE_TICK,
+                                    VibrationEffect.Composition.PRIMITIVE_CLICK,
                                     scale = 1f,
                                     delayMillis = 0,
                                 )

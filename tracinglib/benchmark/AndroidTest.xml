@@ -13,7 +13,7 @@
      See the License for the specific language governing permissions and
      limitations under the License.
 -->
-<configuration description="Runs tracinglib-benchmark metric instrumentation.">
+<configuration description="Runs CoroutineTracingPerfTests metric instrumentation.">
     <target_preparer class="com.android.tradefed.targetprep.RootTargetPreparer"/>
     <!-- Needed for pushing the trace config file -->
     <target_preparer class="com.android.tradefed.targetprep.PushFilePreparer">
@@ -25,7 +25,7 @@
 
     <target_preparer class="com.android.tradefed.targetprep.suite.SuiteApkInstaller">
         <option name="cleanup-apks" value="true" />
-        <option name="test-file-name" value="tracinglib-benchmark.apk" />
+        <option name="test-file-name" value="CoroutineTracingPerfTests.apk" />
     </target_preparer>
 
     <target_preparer class="com.android.tradefed.targetprep.RunCommandTargetPreparer">
