@@ -14,26 +14,40 @@
  * limitations under the License.
  */
 
-package com.android.app.tracing.coroutines
+package com.android.test.tracing.coroutines
 
+import android.os.Looper
 import android.platform.test.flag.junit.SetFlagsRule
-import android.util.Log
 import androidx.test.ext.junit.runners.AndroidJUnit4
-import com.android.app.tracing.coroutines.util.FakeTraceState
-import com.android.app.tracing.coroutines.util.FakeTraceState.getOpenTraceSectionsOnCurrentThread
-import com.android.app.tracing.coroutines.util.ShadowTrace
+import com.android.app.tracing.coroutines.CoroutineTraceName
+import com.android.test.tracing.coroutines.util.FakeTraceState
+import com.android.test.tracing.coroutines.util.FakeTraceState.getOpenTraceSectionsOnCurrentThread
+import com.android.test.tracing.coroutines.util.ShadowTrace
+import java.io.PrintWriter
+import java.io.StringWriter
+import java.util.concurrent.TimeUnit.MILLISECONDS
 import java.util.concurrent.atomic.AtomicInteger
 import kotlin.coroutines.CoroutineContext
 import kotlin.coroutines.EmptyCoroutineContext
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.launch
 import org.junit.After
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.ClassRule
 import org.junit.Rule
 import org.junit.runner.RunWith
+import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
+import org.robolectric.shadows.ShadowLooper
+
+class InvalidTraceStateException(message: String) : Exception(message)
 
 @RunWith(AndroidJUnit4::class)
 @Config(shadows = [ShadowTrace::class])
@@ -47,29 +61,85 @@ open class TestBase {
 
     @JvmField @Rule val setFlagsRule = SetFlagsRule()
 
-    private var skipAfterCheck = false
+    private val eventCounter = AtomicInteger(0)
+    private val finalEvent = AtomicInteger(INVALID_EVENT)
+    private var expectedExceptions = false
+    private lateinit var allExceptions: MutableList<Throwable>
+    private lateinit var shadowLooper: ShadowLooper
+    private lateinit var mainTraceScope: CoroutineScope
+
+    open val extraCoroutineContext: CoroutineContext
+        get() = EmptyCoroutineContext
 
     @Before
     fun setup() {
         FakeTraceState.isTracingEnabled = true
         eventCounter.set(0)
-        skipAfterCheck = false
+        allExceptions = mutableListOf()
+        shadowLooper = shadowOf(Looper.getMainLooper())
+        mainTraceScope = CoroutineScope(Dispatchers.Main + extraCoroutineContext)
     }
 
     @After
     fun tearDown() {
-        if (skipAfterCheck) return
+        val sw = StringWriter()
+        val pw = PrintWriter(sw)
+        allExceptions.forEach { it.printStackTrace(pw) }
+        assertTrue("Test failed due to incorrect trace sections\n$sw", allExceptions.isEmpty())
+
         val lastEvent = eventCounter.get()
-        check(lastEvent == FINAL_EVENT || lastEvent == 0) {
-            "Expected `finish(${lastEvent + 1})` to be called, but the test finished"
-        }
+        assertTrue(
+            "`finish()` was never called. Last seen event was #$lastEvent",
+            lastEvent == FINAL_EVENT || lastEvent == 0 || expectedExceptions,
+        )
     }
 
     protected fun runTest(
-        context: CoroutineContext = EmptyCoroutineContext,
+        expectedException: ((Throwable) -> Boolean)? = null,
         block: suspend CoroutineScope.() -> Unit,
     ) {
-        runBlocking(context, block)
+        var foundExpectedException = false
+        if (expectedException != null) expectedExceptions = true
+        mainTraceScope.launch(
+            block = block,
+            context =
+                CoroutineExceptionHandler { _, e ->
+                    if (e is CancellationException) return@CoroutineExceptionHandler // ignore
+                    if (expectedException != null && expectedException(e)) {
+                        foundExpectedException = true
+                        return@CoroutineExceptionHandler // ignore
+                    }
+                    allExceptions.add(e)
+                },
+        )
+
+        for (n in 0..1000) {
+            shadowLooper.idleFor(1, MILLISECONDS)
+        }
+
+        val names = mutableListOf<String?>()
+        var numChildren = 0
+        mainTraceScope.coroutineContext[Job]?.children?.forEach { it ->
+            names.add(it[CoroutineTraceName]?.name)
+            numChildren++
+        }
+
+        val allNames =
+            names.joinToString(prefix = "{ ", separator = ", ", postfix = " }") {
+                it?.let { "\"$it\" " } ?: "unnamed"
+            }
+        assertEquals(
+            "The main test scope still has $numChildren running jobs: $allNames.",
+            0,
+            numChildren,
+        )
+        if (expectedExceptions) {
+            assertTrue("Expected exceptions, but none were thrown", foundExpectedException)
+        }
+    }
+
+    private fun logInvalidTraceState(message: String) {
+        allExceptions.add(InvalidTraceStateException(message))
     }
 
     /**
@@ -77,158 +147,181 @@ open class TestBase {
      * suspension point.
      */
     protected suspend fun expectD(vararg expectedOpenTraceSections: String) {
-        expectD(null, *expectedOpenTraceSections)
+        expect(*expectedOpenTraceSections)
+        delay(1)
+        expect(*expectedOpenTraceSections)
     }
 
     /**
      * Same as [expect], but also call [delay] for 1ms, calling [expect] before and after the
      * suspension point.
      */
-    protected suspend fun expectD(
-        expectedEvent: Int? = null,
-        vararg expectedOpenTraceSections: String,
-    ) {
+    protected suspend fun expectD(expectedEvent: Int, vararg expectedOpenTraceSections: String) {
         expect(expectedEvent, *expectedOpenTraceSections)
         delay(1)
         expect(*expectedOpenTraceSections)
+    }
+
+    protected fun expectEndsWith(vararg expectedOpenTraceSections: String) {
+        // Inspect trace output to the fake used for recording android.os.Trace API calls:
+        val actualSections = getOpenTraceSectionsOnCurrentThread()
+        if (expectedOpenTraceSections.size <= actualSections.size) {
+            val lastSections =
+                actualSections.takeLast(expectedOpenTraceSections.size).toTypedArray()
+            assertTraceSectionsEquals(expectedOpenTraceSections, null, lastSections, null)
+        } else {
+            logInvalidTraceState(
+                "Invalid length: expected size (${expectedOpenTraceSections.size}) <= actual size (${actualSections.size})"
+            )
+        }
+    }
+
+    protected fun expectEvent(expectedEvent: Collection<Int>): Int {
+        val previousEvent = eventCounter.getAndAdd(1)
+        val currentEvent = previousEvent + 1
+        if (!expectedEvent.contains(currentEvent)) {
+            logInvalidTraceState(
+                if (previousEvent == FINAL_EVENT) {
+                    "Expected event ${expectedEvent.prettyPrintList()}, but finish() was already called"
+                } else {
+                    "Expected event ${expectedEvent.prettyPrintList()}," +
+                        " but the event counter is currently at #$currentEvent"
+                }
+            )
+        }
+        return currentEvent
     }
 
     internal fun expect(vararg expectedOpenTraceSections: String) {
         expect(null, *expectedOpenTraceSections)
     }
 
-    protected fun expectEndsWith(vararg expectedOpenTraceSections: String) {
-        try {
-            // Inspect trace output to the fake used for recording android.os.Trace API calls:
-            val actualSections = getOpenTraceSectionsOnCurrentThread()
-            check(expectedOpenTraceSections.size <= actualSections.size)
-            val lastSections =
-                actualSections.takeLast(expectedOpenTraceSections.size).toTypedArray()
-            assertTraceSectionsEquals(expectedOpenTraceSections, lastSections)
-        } catch (e: IllegalStateException) {
-            skipAfterCheck = true
-        }
+    internal fun expect(expectedEvent: Int, vararg expectedOpenTraceSections: String) {
+        expect(listOf(expectedEvent), *expectedOpenTraceSections)
     }
 
     /**
      * Checks the currently active trace sections on the current thread, and optionally checks the
      * order of operations if [expectedEvent] is not null.
      */
-    protected fun expect(expectedEvent: Int? = null, vararg expectedOpenTraceSections: String) {
-        try {
-            expectInternal(expectedEvent, *expectedOpenTraceSections)
-        } catch (e: IllegalStateException) {
-            skipAfterCheck = true
-            throw e
+    internal fun expect(possibleEventPos: List<Int>?, vararg expectedOpenTraceSections: String) {
+        var currentEvent: Int? = null
+        if (possibleEventPos != null) {
+            currentEvent = expectEvent(possibleEventPos)
         }
-    }
-
-    private fun expectInternal(
-        expectedEvent: Int? = null,
-        vararg expectedOpenTraceSections: String,
-    ) {
-        if (expectedEvent != null) {
-            val previousEvent = eventCounter.getAndAdd(1)
-            val currentEvent = previousEvent + 1
-            check(expectedEvent == currentEvent) {
-                if (previousEvent == FINAL_EVENT) {
-                    "Expected event=$expectedEvent, but finish() was already called"
-                } else {
-                    "Expected event=$expectedEvent," +
-                        " but the event counter is currently at $currentEvent"
-                }
-            }
-        }
-
-        // Inspect trace output to the fake used for recording android.os.Trace API calls:
-        assertTraceSectionsEquals(expectedOpenTraceSections, getOpenTraceSectionsOnCurrentThread())
+        val actualOpenSections = getOpenTraceSectionsOnCurrentThread()
+        assertTraceSectionsEquals(
+            expectedOpenTraceSections,
+            possibleEventPos,
+            actualOpenSections,
+            currentEvent,
+        )
     }
 
     private fun assertTraceSectionsEquals(
         expectedOpenTraceSections: Array<out String>,
+        expectedEvent: List<Int>?,
         actualOpenSections: Array<String>,
+        actualEvent: Int?,
     ) {
         val expectedSize = expectedOpenTraceSections.size
         val actualSize = actualOpenSections.size
-        check(expectedSize == actualSize) {
-            createFailureMessage(
-                expectedOpenTraceSections,
-                actualOpenSections,
-                "Size mismatch, expected size $expectedSize but was size $actualSize",
-            )
-        }
-        expectedOpenTraceSections.forEachIndexed { n, expectedTrace ->
-            val actualTrace = actualOpenSections[n]
-            val expected = expectedTrace.substringBefore(";")
-            val actual = actualTrace.substringBefore(";")
-            check(expected == actual) {
+        if (expectedSize != actualSize) {
+            logInvalidTraceState(
                 createFailureMessage(
                     expectedOpenTraceSections,
+                    expectedEvent,
                     actualOpenSections,
-                    "Differed at index #$n, expected \"$expected\" but was \"$actual\"",
+                    actualEvent,
+                    "Size mismatch, expected size $expectedSize but was size $actualSize",
                 )
+            )
+        } else {
+            expectedOpenTraceSections.forEachIndexed { n, expectedTrace ->
+                val actualTrace = actualOpenSections[n]
+                val expected = expectedTrace.substringBefore(";")
+                val actual = actualTrace.substringBefore(";")
+                if (expected != actual) {
+                    logInvalidTraceState(
+                        createFailureMessage(
+                            expectedOpenTraceSections,
+                            expectedEvent,
+                            actualOpenSections,
+                            actualEvent,
+                            "Differed at index #$n, expected \"$expected\" but was \"$actual\"",
+                        )
+                    )
+                    return@forEachIndexed
+                }
             }
         }
     }
 
     private fun createFailureMessage(
         expectedOpenTraceSections: Array<out String>,
+        expectedEventNumber: List<Int>?,
         actualOpenSections: Array<String>,
+        actualEventNumber: Int?,
         extraMessage: String,
-    ): String =
-        """
-                Incorrect trace sections found on current thread:
+    ): String {
+        val locationMarker =
+            if (expectedEventNumber == null || actualEventNumber == null) ""
+            else if (expectedEventNumber.contains(actualEventNumber))
+                " at event #$actualEventNumber"
+            else
+                ", expected event ${expectedEventNumber.prettyPrintList()}, actual event #$actualEventNumber"
+        return """
+                Incorrect trace$locationMarker. $extraMessage
                   Expected : {${expectedOpenTraceSections.prettyPrintList()}}
                   Actual   : {${actualOpenSections.prettyPrintList()}}
-                  $extraMessage
                 """
             .trimIndent()
+    }
 
     /** Same as [expect], except that no more [expect] statements can be called after it. */
     protected fun finish(expectedEvent: Int, vararg expectedOpenTraceSections: String) {
-        try {
-            finishInternal(expectedEvent, *expectedOpenTraceSections)
-        } catch (e: IllegalStateException) {
-            skipAfterCheck = true
-            throw e
-        }
-    }
-
-    private fun finishInternal(expectedEvent: Int, vararg expectedOpenTraceSections: String) {
+        finalEvent.compareAndSet(INVALID_EVENT, expectedEvent)
         val previousEvent = eventCounter.getAndSet(FINAL_EVENT)
         val currentEvent = previousEvent + 1
-        check(expectedEvent == currentEvent) {
-            if (previousEvent == FINAL_EVENT) {
-                "finish() was called more than once"
-            } else {
-                "Finished with event=$expectedEvent," +
-                    " but the event counter is currently $currentEvent"
-            }
+        if (expectedEvent != currentEvent) {
+            logInvalidTraceState(
+                "Expected to finish with event #$expectedEvent, but " +
+                    if (previousEvent == FINAL_EVENT)
+                        "finish() was already called with event #${finalEvent.get()}"
+                    else "the event counter is currently at #$currentEvent"
+            )
         }
-
-        // Inspect trace output to the fake used for recording android.os.Trace API calls:
-        assertTraceSectionsEquals(expectedOpenTraceSections, getOpenTraceSectionsOnCurrentThread())
+        assertTraceSectionsEquals(
+            expectedOpenTraceSections,
+            listOf(expectedEvent),
+            getOpenTraceSectionsOnCurrentThread(),
+            currentEvent,
+        )
     }
-
-    private val eventCounter = AtomicInteger(0)
 }
+
+private const val INVALID_EVENT = -1
 
 private const val FINAL_EVENT = Int.MIN_VALUE
 
+private fun Collection<Int>.prettyPrintList(): String {
+    return if (isEmpty()) ""
+    else if (size == 1) "#${iterator().next()}"
+    else {
+        "{${
+            toList().joinToString(
+                separator = ", #",
+                prefix = "#",
+                postfix = "",
+            ) { it.toString() }
+        }}"
+    }
+}
+
 private fun Array<out String>.prettyPrintList(): String {
-    return toList().joinToString(separator = "\", \"", prefix = "\"", postfix = "\"") {
-        it.substringBefore(";")
-    }
-}
-
-private fun check(value: Boolean, lazyMessage: () -> String) {
-    if (DEBUG_TEST) {
-        if (!value) {
-            Log.e("TestBase", lazyMessage(), Throwable())
+    return if (isEmpty()) ""
+    else
+        toList().joinToString(separator = "\", \"", prefix = "\"", postfix = "\"") {
+            it.substringBefore(";")
         }
-    } else {
-        kotlin.check(value, lazyMessage)
-    }
 }
-
-private const val DEBUG_TEST = false

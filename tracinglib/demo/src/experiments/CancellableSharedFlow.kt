@@ -34,7 +34,7 @@ constructor(@FixedThreadB private var dispatcherB: CoroutineDispatcher) : Experi
     override suspend fun start() {
         // GOOD - launched into child scope, parent can cancel this
         coroutineScope {
-            coldFibonacciFlow("good")
+            coldCounterFlow("good")
                 .flowOn(dispatcherB)
                 .shareIn(this, SharingStarted.Eagerly, replay = 10)
         }
