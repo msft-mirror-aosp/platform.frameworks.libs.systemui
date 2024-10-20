@@ -16,120 +16,182 @@
 
 package com.android.app.tracing.coroutines.flow
 
-import android.os.Trace
-import com.android.app.tracing.coroutines.CoroutineTraceName
+import com.android.app.tracing.coroutines.nameCoroutine
 import com.android.app.tracing.coroutines.traceCoroutine
-import kotlin.coroutines.CoroutineContext
+import com.android.systemui.Flags
 import kotlin.experimental.ExperimentalTypeInference
-import kotlinx.coroutines.CoroutineDispatcher
-import kotlinx.coroutines.CoroutineName
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.FlowCollector
-import kotlinx.coroutines.flow.collectLatest as kx_collectLatest
-import kotlinx.coroutines.flow.filter as kx_filter
-import kotlinx.coroutines.flow.filterIsInstance as kx_filterIsInstance
-import kotlinx.coroutines.flow.flowOn as kx_flowOn
-import kotlinx.coroutines.flow.map as kx_map
+import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.flow.collect
+import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.filter
+import kotlinx.coroutines.flow.flow as safeFlow
+import kotlinx.coroutines.flow.flowOn
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.transform
 
-fun <T> Flow<T>.withTraceName(name: String?): Flow<T> {
+/** @see kotlinx.coroutines.flow.internal.unsafeFlow */
+@PublishedApi
+internal inline fun <T> unsafeFlow(
+    crossinline block: suspend FlowCollector<T>.() -> Unit
+): Flow<T> {
     return object : Flow<T> {
         override suspend fun collect(collector: FlowCollector<T>) {
-            this@withTraceName.collect(name ?: walkStackForClassName(), collector)
+            collector.block()
         }
     }
 }
+
+/** @see kotlinx.coroutines.flow.unsafeTransform */
+@PublishedApi
+internal inline fun <T, R> Flow<T>.unsafeTransform(
+    crossinline transform: suspend FlowCollector<R>.(value: T) -> Unit
+): Flow<R> = unsafeFlow { collect { value -> transform(value) } }
 
 /**
- * NOTE: We cannot use a default value for the String name because [Flow.collect] is a member
- * function. When an extension function has the same receiver type, name, and applicable arguments
- * as a class member function, the member takes precedence.
+ * Helper for naming the coroutine a flow is collected in. This only has an effect if the flow
+ * changes contexts (e.g. `flowOn()` is used to change the dispatcher), meaning a new coroutine is
+ * created during collection.
+ *
+ * For example, the following would `emit(1)` from a trace section named "a" and collect in section
+ * named "b".
+ *
+ * ```
+ *   launch(nameCoroutine("b") {
+ *     val flow {
+ *       emit(1)
+ *     }
+ *     .flowName("a")
+ *     .flowOn(Dispatchers.Default)
+ *     .collect {
+ *     }
+ *   }
+ * ```
  */
-@OptIn(ExperimentalTypeInference::class)
-suspend inline fun <T> Flow<T>.collect(
-    name: String, /* cannot have a default parameter or else Flow#collect() override this call */
-    @BuilderInference block: FlowCollector<T>,
+public fun <T> Flow<T>.flowName(name: String): Flow<T> = flowOn(nameCoroutine(name))
+
+/**
+ * Applying [flowName][Flow.flowName] to [SharedFlow] has no effect. See the [SharedFlow]
+ * documentation on Operator Fusion.
+ *
+ * @see SharedFlow.flowOn
+ */
+@Deprecated(
+    level = DeprecationLevel.ERROR,
+    message =
+        "Applying 'flowName' to SharedFlow has no effect. See the SharedFlow documentation on Operator Fusion.",
+    replaceWith = ReplaceWith("this"),
+)
+@Suppress("UnusedReceiverParameter")
+public fun <T> SharedFlow<T>.flowName(@Suppress("UNUSED_PARAMETER") name: String): Flow<T> =
+    throw UnsupportedOperationException("Not implemented, should not be called")
+
+/**
+ * NOTE: [Flow.collect] is a member function and takes precedence if this function is imported as
+ * `collect` and the default parameter is used. (In Kotlin, when an extension function has the same
+ * receiver type, name, and applicable arguments as a class member function, the member takes
+ * precedence).
+ *
+ * For example,
+ * ```
+ * import com.android.app.tracing.coroutines.flow.collectTraced as collect
+ * ...
+ * flowOf(1).collect { ... } // this will call `Flow.collect`
+ * flowOf(1).collect(null) { ... } // this will call `collectTraced`
+ * ```
+ */
+public suspend fun <T> Flow<T>.collectTraced(name: String, collector: FlowCollector<T>) {
+    if (Flags.coroutineTracing()) {
+        val collectName = "collect:$name"
+        val emitName = "$collectName:emit"
+        traceCoroutine(collectName) { collect { traceCoroutine(emitName) { collector.emit(it) } } }
+    } else {
+        collect(collector)
+    }
+}
+
+/** @see Flow.collectTraced */
+public suspend fun <T> Flow<T>.collectTraced(collector: FlowCollector<T>) {
+    if (Flags.coroutineTracing()) {
+        collectTraced(
+            name = collector::class.java.name.substringAfterLast("."),
+            collector = collector,
+        )
+    } else {
+        collect(collector)
+    }
+}
+
+internal suspend fun <T> Flow<T>.collectLatestTraced(
+    name: String,
+    action: suspend (value: T) -> Unit,
 ) {
-    val (collectSlice, emitSlice) = getFlowSliceNames(name)
-    traceCoroutine(collectSlice) {
-        collect { value -> traceCoroutine(emitSlice) { block.emit(value) } }
+    if (Flags.coroutineTracing()) {
+        val collectName = "collectLatest:$name"
+        val actionName = "$collectName:action"
+        return traceCoroutine(collectName) {
+            collectLatest { traceCoroutine(actionName) { action(it) } }
+        }
+    } else {
+        collectLatest(action)
     }
 }
 
+public suspend fun <T> Flow<T>.collectLatestTraced(action: suspend (value: T) -> Unit) {
+    if (Flags.coroutineTracing()) {
+        collectLatestTraced(action::class.java.name.substringAfterLast("."), action)
+    } else {
+        collectLatest(action)
+    }
+}
+
+/** @see kotlinx.coroutines.flow.transform */
 @OptIn(ExperimentalTypeInference::class)
-suspend inline fun <T> Flow<T>.collectTraced(@BuilderInference block: FlowCollector<T>) {
-    collect(walkStackForClassName(), block)
-}
-
-suspend fun <T> Flow<T>.collectLatest(name: String? = null, action: suspend (T) -> Unit) {
-    val (collectSlice, emitSlice) = getFlowSliceNames(name)
-    traceCoroutine(collectSlice) {
-        kx_collectLatest { value -> traceCoroutine(emitSlice) { action(value) } }
+public inline fun <T, R> Flow<T>.transformTraced(
+    name: String,
+    @BuilderInference crossinline transform: suspend FlowCollector<R>.(value: T) -> Unit,
+): Flow<R> =
+    if (Flags.coroutineTracing()) {
+        val emitName = "$name:emit"
+        safeFlow { collect { value -> traceCoroutine(emitName) { transform(value) } } }
+    } else {
+        transform(transform)
     }
-}
 
-@OptIn(ExperimentalStdlibApi::class)
-fun <T> Flow<T>.flowOn(context: CoroutineContext): Flow<T> {
-    val contextName =
-        context[CoroutineTraceName]?.name
-            ?: context[CoroutineName]?.name
-            ?: context[CoroutineDispatcher]?.javaClass?.simpleName
-            ?: context.javaClass.simpleName
-    return kx_flowOn(context).withTraceName("flowOn($contextName)")
-}
-
-inline fun <T> Flow<T>.filter(
-    name: String? = null,
+public inline fun <T> Flow<T>.filterTraced(
+    name: String,
     crossinline predicate: suspend (T) -> Boolean,
 ): Flow<T> {
-    val flowName = name ?: walkStackForClassName()
-    return withTraceName(flowName).kx_filter {
-        return@kx_filter traceCoroutine("$flowName:predicate") { predicate(it) }
-    }
-}
-
-inline fun <reified R> Flow<*>.filterIsInstance(): Flow<R> {
-    return kx_filterIsInstance<R>().withTraceName("${walkStackForClassName()}#filterIsInstance")
-}
-
-inline fun <T, R> Flow<T>.map(
-    name: String? = null,
-    crossinline transform: suspend (T) -> R,
-): Flow<R> {
-    val flowName = name ?: walkStackForClassName()
-    return withTraceName(flowName).kx_map {
-        return@kx_map traceCoroutine("$flowName:transform") { transform(it) }
-    }
-}
-
-fun getFlowSliceNames(name: String?): Pair<String, String> {
-    val flowName = name ?: walkStackForClassName()
-    return Pair("$flowName:collect", "$flowName:emit")
-}
-
-object FlowExt {
-    val currentFileName: String =
-        StackWalker.getInstance().walk { stream -> stream.limit(1).findFirst() }.get().fileName
-}
-
-private fun isFrameInteresting(frame: StackWalker.StackFrame): Boolean {
-    return frame.fileName != FlowExt.currentFileName
-}
-
-/** Get a name for the trace section include the name of the call site. */
-fun walkStackForClassName(): String {
-    Trace.traceBegin(Trace.TRACE_TAG_APP, "FlowExt#walkStackForClassName")
-    try {
-        val interestingFrame =
-            StackWalker.getInstance().walk { stream ->
-                stream.filter(::isFrameInteresting).limit(5).findFirst()
+    if (Flags.coroutineTracing()) {
+        val predicateName = "filter:$name:predicate"
+        val emitName = "filter:$name:emit"
+        return unsafeTransform { value ->
+            if (traceCoroutine(predicateName) { predicate(value) }) {
+                traceCoroutine(emitName) {
+                    return@unsafeTransform emit(value)
+                }
             }
-        return if (interestingFrame.isPresent) {
-            val frame = interestingFrame.get()
-            return frame.className
-        } else {
-            "<unknown>"
         }
-    } finally {
-        Trace.traceEnd(Trace.TRACE_TAG_APP)
+    } else {
+        return filter(predicate)
+    }
+}
+
+public inline fun <T, R> Flow<T>.mapTraced(
+    name: String,
+    crossinline transform: suspend (value: T) -> R,
+): Flow<R> {
+    if (Flags.coroutineTracing()) {
+        val transformName = "map:$name:transform"
+        val emitName = "map:$name:emit"
+        return unsafeTransform { value ->
+            val transformedValue = traceCoroutine(transformName) { transform(value) }
+            traceCoroutine(emitName) {
+                return@unsafeTransform emit(transformedValue)
+            }
+        }
+    } else {
+        return map(transform)
     }
 }

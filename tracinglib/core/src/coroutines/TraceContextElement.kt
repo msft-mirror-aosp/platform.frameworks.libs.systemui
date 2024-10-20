@@ -19,7 +19,6 @@ package com.android.app.tracing.coroutines
 import android.annotation.SuppressLint
 import android.os.Trace
 import android.util.Log
-import androidx.annotation.VisibleForTesting
 import com.android.systemui.Flags
 import java.lang.StackWalker.StackFrame
 import java.util.concurrent.ThreadLocalRandom
@@ -28,22 +27,15 @@ import java.util.stream.Stream
 import kotlin.contracts.ExperimentalContracts
 import kotlin.contracts.InvocationKind
 import kotlin.contracts.contract
-import kotlin.coroutines.AbstractCoroutineContextKey
 import kotlin.coroutines.CoroutineContext
 import kotlin.coroutines.EmptyCoroutineContext
-import kotlin.coroutines.getPolymorphicElement
-import kotlin.coroutines.minusPolymorphicKey
 import kotlinx.coroutines.CopyableThreadContextElement
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.DelicateCoroutinesApi
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 
-// TODO(b/240432457): Replace `@VisibleForTesting` usage with `internal` modifier
-//                    once `-Xfriend-paths` is supported by Soong
-
 /** Use a final subclass to avoid virtual calls (b/316642146). */
-@VisibleForTesting(otherwise = VisibleForTesting.PRIVATE)
-class TraceDataThreadLocal : ThreadLocal<TraceData?>()
+@PublishedApi internal class TraceDataThreadLocal : ThreadLocal<TraceData?>()
 
 /**
  * Thread-local storage for tracking open trace sections in the current coroutine context; it should
@@ -56,8 +48,7 @@ class TraceDataThreadLocal : ThreadLocal<TraceData?>()
  *
  * @see traceCoroutine
  */
-@VisibleForTesting(otherwise = VisibleForTesting.PACKAGE_PRIVATE)
-val traceThreadLocal = TraceDataThreadLocal()
+@PublishedApi internal val traceThreadLocal: TraceDataThreadLocal = TraceDataThreadLocal()
 
 /**
  * Returns a new [TraceContextElement] (or [EmptyCoroutineContext] if `coroutine_tracing` feature is
@@ -92,19 +83,32 @@ val traceThreadLocal = TraceDataThreadLocal()
  *   names.
  * @param strictMode whether to add additional checks to coroutine tracing machinery. These checks
  *   are expensive and should only be used for testing.
+ * @param shouldIgnoreClassName lambda that takes binary class name (as returned from
+ *   [StackFrame.getClassName] and returns true if it should be ignored (e.g. search for relevant
+ *   class name should continue) or false otherwise
  */
-fun createCoroutineTracingContext(
+public fun createCoroutineTracingContext(
     name: String = "UnnamedScope",
     walkStackForDefaultNames: Boolean = false,
     includeParentNames: Boolean = false,
     strictMode: Boolean = false,
+    shouldIgnoreClassName: (String) -> Boolean = { false },
 ): CoroutineContext =
     if (Flags.coroutineTracing()) {
         TraceContextElement(
-            scopeName = name,
-            walkStackForDefaultNames = walkStackForDefaultNames,
-            includeParentNames = includeParentNames,
-            strictMode = strictMode,
+            name = name,
+            // Minor perf optimization: no need to create TraceData() for root scopes since all
+            // launches require creation of child via [copyForChild] or [mergeForChild].
+            contextTraceData = null,
+            inheritedTracePrefix = "",
+            coroutineDepth = 0,
+            parentId = -1,
+            TraceConfig(
+                walkStackForDefaultNames = walkStackForDefaultNames,
+                includeParentNames = includeParentNames,
+                strictMode = strictMode,
+                shouldIgnoreClassName = shouldIgnoreClassName,
+            ),
         )
     } else {
         EmptyCoroutineContext
@@ -117,7 +121,7 @@ fun createCoroutineTracingContext(
  *
  * [TraceContextElement] should be installed on the root, and [CoroutineTraceName] on the children.
  */
-fun nameCoroutine(name: String): CoroutineContext = nameCoroutine { name }
+public fun nameCoroutine(name: String): CoroutineContext = nameCoroutine { name }
 
 /**
  * Returns a new [CoroutineTraceName] (or [EmptyCoroutineContext] if `coroutine_tracing` feature is
@@ -129,7 +133,7 @@ fun nameCoroutine(name: String): CoroutineContext = nameCoroutine { name }
  * @param name lazy string to only be called if feature is enabled
  */
 @OptIn(ExperimentalContracts::class)
-inline fun nameCoroutine(name: () -> String): CoroutineContext {
+public inline fun nameCoroutine(name: () -> String): CoroutineContext {
     contract { callsInPlace(name, InvocationKind.AT_MOST_ONCE) }
     return if (Flags.coroutineTracing()) CoroutineTraceName(name()) else EmptyCoroutineContext
 }
@@ -141,28 +145,20 @@ inline fun nameCoroutine(name: () -> String): CoroutineContext {
  *
  * @property name the name of the current coroutine
  */
-@VisibleForTesting(otherwise = VisibleForTesting.PACKAGE_PRIVATE)
-open class BaseTraceElement(val name: String) : CoroutineContext.Element {
-    companion object Key : CoroutineContext.Key<BaseTraceElement>
+/**
+ * A coroutine context element that can be used for naming the child coroutine under construction.
+ *
+ * @property name the name to be used for the child under construction
+ * @see nameCoroutine
+ */
+@PublishedApi
+internal open class CoroutineTraceName(internal val name: String) : CoroutineContext.Element {
+    internal companion object Key : CoroutineContext.Key<CoroutineTraceName>
 
-    override val key: CoroutineContext.Key<*>
+    public override val key: CoroutineContext.Key<*>
         get() = Key
 
-    protected val currentId = ThreadLocalRandom.current().nextInt(1, Int.MAX_VALUE)
-
-    @OptIn(ExperimentalStdlibApi::class)
-    override fun <E : CoroutineContext.Element> get(key: CoroutineContext.Key<E>): E? {
-        val rv = getPolymorphicElement(key)
-        debug { "#get($key)=$rv" }
-        return rv
-    }
-
-    @OptIn(ExperimentalStdlibApi::class)
-    override fun minusKey(key: CoroutineContext.Key<*>): CoroutineContext {
-        val rv = minusPolymorphicKey(key)
-        debug { "#minusKey($key)=$rv" }
-        return rv
-    }
+    protected val currentId: Int = ThreadLocalRandom.current().nextInt(1, Int.MAX_VALUE)
 
     @Deprecated(
         message =
@@ -175,37 +171,24 @@ open class BaseTraceElement(val name: String) : CoroutineContext.Element {
         """,
         level = DeprecationLevel.ERROR,
     )
-    operator fun plus(other: BaseTraceElement): BaseTraceElement {
+    public operator fun plus(other: CoroutineTraceName): CoroutineTraceName {
         debug { "#plus(${other.currentId})" }
         return other
     }
 
     @OptIn(ExperimentalContracts::class)
-    internal inline fun debug(message: () -> String) {
+    protected inline fun debug(message: () -> String) {
         contract { callsInPlace(message, InvocationKind.AT_MOST_ONCE) }
         if (DEBUG) Log.d(TAG, "${this::class.java.simpleName}@$currentId${message()}")
     }
 }
 
-/**
- * A coroutine context element that can be used for naming the child coroutine under construction.
- *
- * @property name the name to be used for the child under construction
- * @see nameCoroutine
- */
-@VisibleForTesting(otherwise = VisibleForTesting.PACKAGE_PRIVATE)
-class CoroutineTraceName(name: String) : BaseTraceElement(name) {
-    @OptIn(ExperimentalStdlibApi::class)
-    companion object Key :
-        AbstractCoroutineContextKey<BaseTraceElement, CoroutineTraceName>(
-            BaseTraceElement,
-            { it as? CoroutineTraceName },
-        )
-
-    init {
-        debug { "#init: name=$name" }
-    }
-}
+internal data class TraceConfig(
+    val walkStackForDefaultNames: Boolean,
+    val includeParentNames: Boolean,
+    val strictMode: Boolean,
+    val shouldIgnoreClassName: (String) -> Boolean,
+)
 
 /**
  * Used for tracking parent-child relationship of coroutines and persisting [TraceData] when
@@ -231,59 +214,28 @@ class CoroutineTraceName(name: String) : BaseTraceElement(name) {
  *   the child. This should only be used for testing because it can result in extremely long trace
  *   names.
  * @param strictMode whether to add additional checks to coroutine machinery. These checks are
- *   expensive and should only be used for testing. * @see createCoroutineTracingContext
+ *   expensive and should only be used for testing.
+ * @param shouldIgnoreClassName lambda that takes binary class name (as returned from
+ *   [StackFrame.getClassName] and returns true if it should be ignored (e.g. search for relevant
+ *   class name should continue) or false otherwise
+ * @see createCoroutineTracingContext
  * @see nameCoroutine
  * @see traceCoroutine
  */
 @OptIn(DelicateCoroutinesApi::class, ExperimentalCoroutinesApi::class)
-@VisibleForTesting(otherwise = VisibleForTesting.PACKAGE_PRIVATE)
-class TraceContextElement
-private constructor(
+internal class TraceContextElement(
     name: String,
-    @get:VisibleForTesting(otherwise = VisibleForTesting.PACKAGE_PRIVATE)
-    val contextTraceData: TraceData?,
+    internal val contextTraceData: TraceData?,
     inheritedTracePrefix: String,
     private val coroutineDepth: Int,
     parentId: Int,
-    private val walkStackForDefaultNames: Boolean,
-    private val includeParentNames: Boolean,
-    private val strictMode: Boolean,
-) : CopyableThreadContextElement<TraceData?>, BaseTraceElement(name) {
-
-    @OptIn(ExperimentalStdlibApi::class)
-    companion object Key :
-        AbstractCoroutineContextKey<BaseTraceElement, TraceContextElement>(
-            BaseTraceElement,
-            { it as? TraceContextElement },
-        ) {
-        override fun toString(): String {
-            return "TraceContextElement.Key"
-        }
-    }
-
-    @VisibleForTesting(otherwise = VisibleForTesting.PRIVATE)
-    constructor(
-        scopeName: String,
-        walkStackForDefaultNames: Boolean = false,
-        includeParentNames: Boolean = false,
-        strictMode: Boolean = false,
-    ) : this(
-        name = scopeName,
-        // Minor perf optimization: no need to create TraceData() for root scopes since all launches
-        // require creation of child via [copyForChild] or [mergeForChild].
-        contextTraceData = null,
-        inheritedTracePrefix = "",
-        coroutineDepth = 0,
-        parentId = -1,
-        walkStackForDefaultNames = walkStackForDefaultNames,
-        includeParentNames = includeParentNames,
-        strictMode = strictMode,
-    )
+    private val config: TraceConfig,
+) : CopyableThreadContextElement<TraceData?>, CoroutineTraceName(name) {
 
     private var childCoroutineCount = AtomicInteger(0)
 
     private val fullCoroutineTraceName =
-        if (includeParentNames) "$inheritedTracePrefix$name" else ""
+        if (config.includeParentNames) "$inheritedTracePrefix$name" else ""
     private val continuationTraceMessage =
         "$fullCoroutineTraceName;$name;d=$coroutineDepth;c=$currentId;p=$parentId"
 
@@ -308,7 +260,7 @@ private constructor(
      * `^` is a suspension point)
      */
     @SuppressLint("UnclosedTrace")
-    override fun updateThreadContext(context: CoroutineContext): TraceData? {
+    public override fun updateThreadContext(context: CoroutineContext): TraceData? {
         val oldState = traceThreadLocal.get()
         debug { "#updateThreadContext oldState=$oldState" }
         if (oldState !== contextTraceData) {
@@ -350,7 +302,7 @@ private constructor(
      *
      * ```
      */
-    override fun restoreThreadContext(context: CoroutineContext, oldState: TraceData?) {
+    public override fun restoreThreadContext(context: CoroutineContext, oldState: TraceData?) {
         debug { "#restoreThreadContext restoring=$oldState" }
         // We not use the `TraceData` object here because it may have been modified on another
         // thread after the last suspension point. This is why we use a [TraceStateHolder]:
@@ -363,15 +315,17 @@ private constructor(
         }
     }
 
-    override fun copyForChild(): CopyableThreadContextElement<TraceData?> {
+    public override fun copyForChild(): CopyableThreadContextElement<TraceData?> {
         debug { "#copyForChild" }
         return createChildContext()
     }
 
-    override fun mergeForChild(overwritingElement: CoroutineContext.Element): CoroutineContext {
+    public override fun mergeForChild(
+        overwritingElement: CoroutineContext.Element
+    ): CoroutineContext {
         debug { "#mergeForChild" }
         if (DEBUG) {
-            overwritingElement[TraceContextElement]?.let {
+            (overwritingElement as? TraceContextElement)?.let {
                 Log.e(
                     TAG,
                     "${this::class.java.simpleName}@$currentId#mergeForChild(@${it.currentId}): " +
@@ -380,48 +334,49 @@ private constructor(
                 )
             }
         }
-        val nameForChild =
-            overwritingElement[CoroutineTraceName]?.name
-                ?: overwritingElement[TraceContextElement]?.name
-                ?: ""
+        val nameForChild = (overwritingElement as CoroutineTraceName).name
         return createChildContext(nameForChild)
     }
 
     private fun createChildContext(
-        name: String = if (walkStackForDefaultNames) walkStackForClassName() else ""
+        name: String =
+            if (config.walkStackForDefaultNames) walkStackForClassName(config.shouldIgnoreClassName)
+            else ""
     ): TraceContextElement {
         debug { "#createChildContext: \"$name\" has new child with name \"${name}\"" }
         val childCount = childCoroutineCount.incrementAndGet()
         return TraceContextElement(
             name = name,
-            contextTraceData = TraceData(strictMode),
+            contextTraceData = TraceData(config.strictMode),
             inheritedTracePrefix =
-                if (includeParentNames) "$fullCoroutineTraceName:$childCount^" else "",
+                if (config.includeParentNames) "$fullCoroutineTraceName:$childCount^" else "",
             coroutineDepth = coroutineDepth + 1,
             parentId = currentId,
-            walkStackForDefaultNames = walkStackForDefaultNames,
-            includeParentNames = includeParentNames,
-            strictMode = strictMode,
+            config = config,
         )
     }
 }
 
-/** Get a name for the trace section include the name of the call site. */
-private fun walkStackForClassName(): String {
+/**
+ * Get a name for the trace section include the name of the call site.
+ *
+ * @param additionalDropPredicate additional checks for whether class should be ignored
+ */
+private fun walkStackForClassName(
+    additionalDropPredicate: (String) -> Boolean = { false }
+): String {
     Trace.traceBegin(Trace.TRACE_TAG_APP, "walkStackForClassName")
     try {
         var frame = ""
         StackWalker.getInstance().walk { s: Stream<StackFrame> ->
             s.dropWhile { f: StackFrame ->
-                    with(f.className) {
-                        startsWith("kotlin") ||
-                            startsWith("android") ||
-                            startsWith("com.android.internal.") ||
-                            startsWith("com.android.app.tracing.")
-                    }
+                    val className = f.className
+                    className.startsWith("kotlin") ||
+                        className.startsWith("com.android.app.tracing.") ||
+                        additionalDropPredicate(className)
                 }
                 .findFirst()
-                .ifPresent { frame = it.className.substringAfterLast(".") }
+                .ifPresent { frame = it.className.substringAfterLast(".") + "." + it.methodName }
         }
         return frame
     } catch (e: Exception) {
@@ -435,6 +390,5 @@ private fun walkStackForClassName(): String {
 private const val UNEXPECTED_TRACE_DATA_ERROR_MESSAGE =
     "Overwriting context element with non-empty trace data. There should only be one " +
         "TraceContextElement per coroutine, and it should be installed in the root scope. "
-
-internal val TAG = "CoroutineTracing"
-internal const val DEBUG = false
+@PublishedApi internal const val TAG: String = "CoroutineTracing"
+@PublishedApi internal const val DEBUG: Boolean = false

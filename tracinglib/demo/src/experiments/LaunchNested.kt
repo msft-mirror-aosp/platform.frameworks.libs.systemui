@@ -15,7 +15,7 @@
  */
 package com.example.tracing.demo.experiments
 
-import com.android.app.tracing.coroutines.launch
+import com.android.app.tracing.coroutines.launchTraced as launch
 import com.example.tracing.demo.Default
 import com.example.tracing.demo.FixedThreadA
 import com.example.tracing.demo.FixedThreadB
