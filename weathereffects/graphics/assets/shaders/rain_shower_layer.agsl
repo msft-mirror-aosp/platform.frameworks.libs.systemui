@@ -17,15 +17,13 @@
 uniform shader foreground;
 uniform shader background;
 uniform shader outlineBuffer;
-uniform float2 uvOffsetFgd;
-uniform float2 uvScaleFgd;
-uniform float2 uvOffsetBgd;
-uniform float2 uvScaleBgd;
 uniform float time;
 uniform float screenAspectRatio;
 uniform float gridScale;
 uniform float2 screenSize;
 uniform half intensity;
+uniform mat3 transformMatrixFgd;
+uniform mat3 transformMatrixBgd;
 
 #include "shaders/constants.agsl"
 #include "shaders/utils.agsl"
@@ -57,7 +55,7 @@ vec3 drawSplashes(vec2 uv, vec2 fragCoord, vec3 color) {
     vec2 pixUv = cellUv;
     pixUv.x *= -1;
     vec2 pixDistance = screenSize * pixUv / gridSize;
-    float2 uvTextureFgd = (fragCoord + pixDistance) * uvScaleFgd + uvOffsetFgd;
+    float2 uvTextureFgd =  transformPoint(transformMatrixFgd, fragCoord + pixDistance);
 
     float outline = step(0.1, outlineBuffer.eval(uvTextureFgd).r);
     if (outline < 0.1) {
@@ -77,15 +75,15 @@ vec3 drawSplashes(vec2 uv, vec2 fragCoord, vec3 color) {
 
     float splash = drawSplash(cellUv, cellTime) * smoothstep(0., 0.45, intensity);
 
-    return normalBlendWithWhiteSrc(color, splash);
+    return screenBlend(color, splash);
 }
 
 vec4 main(float2 fragCoord) {
-    float2 uv = fragCoord / screenSize;
-
-    // Adjusts the UVs to have the expected rect of the image.
-    float2 uvTextureFgd = fragCoord * uvScaleFgd + uvOffsetFgd;
-    float2 uvTextureBgd = fragCoord * uvScaleBgd + uvOffsetBgd;
+    // Apply transform matrix to fragCoord
+    float2 uvTextureFgd = transformPoint(transformMatrixFgd, fragCoord);
+    float2 uvTextureBgd = transformPoint(transformMatrixBgd, fragCoord);
+    // Calculate uv for snow based on transformed coordinates
+    float2 uv = uvTextureFgd / screenSize;
 
     vec4 colorForeground = foreground.eval(uvTextureFgd);
     vec4 color = background.eval(uvTextureBgd);

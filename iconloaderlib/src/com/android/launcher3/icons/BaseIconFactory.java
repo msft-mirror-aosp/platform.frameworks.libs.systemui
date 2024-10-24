@@ -43,7 +43,6 @@ import com.android.launcher3.util.FlagOp;
 import com.android.launcher3.util.UserIconInfo;
 
 import java.lang.annotation.Retention;
-import java.util.Objects;
 
 /**
  * This class will be moved to androidx library. There shouldn't be any dependency outside
@@ -85,7 +84,7 @@ public class BaseIconFactory implements AutoCloseable {
     @NonNull
     private final ColorExtractor mColorExtractor;
 
-    protected final int mFillResIconDpi;
+    protected final int mFullResIconDpi;
     protected final int mIconBitmapSize;
 
     protected boolean mMonoIconEnabled;
@@ -106,11 +105,11 @@ public class BaseIconFactory implements AutoCloseable {
 
     private static int PLACEHOLDER_BACKGROUND_COLOR = Color.rgb(245, 245, 245);
 
-    protected BaseIconFactory(Context context, int fillResIconDpi, int iconBitmapSize,
+    protected BaseIconFactory(Context context, int fullResIconDpi, int iconBitmapSize,
             boolean shapeDetection) {
         mContext = context.getApplicationContext();
         mShapeDetection = shapeDetection;
-        mFillResIconDpi = fillResIconDpi;
+        mFullResIconDpi = fullResIconDpi;
         mIconBitmapSize = iconBitmapSize;
 
         mPm = mContext.getPackageManager();
@@ -121,8 +120,8 @@ public class BaseIconFactory implements AutoCloseable {
         clear();
     }
 
-    public BaseIconFactory(Context context, int fillResIconDpi, int iconBitmapSize) {
-        this(context, fillResIconDpi, iconBitmapSize, false);
+    public BaseIconFactory(Context context, int fullResIconDpi, int iconBitmapSize) {
+        this(context, fullResIconDpi, iconBitmapSize, false);
     }
 
     protected void clear() {
@@ -145,6 +144,14 @@ public class BaseIconFactory implements AutoCloseable {
         return mNormalizer;
     }
 
+    public int getFullResIconDpi() {
+        return mFullResIconDpi;
+    }
+
+    public int getIconBitmapSize() {
+        return mIconBitmapSize;
+    }
+
     @SuppressWarnings("deprecation")
     public BitmapInfo createIconBitmap(Intent.ShortcutIconResource iconRes) {
         try {
@@ -152,7 +159,7 @@ public class BaseIconFactory implements AutoCloseable {
             if (resources != null) {
                 final int id = resources.getIdentifier(iconRes.resourceName, null, null);
                 // do not stamp old legacy shortcuts as the app may have already forgotten about it
-                return createBadgedIconBitmap(resources.getDrawableForDensity(id, mFillResIconDpi));
+                return createBadgedIconBitmap(resources.getDrawableForDensity(id, mFullResIconDpi));
             }
         } catch (Exception e) {
             // Icon not found.
@@ -204,7 +211,7 @@ public class BaseIconFactory implements AutoCloseable {
      * The bitmap is visually normalized with other icons and has enough spacing to add shadow.
      *
      * @param icon source of the icon
-     * @return a bitmap suitable for disaplaying as an icon at various system UIs.
+     * @return a bitmap suitable for displaying as an icon at various system UIs.
      */
     @TargetApi(Build.VERSION_CODES.TIRAMISU)
     @NonNull
@@ -374,7 +381,7 @@ public class BaseIconFactory implements AutoCloseable {
     }
 
     @NonNull
-    protected Bitmap createIconBitmap(@Nullable final Drawable icon, final float scale) {
+    public Bitmap createIconBitmap(@Nullable final Drawable icon, final float scale) {
         return createIconBitmap(icon, scale, MODE_DEFAULT);
     }
 
@@ -484,14 +491,8 @@ public class BaseIconFactory implements AutoCloseable {
     }
 
     @NonNull
-    public BitmapInfo makeDefaultIcon() {
-        return createBadgedIconBitmap(getFullResDefaultActivityIcon(mFillResIconDpi));
-    }
-
-    @NonNull
-    public static Drawable getFullResDefaultActivityIcon(final int iconDpi) {
-        return Objects.requireNonNull(Resources.getSystem().getDrawableForDensity(
-                android.R.drawable.sym_def_app_icon, iconDpi));
+    public BitmapInfo makeDefaultIcon(IconProvider iconProvider) {
+        return createBadgedIconBitmap(iconProvider.getFullResDefaultActivityIcon(mFullResIconDpi));
     }
 
     /**
@@ -544,6 +545,14 @@ public class BaseIconFactory implements AutoCloseable {
         @NonNull
         public IconOptions setInstantApp(final boolean instantApp) {
             mIsInstantApp = instantApp;
+            return this;
+        }
+
+        /**
+         * If the icon represents an archived app
+         */
+        public IconOptions setIsArchived(boolean isArchived) {
+            mIsArchived = isArchived;
             return this;
         }
 

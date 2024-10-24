@@ -29,18 +29,18 @@ import kotlinx.coroutines.flow.conflate
 import kotlinx.coroutines.flow.onEach
 
 /** Utilities to trace Flows */
-object FlowTracing {
+public object FlowTracing {
 
     private const val TAG = "FlowTracing"
     private const val DEFAULT_ASYNC_TRACK_NAME = TAG
     private val counter = AtomicInteger(0)
 
     /** Logs each flow element to a trace. */
-    inline fun <T> Flow<T>.traceEach(
+    public inline fun <T> Flow<T>.traceEach(
         flowName: String,
         logcat: Boolean = false,
         traceEmissionCount: Boolean = false,
-        crossinline valueToString: (T) -> String = { it.toString() }
+        crossinline valueToString: (T) -> String = { it.toString() },
     ): Flow<T> {
         val stateLogger = TraceStateLogger(flowName, logcat = logcat)
         val baseFlow = if (traceEmissionCount) traceEmissionCount(flowName) else this
@@ -48,10 +48,10 @@ object FlowTracing {
     }
 
     /** Records value of a given numeric flow as a counter track in traces. */
-    fun <T : Number> Flow<T>.traceAsCounter(
+    public fun <T : Number> Flow<T>.traceAsCounter(
         counterName: String,
         traceEmissionCount: Boolean = false,
-        valueToInt: (T) -> Int = { it.toInt() }
+        valueToInt: (T) -> Int = { it.toInt() },
     ): Flow<T> {
         val baseFlow = if (traceEmissionCount) traceEmissionCount(counterName) else this
         return baseFlow.onEach {
@@ -62,7 +62,10 @@ object FlowTracing {
     }
 
     /** Adds a counter track to monitor emissions from a specific flow.] */
-    fun <T> Flow<T>.traceEmissionCount(flowName: String, uniqueSuffix: Boolean = false): Flow<T> {
+    public fun <T> Flow<T>.traceEmissionCount(
+        flowName: String,
+        uniqueSuffix: Boolean = false,
+    ): Flow<T> {
         val trackName by lazy {
             "$flowName#emissionCount" + if (uniqueSuffix) "\$${counter.addAndGet(1)}" else ""
         }
@@ -78,9 +81,9 @@ object FlowTracing {
      *
      * [flowName] is lazy: it would be computed only if tracing is enabled and only the first time.
      */
-    fun <T> Flow<T>.traceEmissionCount(
+    public fun <T> Flow<T>.traceEmissionCount(
         flowName: () -> String,
-        uniqueSuffix: Boolean = false
+        uniqueSuffix: Boolean = false,
     ): Flow<T> {
         val trackName by lazy {
             "${flowName()}#emissionCount" + if (uniqueSuffix) "\$${counter.addAndGet(1)}" else ""
@@ -103,7 +106,7 @@ object FlowTracing {
      *
      * This allows to easily have visibility into what's happening in awaitClose.
      */
-    suspend fun ProducerScope<*>.tracedAwaitClose(name: String, block: () -> Unit = {}) {
+    public suspend fun ProducerScope<*>.tracedAwaitClose(name: String, block: () -> Unit = {}) {
         awaitClose {
             val traceName = { "$name#TracedAwaitClose" }
             traceAsync(DEFAULT_ASYNC_TRACK_NAME, traceName) { traceSection(traceName) { block() } }
@@ -119,9 +122,9 @@ object FlowTracing {
      *
      * Should be used with [tracedAwaitClose] (when needed).
      */
-    fun <T> tracedConflatedCallbackFlow(
+    public fun <T> tracedConflatedCallbackFlow(
         name: String,
-        @BuilderInference block: suspend ProducerScope<T>.() -> Unit
+        @BuilderInference block: suspend ProducerScope<T>.() -> Unit,
     ): Flow<T> {
         return callbackFlow {
                 traceAsync(DEFAULT_ASYNC_TRACK_NAME, { "$name#CallbackFlowBlock" }) {
