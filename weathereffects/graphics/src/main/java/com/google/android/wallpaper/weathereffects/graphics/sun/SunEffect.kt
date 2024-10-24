@@ -27,7 +27,7 @@ import com.google.android.wallpaper.weathereffects.graphics.WeatherEffect
 import com.google.android.wallpaper.weathereffects.graphics.utils.GraphicsUtils
 import com.google.android.wallpaper.weathereffects.graphics.utils.MatrixUtils.centerCropMatrix
 import com.google.android.wallpaper.weathereffects.graphics.utils.MatrixUtils.postprocessParallaxMatrix
-import java.util.concurrent.TimeUnit
+import com.google.android.wallpaper.weathereffects.graphics.utils.TimeUtils
 import kotlin.random.Random
 
 /** Defines and generates the sunny weather animation. */
@@ -59,7 +59,7 @@ class SunEffect(
     }
 
     override fun update(deltaMillis: Long, frameTimeNanos: Long) {
-        elapsedTime += TimeUnit.MILLISECONDS.toSeconds(deltaMillis)
+        elapsedTime += TimeUtils.millisToSeconds(deltaMillis)
         sunConfig.shader.setFloatUniform("time", elapsedTime)
         sunConfig.colorGradingShader.setInputShader("texture", sunConfig.shader)
     }
