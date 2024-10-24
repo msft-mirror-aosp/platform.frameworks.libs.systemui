@@ -90,8 +90,16 @@ vec3 normalBlend(vec3 b, vec3 f, float o) {
     return b * (1. - o) + f;
 }
 
-vec3 screenBlend(vec3 b, float o) {
-    return b * (1. - o) + o;
+float screenBlend(float bgd, float fgd) {
+    return mix(bgd, 1., fgd);
+}
+
+vec3 screenBlend(vec3 bgd, float fgd) {
+    return mix(bgd, vec3(1.), fgd);
+}
+
+vec3 screenBlend(vec3 bgd, vec3 fgd) {
+    return mix(bgd, vec3(1.), fgd);
 }
 
 /*
@@ -106,6 +114,10 @@ vec3 screenBlend(vec3 b, float o) {
  */
 vec3 normalBlendNotPremultiplied(vec3 b, vec3 f, float o) {
     return mix(b, f, o);
+}
+
+float relativeLuminance(vec3 color) {
+    return dot(vec3(0.2126, 0.7152, 0.0722), color);
 }
 
 /** Math Utils */
