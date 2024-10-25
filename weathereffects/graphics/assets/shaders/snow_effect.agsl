@@ -24,6 +24,7 @@ uniform float screenAspectRatio;
 uniform float2 screenSize;
 uniform mat3 transformMatrixFgd;
 uniform mat3 transformMatrixBgd;
+uniform mat3 transformMatrixWeather;
 
 #include "shaders/constants.agsl"
 #include "shaders/utils.agsl"
@@ -55,7 +56,7 @@ vec4 main(float2 fragCoord) {
     float2 adjustedUvBackground = transformPoint(transformMatrixBgd, fragCoord);
 
     // Calculate uv for snow based on transformed coordinates
-    float2 uv = adjustedUvBackground / screenSize;
+    float2 uv = transformPoint(transformMatrixWeather, fragCoord) / screenSize;
     float2 uvAdjusted = vec2(uv.x, uv.y / screenAspectRatio);
 
     vec4 colorForeground = foreground.eval(adjustedUvForeground);
