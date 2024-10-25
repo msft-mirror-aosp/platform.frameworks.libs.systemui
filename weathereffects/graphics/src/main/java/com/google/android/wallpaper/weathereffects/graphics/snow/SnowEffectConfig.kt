@@ -72,8 +72,8 @@ data class SnowEffectConfig(
         private const val ACCUMULATED_SNOW_SHADER_PATH = "shaders/snow_accumulation.agsl"
         private const val COLOR_GRADING_SHADER_PATH = "shaders/color_grading_lut.agsl"
         private const val NOISE_TEXTURE_PATH = "textures/clouds.png"
-        private const val LOOKUP_TABLE_TEXTURE_PATH = "textures/lut_rain_and_fog.png"
-        private const val COLOR_GRADING_INTENSITY = 0.7f
+        private const val LOOKUP_TABLE_TEXTURE_PATH = "textures/snow_lut.png"
+        private const val COLOR_GRADING_INTENSITY = 0.25f
         private const val MAX_SNOW_THICKNESS = 10f
     }
 }

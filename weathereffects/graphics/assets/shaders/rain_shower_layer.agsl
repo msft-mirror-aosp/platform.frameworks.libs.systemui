@@ -89,6 +89,11 @@ vec4 main(float2 fragCoord) {
     vec4 colorForeground = foreground.eval(uvTextureFgd);
     vec4 color = background.eval(uvTextureBgd);
 
+    // Adjusts contrast and brightness.
+    float noise = 0.025 * triangleNoise(fragCoord.xy + vec2(12.31, 1024.1241));
+    color.rgb = imageRangeConversion(color.rgb, 0.84, 0.02, noise, intensity);
+    colorForeground.rgb = imageRangeConversion(colorForeground.rgb, 0.84, 0.02, noise, intensity);
+
     // Add rotation for the rain (as a default sin(time * 0.05) can be used).
     float variation = wiggle(time - uv.y * 1.1, 0.10);
     vec2 uvRot = rotateAroundPoint(uv, vec2(0.5, -1.42), variation * PI / 9.);

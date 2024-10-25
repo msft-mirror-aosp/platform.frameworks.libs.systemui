@@ -16,9 +16,9 @@
 
  /* Color and intensity constants. */
  // The color of the highlight of each drop.
- const vec3 highlightColor = vec3(1.); // white
+ const vec3 highlightColor = vec3(0.9, 1., 1.); // white
  // The color of the contact ambient occlusion shadow.
- const vec3 contactShadowColor = vec3(0.); // black
+ const vec3 contactShadowColor = vec3(0.2); // black
  // The tint color of the drop.
  const vec3 dropTint = vec3(1.); // white
 
