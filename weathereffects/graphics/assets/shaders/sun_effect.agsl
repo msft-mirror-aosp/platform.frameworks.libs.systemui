@@ -22,6 +22,7 @@ uniform float time;
 uniform float intensity;
 uniform mat3 transformMatrixFgd;
 uniform mat3 transformMatrixBgd;
+uniform mat3 transformMatrixWeather;
 
 
 #include "shaders/constants.agsl"
@@ -98,8 +99,7 @@ vec4 main(float2 fragCoord) {
     float2 adjustedUvForeground = transformPoint(transformMatrixFgd, fragCoord);
     float2 adjustedUvBackground = transformPoint(transformMatrixBgd, fragCoord);
 
-
-    float2 uv = fragCoord / screenSize;
+    float2 uv = transformPoint(transformMatrixWeather, fragCoord) / screenSize;
     uv -= vec2(0.5, 0.5);
     uv.y /= screenAspectRatio;
     vec2 sunVariation = vec2(0.1 * sin(time * 0.3), 0.14 * cos(time * 0.5));

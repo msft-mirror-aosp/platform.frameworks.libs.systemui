@@ -26,6 +26,7 @@ import android.util.SizeF
 import com.google.android.wallpaper.weathereffects.graphics.WeatherEffect
 import com.google.android.wallpaper.weathereffects.graphics.utils.GraphicsUtils
 import com.google.android.wallpaper.weathereffects.graphics.utils.MatrixUtils.centerCropMatrix
+import com.google.android.wallpaper.weathereffects.graphics.utils.MatrixUtils.extractTranslationMatrix
 import com.google.android.wallpaper.weathereffects.graphics.utils.MatrixUtils.postprocessParallaxMatrix
 import com.google.android.wallpaper.weathereffects.graphics.utils.TimeUtils
 import kotlin.random.Random
@@ -116,8 +117,10 @@ class SunEffect(
                 )
         }
         val postprocessedMatrix = postprocessParallaxMatrix(matrix!!)
+        val weatherMatrix = extractTranslationMatrix(postprocessedMatrix)
         sunConfig.shader.setFloatUniform("transformMatrixFgd", postprocessedMatrix)
         sunConfig.shader.setFloatUniform("transformMatrixBgd", postprocessedMatrix)
+        sunConfig.shader.setFloatUniform("transformMatrixWeather", weatherMatrix)
         sunConfig.shader.setFloatUniform("screenSize", surfaceSize.width, surfaceSize.height)
         sunConfig.shader.setFloatUniform(
             "screenAspectRatio",

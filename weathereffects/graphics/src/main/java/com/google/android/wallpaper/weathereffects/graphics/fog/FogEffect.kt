@@ -27,6 +27,7 @@ import com.google.android.wallpaper.weathereffects.graphics.WeatherEffect
 import com.google.android.wallpaper.weathereffects.graphics.WeatherEffect.Companion.DEFAULT_INTENSITY
 import com.google.android.wallpaper.weathereffects.graphics.utils.GraphicsUtils
 import com.google.android.wallpaper.weathereffects.graphics.utils.MatrixUtils.centerCropMatrix
+import com.google.android.wallpaper.weathereffects.graphics.utils.MatrixUtils.extractTranslationMatrix
 import com.google.android.wallpaper.weathereffects.graphics.utils.MatrixUtils.postprocessParallaxMatrix
 import com.google.android.wallpaper.weathereffects.graphics.utils.TimeUtils
 import kotlin.math.sin
@@ -143,8 +144,10 @@ class FogEffect(
                 )
         }
         val postprocessedMatrix = postprocessParallaxMatrix(matrix!!)
+        val weatherMatrix = extractTranslationMatrix(postprocessedMatrix)
         fogConfig.shader.setFloatUniform("transformMatrixFgd", postprocessedMatrix)
         fogConfig.shader.setFloatUniform("transformMatrixBgd", postprocessedMatrix)
+        fogConfig.shader.setFloatUniform("transformMatrixWeather", weatherMatrix)
 
         fogConfig.shader.setFloatUniform("screenSize", surfaceSize.width, surfaceSize.height)
         fogConfig.shader.setFloatUniform(
