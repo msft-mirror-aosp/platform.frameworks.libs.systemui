@@ -24,6 +24,7 @@ object MatrixUtils {
     private val inverseMatrix: Matrix = Matrix()
     private val matrixValues = FloatArray(9)
     private val transposedValues = FloatArray(9)
+    private val translationOnlyMatrixValues = FloatArray(9)
 
     /** Returns a [Matrix] that crops the image and centers to the screen. */
     fun centerCropMatrix(surfaceSize: SizeF, imageSize: SizeF): Matrix {
@@ -56,5 +57,14 @@ object MatrixUtils {
             }
         }
         return transposedValues
+    }
+
+    // Extract translation elements from the transposed matrix returned by transposeMatrixArray
+    fun extractTranslationMatrix(matrix: FloatArray): FloatArray {
+        Matrix.IDENTITY_MATRIX.getValues(translationOnlyMatrixValues)
+        return translationOnlyMatrixValues.apply {
+            set(6, matrix[6])
+            set(7, matrix[7])
+        }
     }
 }

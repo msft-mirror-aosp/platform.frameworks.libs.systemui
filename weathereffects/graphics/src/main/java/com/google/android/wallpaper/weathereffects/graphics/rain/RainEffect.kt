@@ -30,6 +30,7 @@ import com.google.android.wallpaper.weathereffects.graphics.WeatherEffect
 import com.google.android.wallpaper.weathereffects.graphics.WeatherEffect.Companion.DEFAULT_INTENSITY
 import com.google.android.wallpaper.weathereffects.graphics.utils.GraphicsUtils
 import com.google.android.wallpaper.weathereffects.graphics.utils.MatrixUtils.centerCropMatrix
+import com.google.android.wallpaper.weathereffects.graphics.utils.MatrixUtils.extractTranslationMatrix
 import com.google.android.wallpaper.weathereffects.graphics.utils.MatrixUtils.postprocessParallaxMatrix
 import com.google.android.wallpaper.weathereffects.graphics.utils.SolidColorShader
 import com.google.android.wallpaper.weathereffects.graphics.utils.TimeUtils
@@ -150,8 +151,10 @@ class RainEffect(
                 )
         }
         val postprocessedMatrix = postprocessParallaxMatrix(matrix!!)
+        val weatherMatrix = extractTranslationMatrix(postprocessedMatrix)
         rainConfig.rainShowerShader.setFloatUniform("transformMatrixFgd", postprocessedMatrix)
         rainConfig.rainShowerShader.setFloatUniform("transformMatrixBgd", postprocessedMatrix)
+        rainConfig.rainShowerShader.setFloatUniform("transformMatrixWeather", weatherMatrix)
 
         rainConfig.rainShowerShader.setFloatUniform(
             "screenSize",

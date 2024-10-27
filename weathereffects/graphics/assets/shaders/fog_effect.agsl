@@ -27,6 +27,7 @@ uniform half pixelDensity;
 uniform half intensity;
 uniform mat3 transformMatrixFgd;
 uniform mat3 transformMatrixBgd;
+uniform mat3 transformMatrixWeather;
 
 #include "shaders/constants.agsl"
 #include "shaders/utils.agsl"
@@ -49,7 +50,7 @@ vec4 main(float2 fragCoord) {
 
     float2 fgdCoord = transformPoint(transformMatrixFgd, fragCoord);
     float2 bgdCoord = transformPoint(transformMatrixBgd, fragCoord);
-    float2 uv = bgdCoord / screenSize;
+    float2 uv = transformPoint(transformMatrixWeather, fragCoord) / screenSize;
     uv.y /= screenAspectRatio;
     // Load foreground and blend it with constant solid fog color.
     vec4 fgd = foreground.eval(fgdCoord);
