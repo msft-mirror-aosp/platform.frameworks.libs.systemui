@@ -30,6 +30,7 @@ import com.google.android.wallpaper.weathereffects.graphics.WeatherEffect.Compan
 import com.google.android.wallpaper.weathereffects.graphics.utils.GraphicsUtils
 import com.google.android.wallpaper.weathereffects.graphics.utils.MathUtils
 import com.google.android.wallpaper.weathereffects.graphics.utils.MatrixUtils.centerCropMatrix
+import com.google.android.wallpaper.weathereffects.graphics.utils.MatrixUtils.extractTranslationMatrix
 import com.google.android.wallpaper.weathereffects.graphics.utils.MatrixUtils.postprocessParallaxMatrix
 import com.google.android.wallpaper.weathereffects.graphics.utils.TimeUtils
 import java.util.concurrent.Executor
@@ -157,9 +158,10 @@ class SnowEffect(
                 )
         }
         val postprocessedMatrix = postprocessParallaxMatrix(matrix!!)
+        val weatherMatrix = extractTranslationMatrix(postprocessedMatrix)
         snowConfig.shader.setFloatUniform("transformMatrixFgd", postprocessedMatrix)
         snowConfig.shader.setFloatUniform("transformMatrixBgd", postprocessedMatrix)
-
+        snowConfig.shader.setFloatUniform("transformMatrixWeather", weatherMatrix)
         snowConfig.shader.setFloatUniform("screenSize", surfaceSize.width, surfaceSize.height)
         snowConfig.shader.setFloatUniform(
             "screenAspectRatio",
