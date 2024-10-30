@@ -61,6 +61,14 @@ vec4 main(float2 fragCoord) {
 
     vec4 colorForeground = foreground.eval(adjustedUvForeground);
     vec4 colorBackground = background.eval(adjustedUvBackground);
+
+     // Adjusts contrast and brightness.
+    float noiseT = triangleNoise(fragCoord.xy + vec2(12.31, 1024.1241));
+    colorBackground.rgb =
+        imageRangeConversion(colorBackground.rgb, 0.88, 0.02, noiseT * 0.025, intensity);
+    colorForeground.rgb =
+        imageRangeConversion(colorForeground.rgb, 0.88, 0.02, noiseT * 0.025, intensity);
+
     // 1. Draw background.
     vec4 color = colorBackground;
 
