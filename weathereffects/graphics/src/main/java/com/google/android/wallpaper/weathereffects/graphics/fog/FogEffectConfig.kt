@@ -71,9 +71,9 @@ data class FogEffectConfig(
     private companion object {
         private const val SHADER_PATH = "shaders/fog_effect.agsl"
         private const val COLOR_GRADING_SHADER_PATH = "shaders/color_grading_lut.agsl"
-        private const val LOOKUP_TABLE_TEXTURE_PATH = "textures/lut_rain_and_fog.png"
+        private const val LOOKUP_TABLE_TEXTURE_PATH = "textures/fog_lut.png"
         private const val CLOUDS_TEXTURE_PATH = "textures/clouds.png"
         private const val FOG_TEXTURE_PATH = "textures/fog.png"
-        private const val COLOR_GRADING_INTENSITY = 0.7f
+        private const val COLOR_GRADING_INTENSITY = 0.3f
     }
 }
