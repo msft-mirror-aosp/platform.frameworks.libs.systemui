@@ -16,14 +16,12 @@
 
 package com.android.app.tracing.coroutines
 
-import com.android.app.tracing.FakeTraceState.getOpenTraceSectionsOnCurrentThread
 import com.android.app.tracing.setAndroidSystemTracingEnabled
 import com.android.systemui.Flags
 import com.android.systemui.util.Compile
 import java.util.concurrent.CyclicBarrier
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
-import java.util.concurrent.atomic.AtomicInteger
 import kotlin.coroutines.CoroutineContext
 import kotlin.coroutines.EmptyCoroutineContext
 import kotlinx.coroutines.CoroutineScope
@@ -36,7 +34,6 @@ import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.withContext
-import org.junit.After
 import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
@@ -45,29 +42,12 @@ import org.junit.Assert.assertNull
 import org.junit.Assert.assertSame
 import org.junit.Assert.assertTrue
 import org.junit.Assert.fail
-import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.BlockJUnit4ClassRunner
 
 @RunWith(BlockJUnit4ClassRunner::class)
-class CoroutineTracingTest {
-    @Before
-    fun setup() {
-        TraceData.strictModeForTesting = true
-        Compile.setIsDebug(true)
-        Flags.setCoroutineTracingEnabled(true)
-        setAndroidSystemTracingEnabled(true)
-    }
-
-    @After
-    fun checkFinished() {
-        val lastEvent = eventCounter.get()
-        assertTrue(
-            "Expected `finish(${lastEvent + 1})` to be called, but the test finished",
-            lastEvent == FINAL_EVENT || lastEvent == 0,
-        )
-    }
+class CoroutineTracingTest : TestBase() {
 
     @Test
     fun simpleTraceSection() = runTestWithTraceContext {
@@ -605,61 +585,4 @@ class CoroutineTracingTest {
             }
         }
     }
-
-    private fun expect(vararg expectedOpenTraceSections: String) {
-        expect(null, *expectedOpenTraceSections)
-    }
-
-    /**
-     * Checks the currently active trace sections on the current thread, and optionally checks the
-     * order of operations if [expectedEvent] is not null.
-     */
-    private fun expect(expectedEvent: Int? = null, vararg expectedOpenTraceSections: String) {
-        if (expectedEvent != null) {
-            val previousEvent = eventCounter.getAndAdd(1)
-            val currentEvent = previousEvent + 1
-            check(expectedEvent == currentEvent) {
-                if (previousEvent == FINAL_EVENT) {
-                    "Expected event=$expectedEvent, but finish() was already called"
-                } else {
-                    "Expected event=$expectedEvent," +
-                        " but the event counter is currently at $currentEvent"
-                }
-            }
-        }
-
-        // Inspect trace output to the fake used for recording android.os.Trace API calls:
-        assertArrayEquals(expectedOpenTraceSections, getOpenTraceSectionsOnCurrentThread())
-    }
-
-    /** Same as [expect], except that no more [expect] statements can be called after it. */
-    private fun finish(expectedEvent: Int, vararg expectedOpenTraceSections: String) {
-        val previousEvent = eventCounter.getAndSet(FINAL_EVENT)
-        val currentEvent = previousEvent + 1
-        check(expectedEvent == currentEvent) {
-            if (previousEvent == FINAL_EVENT) {
-                "finish() was called more than once"
-            } else {
-                "Finished with event=$expectedEvent," +
-                    " but the event counter is currently $currentEvent"
-            }
-        }
-
-        // Inspect trace output to the fake used for recording android.os.Trace API calls:
-        assertArrayEquals(expectedOpenTraceSections, getOpenTraceSectionsOnCurrentThread())
-    }
-
-    private val eventCounter = AtomicInteger(0)
-
-    companion object {
-        const val FINAL_EVENT = Int.MIN_VALUE
-    }
 }
-
-/**
- * Helper util for calling [runTest] with a [TraceContextElement]. This is useful for formatting
- * purposes. Passing an arg to `runTest {}` directly, as in `fun testStuff() =
- * runTestWithTraceContext {}` would require more indentations according to our style guide.
- */
-private fun runTestWithTraceContext(testBody: suspend TestScope.() -> Unit) =
-    runTest(context = TraceContextElement(), testBody = testBody)
