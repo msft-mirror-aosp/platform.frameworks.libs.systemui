@@ -23,6 +23,9 @@ import com.google.android.msdl.data.model.FeedbackLevel
 import com.google.android.msdl.data.model.HapticComposition
 import com.google.android.msdl.data.model.MSDLToken
 import com.google.android.msdl.data.repository.MSDLRepository
+import com.google.android.msdl.logging.MSDLEvent
+import com.google.android.msdl.logging.MSDLHistoryLogger
+import com.google.android.msdl.logging.MSDLHistoryLoggerImpl
 import java.util.concurrent.Executor
 
 /**
@@ -36,12 +39,15 @@ import java.util.concurrent.Executor
  * @param[useHapticFallbackForToken] A map that determines if the haptic fallback effect should be
  *   used for a given token.
  */
-class MSDLPlayerImpl(
+internal class MSDLPlayerImpl(
     private val repository: MSDLRepository,
     private val vibrator: Vibrator,
     private val executor: Executor,
     private val useHapticFallbackForToken: Map<MSDLToken, Boolean?>,
 ) : MSDLPlayer {
+
+    /** A logger to keep a history of playback events */
+    private val historyLogger = MSDLHistoryLoggerImpl(MSDLHistoryLogger.HISTORY_SIZE)
 
     // TODO(b/355230334): This should be retrieved from the system Settings
     override fun getSystemFeedbackLevel(): FeedbackLevel = MSDLPlayer.SYSTEM_FEEDBACK_LEVEL
@@ -55,10 +61,7 @@ class MSDLPlayerImpl(
         playData(token, properties)
     }
 
-    private fun playData(
-        token: MSDLToken,
-        properties: InteractionProperties?,
-    ) {
+    private fun playData(token: MSDLToken, properties: InteractionProperties?) {
         // Gather the data from the repositories
         val hapticData = repository.getHapticData(token.hapticToken)
         val soundData = repository.getAudioData(token.soundToken)
@@ -93,10 +96,23 @@ class MSDLPlayerImpl(
                     VibrationAttributes.Builder().setUsage(VibrationAttributes.USAGE_TOUCH).build()
                 }
             executor.execute { vibrator.vibrate(effect, attributes) }
+
+            // 3. Log the event
+            historyLogger.addEvent(MSDLEvent(token, properties))
         } else {
             // TODO(b/345248875): Play audio and haptics
         }
     }
+
+    override fun getHistory(): List<MSDLEvent> = historyLogger.getHistory()
+
+    override fun toString(): String =
+        """
+            Default MSDL player implementation.
+            Vibrator: $vibrator
+            Repository: $repository
+        """
+            .trimIndent()
 
     companion object {
         val REQUIRED_PRIMITIVES =
@@ -105,6 +121,7 @@ class MSDLPlayerImpl(
                 VibrationEffect.Composition.PRIMITIVE_THUD,
                 VibrationEffect.Composition.PRIMITIVE_TICK,
                 VibrationEffect.Composition.PRIMITIVE_CLICK,
+                VibrationEffect.Composition.PRIMITIVE_LOW_TICK,
             )
     }
 }

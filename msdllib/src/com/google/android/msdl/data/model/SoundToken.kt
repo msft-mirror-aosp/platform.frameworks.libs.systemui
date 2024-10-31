@@ -40,4 +40,5 @@ enum class SoundToken {
     KEYPRESS_SPACEBAR,
     KEYPRESS_RETURN,
     KEYPRESS_DELETE,
+    NO_SOUND,
 }
