@@ -16,55 +16,65 @@
 
 package com.google.android.wallpaper.weathereffects.graphics.rain
 
+import android.graphics.Bitmap
 import android.graphics.BitmapShader
 import android.graphics.Canvas
 import android.graphics.Color
+import android.graphics.Matrix
 import android.graphics.Paint
 import android.graphics.RenderEffect
 import android.graphics.Shader
 import android.util.SizeF
 import com.google.android.wallpaper.weathereffects.graphics.FrameBuffer
 import com.google.android.wallpaper.weathereffects.graphics.WeatherEffect
+import com.google.android.wallpaper.weathereffects.graphics.WeatherEffect.Companion.DEFAULT_INTENSITY
 import com.google.android.wallpaper.weathereffects.graphics.utils.GraphicsUtils
-import com.google.android.wallpaper.weathereffects.graphics.utils.ImageCrop
+import com.google.android.wallpaper.weathereffects.graphics.utils.MatrixUtils.centerCropMatrix
+import com.google.android.wallpaper.weathereffects.graphics.utils.MatrixUtils.extractTranslationMatrix
+import com.google.android.wallpaper.weathereffects.graphics.utils.MatrixUtils.postprocessParallaxMatrix
 import com.google.android.wallpaper.weathereffects.graphics.utils.SolidColorShader
 import com.google.android.wallpaper.weathereffects.graphics.utils.TimeUtils
 import java.util.concurrent.Executor
-import java.util.concurrent.TimeUnit
 import kotlin.random.Random
 
 /** Defines and generates the rain weather effect animation. */
 class RainEffect(
     /** The config of the rain effect. */
     private val rainConfig: RainEffectConfig,
+    private var foreground: Bitmap,
+    private var background: Bitmap,
+    private var intensity: Float = DEFAULT_INTENSITY,
     /** The initial size of the surface where the effect will be shown. */
-    surfaceSize: SizeF,
-    private val mainExecutor: Executor
+    private var surfaceSize: SizeF,
+    private val mainExecutor: Executor,
 ) : WeatherEffect {
 
     private val rainPaint = Paint().also { it.shader = rainConfig.colorGradingShader }
 
     // Set blur effect to reduce the outline noise. No need to set blur effect every time we
     // re-generate the outline buffer.
-    private val outlineBuffer =
-        FrameBuffer(rainConfig.background.width, rainConfig.background.height).apply {
+    private var outlineBuffer =
+        FrameBuffer(background.width, background.height).apply {
             setRenderEffect(RenderEffect.createBlurEffect(2f, 2f, Shader.TileMode.CLAMP))
         }
     private val outlineBufferPaint = Paint().also { it.shader = rainConfig.outlineShader }
 
     private var elapsedTime: Float = 0f
 
+    private var matrix: Matrix? = null
+
     init {
         updateTextureUniforms()
         adjustCropping(surfaceSize)
         prepareColorGrading()
         updateRainGridSize(surfaceSize)
-        setIntensity(rainConfig.intensity)
+        setIntensity(intensity)
     }
 
     override fun resize(newSurfaceSize: SizeF) {
         adjustCropping(newSurfaceSize)
         updateRainGridSize(newSurfaceSize)
+        surfaceSize = newSurfaceSize
     }
 
     override fun update(deltaMillis: Long, frameTimeNanos: Long) {
@@ -95,7 +105,7 @@ class RainEffect(
         rainConfig.glassRainShader.setFloatUniform("intensity", intensity)
         rainConfig.colorGradingShader.setFloatUniform(
             "intensity",
-            rainConfig.colorGradingIntensity * intensity
+            rainConfig.colorGradingIntensity * intensity,
         )
         val thickness = 1f + intensity * 10f
         rainConfig.outlineShader.setFloatUniform("thickness", thickness)
@@ -104,52 +114,57 @@ class RainEffect(
         createOutlineBuffer()
     }
 
-    private fun adjustCropping(surfaceSize: SizeF) {
-        val imageCropFgd =
-            ImageCrop.centerCoverCrop(
-                surfaceSize.width,
-                surfaceSize.height,
-                rainConfig.foreground.width.toFloat(),
-                rainConfig.foreground.height.toFloat()
-            )
-        rainConfig.rainShowerShader.setFloatUniform(
-            "uvOffsetFgd",
-            imageCropFgd.leftOffset,
-            imageCropFgd.topOffset
-        )
-        rainConfig.rainShowerShader.setFloatUniform(
-            "uvScaleFgd",
-            imageCropFgd.horizontalScale,
-            imageCropFgd.verticalScale
-        )
+    override fun setBitmaps(foreground: Bitmap?, background: Bitmap) {
+        if (this.foreground == foreground && this.background == background) {
+            return
+        }
+        // Only when background changes, we can infer the bitmap set changes
+        if (this.background != background) {
+            this.background.recycle()
+            this.foreground.recycle()
+        }
+        this.background = background
+        this.foreground = foreground ?: background
 
-        val imageCropBgd =
-            ImageCrop.centerCoverCrop(
-                surfaceSize.width,
-                surfaceSize.height,
-                rainConfig.background.width.toFloat(),
-                rainConfig.background.height.toFloat()
-            )
-        rainConfig.rainShowerShader.setFloatUniform(
-            "uvOffsetBgd",
-            imageCropBgd.leftOffset,
-            imageCropBgd.topOffset
-        )
-        rainConfig.rainShowerShader.setFloatUniform(
-            "uvScaleBgd",
-            imageCropBgd.horizontalScale,
-            imageCropBgd.verticalScale
-        )
+        outlineBuffer =
+            FrameBuffer(background.width, background.height).apply {
+                setRenderEffect(RenderEffect.createBlurEffect(2f, 2f, Shader.TileMode.CLAMP))
+            }
+        adjustCropping(surfaceSize)
+        updateTextureUniforms()
+
+        // Need to recreate the outline buffer as the outlineBuffer has changed due to background
+        createOutlineBuffer()
+    }
+
+    override fun setMatrix(matrix: Matrix) {
+        this.matrix = matrix
+        adjustCropping(surfaceSize)
+    }
+
+    private fun adjustCropping(surfaceSize: SizeF) {
+        if (matrix == null) {
+            matrix =
+                centerCropMatrix(
+                    surfaceSize,
+                    SizeF(foreground.width.toFloat(), foreground.height.toFloat()),
+                )
+        }
+        val postprocessedMatrix = postprocessParallaxMatrix(matrix!!)
+        val weatherMatrix = extractTranslationMatrix(postprocessedMatrix)
+        rainConfig.rainShowerShader.setFloatUniform("transformMatrixFgd", postprocessedMatrix)
+        rainConfig.rainShowerShader.setFloatUniform("transformMatrixBgd", postprocessedMatrix)
+        rainConfig.rainShowerShader.setFloatUniform("transformMatrixWeather", weatherMatrix)
 
         rainConfig.rainShowerShader.setFloatUniform(
             "screenSize",
             surfaceSize.width,
-            surfaceSize.height
+            surfaceSize.height,
         )
         rainConfig.glassRainShader.setFloatUniform(
             "screenSize",
             surfaceSize.width,
-            surfaceSize.height
+            surfaceSize.height,
         )
 
         val screenAspectRatio = GraphicsUtils.getAspectRatio(surfaceSize)
@@ -159,13 +174,13 @@ class RainEffect(
 
     private fun updateTextureUniforms() {
         val foregroundBuffer =
-            BitmapShader(rainConfig.foreground, Shader.TileMode.MIRROR, Shader.TileMode.MIRROR)
+            BitmapShader(foreground, Shader.TileMode.MIRROR, Shader.TileMode.MIRROR)
         rainConfig.rainShowerShader.setInputBuffer("foreground", foregroundBuffer)
         rainConfig.outlineShader.setInputBuffer("texture", foregroundBuffer)
 
         rainConfig.rainShowerShader.setInputBuffer(
             "background",
-            BitmapShader(rainConfig.background, Shader.TileMode.MIRROR, Shader.TileMode.MIRROR)
+            BitmapShader(background, Shader.TileMode.MIRROR, Shader.TileMode.MIRROR),
         )
     }
 
@@ -178,10 +193,10 @@ class RainEffect(
             { buffer ->
                 rainConfig.rainShowerShader.setInputBuffer(
                     "outlineBuffer",
-                    BitmapShader(buffer, Shader.TileMode.MIRROR, Shader.TileMode.MIRROR)
+                    BitmapShader(buffer, Shader.TileMode.MIRROR, Shader.TileMode.MIRROR),
                 )
             },
-            mainExecutor
+            mainExecutor,
         )
     }
 
@@ -192,13 +207,14 @@ class RainEffect(
         rainConfig.lut?.let {
             rainConfig.colorGradingShader.setInputShader(
                 "lut",
-                BitmapShader(it, Shader.TileMode.MIRROR, Shader.TileMode.MIRROR)
+                BitmapShader(it, Shader.TileMode.MIRROR, Shader.TileMode.MIRROR),
             )
         }
     }
 
     private fun updateRainGridSize(surfaceSize: SizeF) {
-        val widthScreenScale = GraphicsUtils.computeDefaultGridSize(surfaceSize, rainConfig.pixelDensity)
+        val widthScreenScale =
+            GraphicsUtils.computeDefaultGridSize(surfaceSize, rainConfig.pixelDensity)
         rainConfig.rainShowerShader.setFloatUniform("gridScale", widthScreenScale)
         rainConfig.glassRainShader.setFloatUniform("gridScale", widthScreenScale)
     }

@@ -41,11 +41,7 @@ enum class MSDLToken(
         FeedbackLevel.MINIMAL,
     ),
     /* Inform the user that an ongoing activity has started */
-    START(
-        HapticToken.NEUTRAL_CONFIRMATION_HIGH_EMPHASIS,
-        SoundToken.START,
-        FeedbackLevel.DEFAULT,
-    ),
+    START(HapticToken.NEUTRAL_CONFIRMATION_HIGH_EMPHASIS, SoundToken.START, FeedbackLevel.DEFAULT),
     /* Inform the user that an ongoing activity has paused */
     PAUSE(
         HapticToken.NEUTRAL_CONFIRMATION_MEDIUM_EMPHASIS,
@@ -53,11 +49,7 @@ enum class MSDLToken(
         FeedbackLevel.DEFAULT,
     ),
     /* Inform the user that their previously started activity has stopped SUCCESSFULLY */
-    STOP(
-        HapticToken.POSITIVE_CONFIRMATION_MEDIUM_EMPHASIS,
-        SoundToken.STOP,
-        FeedbackLevel.DEFAULT,
-    ),
+    STOP(HapticToken.POSITIVE_CONFIRMATION_MEDIUM_EMPHASIS, SoundToken.STOP, FeedbackLevel.DEFAULT),
     /* Inform the user that their previously started activity has cancelled SUCCESSFULLY */
     CANCEL(
         HapticToken.POSITIVE_CONFIRMATION_MEDIUM_EMPHASIS,
@@ -83,17 +75,9 @@ enum class MSDLToken(
         FeedbackLevel.DEFAULT,
     ),
     /* Inform the user the state of their device changed to locked SUCCESSFULLY */
-    LOCK(
-        HapticToken.POSITIVE_CONFIRMATION_LOW_EMPHASIS,
-        SoundToken.LOCK,
-        FeedbackLevel.DEFAULT,
-    ),
+    LOCK(HapticToken.POSITIVE_CONFIRMATION_LOW_EMPHASIS, SoundToken.LOCK, FeedbackLevel.DEFAULT),
     /* Inform the user that their long-press gesture has resulted in the revealing of more contextual information */
-    LONG_PRESS(
-        HapticToken.LONG_PRESS,
-        SoundToken.LONG_PRESS,
-        FeedbackLevel.MINIMAL,
-    ),
+    LONG_PRESS(HapticToken.LONG_PRESS, SoundToken.LONG_PRESS, FeedbackLevel.MINIMAL),
     /* Inform the user that their swipe gesture has reached a threshold that confirms navigation or the reveal of additional information. */
     SWIPE_THRESHOLD_INDICATOR(
         HapticToken.SWIPE_THRESHOLD_INDICATOR,
@@ -119,12 +103,22 @@ enum class MSDLToken(
         FeedbackLevel.DEFAULT,
     ),
     /* Inform the user that their drag gesture has resulted in an incremental value change.
-     * For usage in haptic sliders, this token can be played along with
+     * For usage in haptic sliders that change continuously, this token can be played along with
      * [InteractionProperties.DynamicVibrationScale] properties to control haptic scaling as a
      * function of position and velocity.
      */
-    DRAG_INDICATOR(
-        HapticToken.DRAG_INDICATOR,
+    DRAG_INDICATOR_CONTINUOUS(
+        HapticToken.DRAG_INDICATOR_CONTINUOUS,
+        SoundToken.NO_SOUND,
+        FeedbackLevel.DEFAULT,
+    ),
+    /* Inform the user that their drag gesture has resulted in a stepped value change.
+     * For usage in haptic sliders that change in discrete steps, this token can be played with
+     * [InteractionProperties.DynamicVibrationScale] properties to control haptic scaling as a
+     * function of position and velocity.
+     */
+    DRAG_INDICATOR_DISCRETE(
+        HapticToken.DRAG_INDICATOR_DISCRETE,
         SoundToken.DRAG_INDICATOR,
         FeedbackLevel.DEFAULT,
     ),
@@ -147,17 +141,9 @@ enum class MSDLToken(
         FeedbackLevel.DEFAULT,
     ),
     /* Played when the user touches the return key */
-    KEYPRESS_RETURN(
-        HapticToken.KEYPRESS_RETURN,
-        SoundToken.KEYPRESS_RETURN,
-        FeedbackLevel.DEFAULT,
-    ),
+    KEYPRESS_RETURN(HapticToken.KEYPRESS_RETURN, SoundToken.KEYPRESS_RETURN, FeedbackLevel.DEFAULT),
     /* Played when the user touches the delete key */
-    KEYPRESS_DELETE(
-        HapticToken.KEYPRESS_DELETE,
-        SoundToken.KEYPRESS_DELETE,
-        FeedbackLevel.DEFAULT,
-    ),
+    KEYPRESS_DELETE(HapticToken.KEYPRESS_DELETE, SoundToken.KEYPRESS_DELETE, FeedbackLevel.DEFAULT),
 }
 
 /** Level of feedback that contains a token */
