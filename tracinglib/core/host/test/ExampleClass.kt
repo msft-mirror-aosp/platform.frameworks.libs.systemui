@@ -14,15 +14,18 @@
  * limitations under the License.
  */
 
-package com.android.systemui
+package com.android.app.tracing.coroutines
 
-object Flags {
-
-    private var isCoroutineTracingFlagEnabledForTests = true
-
-    fun coroutineTracing() = isCoroutineTracingFlagEnabledForTests
-
-    fun setCoroutineTracingEnabled(enabled: Boolean) {
-        isCoroutineTracingFlagEnabledForTests = enabled
+class ExampleClass(
+    private val testBase: TestBase,
+    private val incrementCounter: suspend () -> Unit,
+) {
+    suspend fun classMethod(value: Int) {
+        testBase.expect(
+            "launch-for-collect",
+            "com.android.app.tracing.coroutines.FlowTracingTest\$stateFlowCollection$1\$collectJob$1$3:collect",
+            "com.android.app.tracing.coroutines.FlowTracingTest\$stateFlowCollection$1\$collectJob$1$3:emit"
+        )
+        incrementCounter()
     }
 }
