@@ -16,6 +16,13 @@ flag {
 }
 
 flag {
+    name: "return_animation_framework_long_lived"
+    namespace: "systemui"
+    description: "Turn on long-lived Return registrations in the Animation library"
+    bug: "273205603"
+}
+
+flag {
     name: "shade_allow_back_gesture"
     namespace: "systemui"
     description: "Allow Back Gestures in Shade"
@@ -61,4 +68,11 @@ flag {
     namespace: "systemui"
     description: "Enables the BC25 design of the customization picker UI."
     bug: "339081035"
+}
+
+flag {
+    name: "ambient_aod"
+    namespace: "systemui"
+    description: "Enables ambient wallpaper and AOD enhancements"
+    bug: "372655702"
 }

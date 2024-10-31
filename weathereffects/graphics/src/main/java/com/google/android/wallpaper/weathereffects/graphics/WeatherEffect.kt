@@ -16,7 +16,9 @@
 
 package com.google.android.wallpaper.weathereffects.graphics
 
+import android.graphics.Bitmap
 import android.graphics.Canvas
+import android.graphics.Matrix
 import android.util.SizeF
 import androidx.annotation.FloatRange
 
@@ -59,4 +61,24 @@ interface WeatherEffect {
      * @param intensity [0, 1] the intensity of the weather effect.
      */
     fun setIntensity(@FloatRange(from = 0.0, to = 1.0) intensity: Float)
+
+    /**
+     * Reuse current shader but change background, foreground
+     *
+     * @param foreground A bitmap containing the foreground of the image, will be null when
+     *   segmentation hasn't finished.
+     * @param background A bitmap containing the background of the image
+     */
+    fun setBitmaps(foreground: Bitmap?, background: Bitmap)
+
+    /**
+     * Apply matrix to transform coordinates in shaders. In Editor and preview, it's a center crop
+     * matrix to center the bitmap in surface size; in applied wallpaper, the matrix is the parallax
+     * matrix due to the pagination in homescreen
+     */
+    fun setMatrix(matrix: Matrix) {}
+
+    companion object {
+        val DEFAULT_INTENSITY = 1f
+    }
 }

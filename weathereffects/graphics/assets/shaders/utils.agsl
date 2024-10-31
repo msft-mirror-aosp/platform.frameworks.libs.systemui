@@ -90,8 +90,16 @@ vec3 normalBlend(vec3 b, vec3 f, float o) {
     return b * (1. - o) + f;
 }
 
-vec3 screenBlend(vec3 b, float o) {
-    return b * (1. - o) + o;
+float screenBlend(float bgd, float fgd) {
+    return mix(bgd, 1., fgd);
+}
+
+vec3 screenBlend(vec3 bgd, float fgd) {
+    return mix(bgd, vec3(1.), fgd);
+}
+
+vec3 screenBlend(vec3 bgd, vec3 fgd) {
+    return mix(bgd, vec3(1.), fgd);
 }
 
 /*
@@ -108,6 +116,18 @@ vec3 normalBlendNotPremultiplied(vec3 b, vec3 f, float o) {
     return mix(b, f, o);
 }
 
+float relativeLuminance(vec3 color) {
+    return dot(vec3(0.2126, 0.7152, 0.0722), color);
+}
+
+/* Adjusts the image color range and black level. */
+vec3 imageRangeConversion(
+    vec3 color, float rangeCompression, float blackLevel, float noise, float intensity) {
+    color *= mix(1., rangeCompression + noise, intensity);
+    color += blackLevel * intensity;
+    return color;
+}
+
 /** Math Utils */
 // function created on Grapher (equation decided by testing in Grapher).
 float wiggle(float time, float wiggleSpeed) {
@@ -121,3 +141,12 @@ float map(float value, float inMin, float inMax, float outMin, float outMax) {
     return p * (outMax - outMin) + outMin;
 }
 
+// Adjusts the UVs to have the expected rect of the image.
+float2 transformPoint(mat3 transformMatrix, float2 point) {
+    // Convert the point to homogeneous coordinates (x, y, 1)
+    vec3 homogeneousPoint = vec3(point, 1.0);
+    // Multiply the matrix by the point
+    vec3 transformedPoint = transformMatrix * homogeneousPoint;
+    // Convert back to Cartesian coordinates (x, y)
+    return transformedPoint.xy / transformedPoint.z;
+}
