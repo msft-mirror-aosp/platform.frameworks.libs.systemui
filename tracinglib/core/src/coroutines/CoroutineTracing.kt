@@ -16,15 +16,14 @@
 
 package com.android.app.tracing.coroutines
 
-import android.os.Trace
-import com.android.systemui.util.Compile
-import java.util.concurrent.ThreadLocalRandom
+import com.android.systemui.Flags
 import kotlin.contracts.ExperimentalContracts
 import kotlin.contracts.InvocationKind
 import kotlin.contracts.contract
 import kotlin.coroutines.CoroutineContext
 import kotlin.coroutines.EmptyCoroutineContext
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
@@ -33,19 +32,15 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
 
-const val TAG = "CoroutineTracing"
-
-const val DEFAULT_TRACK_NAME = "Coroutines"
-
 @OptIn(ExperimentalContracts::class)
-suspend inline fun <R> coroutineScope(
+public suspend inline fun <R> coroutineScopeTraced(
     traceName: String,
-    crossinline block: suspend CoroutineScope.() -> R
+    crossinline block: suspend CoroutineScope.() -> R,
 ): R {
     contract { callsInPlace(block, InvocationKind.EXACTLY_ONCE) }
-    return traceCoroutine(traceName) {
-        return@traceCoroutine coroutineScope wrappedCoroutineScope@{
-            return@wrappedCoroutineScope block()
+    return coroutineScope {
+        traceCoroutine(traceName) {
+            return@coroutineScope block()
         }
     }
 }
@@ -55,132 +50,128 @@ suspend inline fun <R> coroutineScope(
  *
  * @see traceCoroutine
  */
-inline fun CoroutineScope.launch(
+public inline fun CoroutineScope.launchTraced(
     crossinline spanName: () -> String,
     context: CoroutineContext = EmptyCoroutineContext,
-    // TODO(b/306457056): DO NOT pass CoroutineStart; doing so will regress .odex size
-    crossinline block: suspend CoroutineScope.() -> Unit
-): Job = launch(context) { traceCoroutine(spanName) { block() } }
+    start: CoroutineStart = CoroutineStart.DEFAULT,
+    noinline block: suspend CoroutineScope.() -> Unit,
+): Job {
+    return launch(nameCoroutine(spanName) + context, start, block)
+}
 
 /**
  * Convenience function for calling [CoroutineScope.launch] with [traceCoroutine] to enable tracing.
  *
  * @see traceCoroutine
  */
-inline fun CoroutineScope.launch(
-    spanName: String,
+public fun CoroutineScope.launchTraced(
+    spanName: String? = null,
     context: CoroutineContext = EmptyCoroutineContext,
-    // TODO(b/306457056): DO NOT pass CoroutineStart; doing so will regress .odex size
-    crossinline block: suspend CoroutineScope.() -> Unit
-): Job = launch(context) { traceCoroutine(spanName) { block() } }
+    start: CoroutineStart = CoroutineStart.DEFAULT,
+    block: suspend CoroutineScope.() -> Unit,
+): Job = launchTraced({ spanName ?: block::class.simpleName ?: "launch" }, context, start, block)
 
 /**
  * Convenience function for calling [CoroutineScope.async] with [traceCoroutine] enable tracing
  *
  * @see traceCoroutine
  */
-inline fun <T> CoroutineScope.async(
-    crossinline spanName: () -> String,
+public inline fun <T> CoroutineScope.asyncTraced(
+    spanName: () -> String,
     context: CoroutineContext = EmptyCoroutineContext,
-    // TODO(b/306457056): DO NOT pass CoroutineStart; doing so will regress .odex size
-    crossinline block: suspend CoroutineScope.() -> T
-): Deferred<T> = async(context) { traceCoroutine(spanName) { block() } }
+    start: CoroutineStart = CoroutineStart.DEFAULT,
+    noinline block: suspend CoroutineScope.() -> T,
+): Deferred<T> = async(nameCoroutine(spanName) + context, start, block)
 
 /**
  * Convenience function for calling [CoroutineScope.async] with [traceCoroutine] enable tracing.
  *
  * @see traceCoroutine
  */
-inline fun <T> CoroutineScope.async(
-    spanName: String,
+public fun <T> CoroutineScope.asyncTraced(
+    spanName: String? = null,
     context: CoroutineContext = EmptyCoroutineContext,
-    // TODO(b/306457056): DO NOT pass CoroutineStart; doing so will regress .odex size
-    crossinline block: suspend CoroutineScope.() -> T
-): Deferred<T> = async(context) { traceCoroutine(spanName) { block() } }
+    start: CoroutineStart = CoroutineStart.DEFAULT,
+    block: suspend CoroutineScope.() -> T,
+): Deferred<T> =
+    asyncTraced({ spanName ?: block::class.simpleName ?: "async" }, context, start, block)
 
 /**
  * Convenience function for calling [runBlocking] with [traceCoroutine] to enable tracing.
  *
  * @see traceCoroutine
  */
-inline fun <T> runBlocking(
-    crossinline spanName: () -> String,
+public inline fun <T> runBlockingTraced(
+    spanName: () -> String,
     context: CoroutineContext,
-    crossinline block: suspend () -> T
-): T = runBlocking(context) { traceCoroutine(spanName) { block() } }
+    noinline block: suspend CoroutineScope.() -> T,
+): T = runBlocking(nameCoroutine(spanName) + context, block)
 
 /**
  * Convenience function for calling [runBlocking] with [traceCoroutine] to enable tracing.
  *
  * @see traceCoroutine
  */
-inline fun <T> runBlocking(
-    spanName: String,
+public fun <T> runBlockingTraced(
+    spanName: String? = null,
     context: CoroutineContext,
-    crossinline block: suspend CoroutineScope.() -> T
-): T = runBlocking(context) { traceCoroutine(spanName) { block() } }
+    block: suspend CoroutineScope.() -> T,
+): T = runBlockingTraced({ spanName ?: block::class.simpleName ?: "runBlocking" }, context, block)
 
 /**
  * Convenience function for calling [withContext] with [traceCoroutine] to enable tracing.
  *
  * @see traceCoroutine
  */
-suspend inline fun <T> withContext(
-    spanName: String,
+public suspend fun <T> withContextTraced(
+    spanName: String? = null,
     context: CoroutineContext,
-    crossinline block: suspend CoroutineScope.() -> T
-): T = withContext(context) { traceCoroutine(spanName) { block() } }
+    block: suspend CoroutineScope.() -> T,
+): T = withContextTraced({ spanName ?: block::class.simpleName ?: "withContext" }, context, block)
 
 /**
  * Convenience function for calling [withContext] with [traceCoroutine] to enable tracing.
  *
  * @see traceCoroutine
  */
-suspend inline fun <T> withContext(
-    crossinline spanName: () -> String,
+public suspend inline fun <T> withContextTraced(
+    spanName: () -> String,
     context: CoroutineContext,
-    crossinline block: suspend CoroutineScope.() -> T
-): T = withContext(context) { traceCoroutine(spanName) { block() } }
+    noinline block: suspend CoroutineScope.() -> T,
+): T = withContext(nameCoroutine(spanName) + context, block)
 
 /**
  * Traces a section of work of a `suspend` [block]. The trace sections will appear on the thread
  * that is currently executing the [block] of work. If the [block] is suspended, all trace sections
  * added using this API will end until the [block] is resumed, which could happen either on this
- * thread or on another thread. If a child coroutine is started, it will inherit the trace sections
- * of its parent. The child will continue to print these trace sections whether or not the parent
- * coroutine is still running them.
+ * thread or on another thread. If a child coroutine is started, it will *NOT* inherit the trace
+ * sections of its parent; however, it will include metadata in the trace section pointing to the
+ * parent.
  *
  * The current [CoroutineContext] must have a [TraceContextElement] for this API to work. Otherwise,
  * the trace sections will be dropped.
  *
- * For example, in the following trace, Thread #1 ran some work, suspended, then continued working
- * on Thread #2. Meanwhile, Thread #2 created a new child coroutine which inherited its trace
- * sections. Then, the original coroutine resumed on Thread #1 before ending. Meanwhile Thread #3 is
- * still printing trace sections from its parent because they were copied when it was created. There
- * is no way for the parent to communicate to the child that it marked these slices as completed.
- * While this might seem counterintuitive, it allows us to pinpoint the origin of the child
- * coroutine's work.
+ * For example, in the following trace, Thread #1 starts a coroutine, suspends, and continues the
+ * coroutine on Thread #2. Next, Thread #2 start a child coroutine in an unconfined manner. Then,
+ * still on Thread #2, the original coroutine suspends, the child resumes, and the child suspends.
+ * Then, the original coroutine resumes on Thread#1.
  *
  * ```
- * Thread #1 | [==== Slice A ====]                        [==== Slice A ====]
- *           |       [==== B ====]                        [=== B ===]
- * --------------------------------------------------------------------------------------
- * Thread #2 |                    [====== Slice A ======]
- *           |                    [========= B =========]
- *           |                        [===== C ======]
- * --------------------------------------------------------------------------------------
- * Thread #3 |                            [== Slice A ==]                [== Slice A ==]
- *           |                            [===== B =====]                [===== B =====]
- *           |                            [===== C =====]                [===== C =====]
- *           |                                                               [=== D ===]
+ * -----------------------------------------------------------------------------------------------|
+ * Thread #1 | [== Slice A ==]                                            [==== Slice A ====]
+ *           |       [== B ==]                                            [=== B ===]
+ * -----------------------------------------------------------------------------------------------|
+ * Thread #2 |                     [==== Slice A ====]    [=== C ====]
+ *           |                     [======= B =======]
+ *           |                         [=== C ====]
+ * -----------------------------------------------------------------------------------------------|
  * ```
  *
- * @param name The name of the code section to appear in the trace
- * @see endSlice
+ * @param spanName The name of the code section to appear in the trace
  * @see traceCoroutine
  */
 @OptIn(ExperimentalContracts::class)
-inline fun <T> traceCoroutine(spanName: () -> String, block: () -> T): T {
+public inline fun <T> traceCoroutine(spanName: () -> String, block: () -> T): T {
     contract {
         callsInPlace(spanName, InvocationKind.AT_MOST_ONCE)
         callsInPlace(block, InvocationKind.EXACTLY_ONCE)
@@ -189,26 +180,15 @@ inline fun <T> traceCoroutine(spanName: () -> String, block: () -> T): T {
     // For coroutine tracing to work, trace spans must be added and removed even when
     // tracing is not active (i.e. when TRACE_TAG_APP is disabled). Otherwise, when the
     // coroutine resumes when tracing is active, we won't know its name.
-    val traceData = if (Compile.IS_DEBUG) traceThreadLocal.get() else null
-    val asyncTracingEnabled = Trace.isEnabled()
-    val spanString = if (traceData != null || asyncTracingEnabled) spanName() else "<none>"
-    traceData?.beginSpan(spanString)
-
-    // Also trace to the "Coroutines" async track. This makes it easy to see the duration of
-    // coroutine spans. When the coroutine_tracing flag is enabled, those same names will
-    // appear in small slices on each thread as the coroutines are suspended and resumed.
-    val cookie = if (asyncTracingEnabled) ThreadLocalRandom.current().nextInt() else 0
-    if (asyncTracingEnabled)
-        Trace.asyncTraceForTrackBegin(Trace.TRACE_TAG_APP, DEFAULT_TRACK_NAME, spanString, cookie)
+    val traceData = if (Flags.coroutineTracing()) traceThreadLocal.get() else null
+    traceData?.beginSpan(spanName())
     try {
         return block()
     } finally {
-        if (asyncTracingEnabled)
-            Trace.asyncTraceForTrackEnd(Trace.TRACE_TAG_APP, DEFAULT_TRACK_NAME, cookie)
         traceData?.endSpan()
     }
 }
 
 /** @see traceCoroutine */
-inline fun <T> traceCoroutine(spanName: String, block: () -> T): T =
+public inline fun <T> traceCoroutine(spanName: String, block: () -> T): T =
     traceCoroutine({ spanName }, block)
