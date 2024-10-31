@@ -117,11 +117,8 @@ vec4 main(float2 fragCoord) {
     brightnessSunray *= brightnessSunray;
 
     // Adjusts contrast and brightness.
-    float compression = 0.88;
-    float brightnessIncriease = 0.02;
-    float noise = triangleNoise(fragCoord.xy + vec2(12.31, 1024.1241));
-    color.rgb *= mix(1., compression + noise * 0.025, intensity);
-    color.rgb += brightnessIncriease * intensity;
+    float noise = 0.025 * triangleNoise(fragCoord.xy + vec2(12.31, 1024.1241));
+    color.rgb = imageRangeConversion(color.rgb, 0.88, 0.02, noise, intensity);
 
     // Adjust color grading for shadows and highlights.
     float lum = relativeLuminance(color.rgb);
