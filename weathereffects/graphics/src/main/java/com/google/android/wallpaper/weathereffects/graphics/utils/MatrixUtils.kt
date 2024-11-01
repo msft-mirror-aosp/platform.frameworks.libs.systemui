@@ -67,4 +67,9 @@ object MatrixUtils {
             set(7, matrix[7])
         }
     }
+
+    fun getScale(matrix: Matrix): Float {
+        matrix.getValues(matrixValues)
+        return matrixValues[0]
+    }
 }
