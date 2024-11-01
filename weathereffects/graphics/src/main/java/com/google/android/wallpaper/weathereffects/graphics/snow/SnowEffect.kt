@@ -31,6 +31,7 @@ import com.google.android.wallpaper.weathereffects.graphics.utils.GraphicsUtils
 import com.google.android.wallpaper.weathereffects.graphics.utils.MathUtils
 import com.google.android.wallpaper.weathereffects.graphics.utils.MatrixUtils.centerCropMatrix
 import com.google.android.wallpaper.weathereffects.graphics.utils.MatrixUtils.extractTranslationMatrix
+import com.google.android.wallpaper.weathereffects.graphics.utils.MatrixUtils.getScale
 import com.google.android.wallpaper.weathereffects.graphics.utils.MatrixUtils.postprocessParallaxMatrix
 import com.google.android.wallpaper.weathereffects.graphics.utils.TimeUtils
 import java.util.concurrent.Executor
@@ -56,10 +57,18 @@ class SnowEffect(
     private var frameBuffer = FrameBuffer(background.width, background.height)
     private val frameBufferPaint = Paint().also { it.shader = snowConfig.accumulatedSnowShader }
 
-    private var matrix: Matrix? = null
+    private var matrix: Matrix =
+        centerCropMatrix(
+            surfaceSize,
+            SizeF(this.foreground.width.toFloat(), this.foreground.height.toFloat()),
+        )
+
+    private var scale = getScale(matrix)
 
     init {
-        frameBuffer.setRenderEffect(RenderEffect.createBlurEffect(4f, 4f, Shader.TileMode.CLAMP))
+        frameBuffer.setRenderEffect(
+            RenderEffect.createBlurEffect(4f / scale, 4f / scale, Shader.TileMode.CLAMP)
+        )
         updateTextureUniforms()
         adjustCropping(surfaceSize)
         prepareColorGrading()
@@ -71,9 +80,9 @@ class SnowEffect(
     }
 
     override fun resize(newSurfaceSize: SizeF) {
+        surfaceSize = newSurfaceSize
         adjustCropping(newSurfaceSize)
         updateSnowGridSize(newSurfaceSize)
-        surfaceSize = newSurfaceSize
     }
 
     override fun update(deltaMillis: Long, frameTimeNanos: Long) {
@@ -108,10 +117,7 @@ class SnowEffect(
             "intensity",
             snowConfig.colorGradingIntensity * intensity,
         )
-        snowConfig.accumulatedSnowShader.setFloatUniform(
-            "snowThickness",
-            snowConfig.maxAccumulatedSnowThickness * intensity,
-        )
+        this.intensity = intensity
         // Regenerate accumulated snow since the uniform changed.
         generateAccumulatedSnow()
     }
@@ -128,7 +134,19 @@ class SnowEffect(
         this.background = background
         this.foreground = foreground ?: background
 
-        frameBuffer = FrameBuffer(background.width, background.height)
+        matrix =
+            centerCropMatrix(
+                surfaceSize,
+                SizeF(this.foreground.width.toFloat(), this.foreground.height.toFloat()),
+            )
+
+        scale = getScale(matrix)
+        frameBuffer =
+            FrameBuffer(background.width, background.height).apply {
+                setRenderEffect(
+                    RenderEffect.createBlurEffect(4f / scale, 4f / scale, Shader.TileMode.CLAMP)
+                )
+            }
         snowConfig.shader.setInputBuffer(
             "background",
             BitmapShader(this.background, Shader.TileMode.MIRROR, Shader.TileMode.MIRROR),
@@ -147,17 +165,11 @@ class SnowEffect(
     override fun setMatrix(matrix: Matrix) {
         this.matrix = matrix
         adjustCropping(surfaceSize)
+        generateAccumulatedSnow()
     }
 
     private fun adjustCropping(surfaceSize: SizeF) {
-        if (matrix == null) {
-            matrix =
-                centerCropMatrix(
-                    surfaceSize,
-                    SizeF(foreground.width.toFloat(), foreground.height.toFloat()),
-                )
-        }
-        val postprocessedMatrix = postprocessParallaxMatrix(matrix!!)
+        val postprocessedMatrix = postprocessParallaxMatrix(matrix)
         val weatherMatrix = extractTranslationMatrix(postprocessedMatrix)
         snowConfig.shader.setFloatUniform("transformMatrixFgd", postprocessedMatrix)
         snowConfig.shader.setFloatUniform("transformMatrixBgd", postprocessedMatrix)
@@ -198,10 +210,12 @@ class SnowEffect(
 
     private fun generateAccumulatedSnow() {
         val renderingCanvas = frameBuffer.beginDrawing()
+        snowConfig.accumulatedSnowShader.setFloatUniform("scale", scale)
         snowConfig.accumulatedSnowShader.setFloatUniform(
-            "imageWidth",
-            renderingCanvas.width.toFloat(),
+            "snowThickness",
+            snowConfig.maxAccumulatedSnowThickness * intensity / scale,
         )
+        snowConfig.accumulatedSnowShader.setFloatUniform("screenWidth", surfaceSize.width)
         snowConfig.accumulatedSnowShader.setInputBuffer(
             "foreground",
             BitmapShader(foreground, Shader.TileMode.MIRROR, Shader.TileMode.MIRROR),
