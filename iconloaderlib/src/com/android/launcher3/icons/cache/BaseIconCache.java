@@ -18,6 +18,7 @@ package com.android.launcher3.icons.cache;
 import static android.content.pm.PackageManager.MATCH_UNINSTALLED_PACKAGES;
 import static android.graphics.BitmapFactory.decodeByteArray;
 
+import static com.android.launcher3.Flags.forceMonochromeAppIcons;
 import static com.android.launcher3.icons.BitmapInfo.LOW_RES_ICON;
 import static com.android.launcher3.icons.GraphicsUtils.flattenBitmap;
 import static com.android.launcher3.icons.GraphicsUtils.setColorAlphaBound;
@@ -54,7 +55,6 @@ import androidx.annotation.Nullable;
 import androidx.annotation.VisibleForTesting;
 import androidx.annotation.WorkerThread;
 
-import com.android.launcher3.Flags;
 import com.android.launcher3.icons.BaseIconFactory;
 import com.android.launcher3.icons.BaseIconFactory.IconOptions;
 import com.android.launcher3.icons.BitmapInfo;
@@ -728,7 +728,7 @@ public abstract class BaseIconCache {
     public static final class IconDB extends SQLiteCacheHelper {
         // Ensures archived app icons are invalidated after flag is flipped.
         // TODO: Remove conditional with FLAG_USE_NEW_ICON_FOR_ARCHIVED_APPS
-        private static final int RELEASE_VERSION = Flags.useNewIconForArchivedApps() ? 2 : 1;
+        private static final int RELEASE_VERSION = forceMonochromeAppIcons() ? 3 : 2;
 
         public static final String TABLE_NAME = "icons";
         public static final String COLUMN_ROWID = "rowid";
