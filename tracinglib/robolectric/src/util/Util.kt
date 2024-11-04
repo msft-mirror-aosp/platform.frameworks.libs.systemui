@@ -14,13 +14,6 @@
  * limitations under the License.
  */
 
-package com.android.app.tracing.coroutines.util
-
-const val DEBUG = false
-
-/** Log a message with a tag indicating the current thread ID */
-internal fun debugLog(message: String) {
-    if (DEBUG) println("Thread #${currentThreadId()}: $message")
-}
+package com.android.test.tracing.coroutines.util
 
 internal fun currentThreadId(): Long = Thread.currentThread().id

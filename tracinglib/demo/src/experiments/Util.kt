@@ -17,55 +17,50 @@ package com.example.tracing.demo.experiments
 
 import android.os.HandlerThread
 import android.os.Trace
+import com.android.app.tracing.coroutines.traceCoroutine
 import kotlin.coroutines.resume
 import kotlin.random.Random
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.suspendCancellableCoroutine
 
-fun coldFibonacciFlow(name: String) = flow {
-    emit(1)
-    var cur = 1
-    var next = 1
-    while (true) {
-        emit(next)
-        forceSuspend("$name-fib: $next", 25)
-        val tmp = cur + next
-        cur = next
-        next = tmp
+fun coldCounterFlow(name: String, maxCount: Int = Int.MAX_VALUE) = flow {
+    for (n in 0..maxCount) {
+        emit(n)
+        forceSuspend("coldCounterFlow:$name:$n", 25)
     }
 }
 
-private val delayHandler by lazy { startThreadWithLooper("Thread D").threadHandler }
+private val delayHandler by lazy { startThreadWithLooper("Thread:forceSuspend").threadHandler }
 
 /** Like [delay], but naively implemented so that it always suspends. */
 suspend fun forceSuspend(traceName: String, timeMillis: Long) {
-    Trace.instant(
-        Trace.TRACE_TAG_APP,
-        "forceSuspend:$traceName suspended, will resume in ${timeMillis}ms",
-    )
-    val cookie = Random.nextInt()
-    Trace.asyncTraceForTrackBegin(
-        Trace.TRACE_TAG_APP,
-        TRACK_NAME,
-        "forceSuspend:$traceName",
-        cookie,
-    )
-    return suspendCancellableCoroutine { continuation ->
-        continuation.invokeOnCancellation { cause ->
-            Trace.instant(
-                Trace.TRACE_TAG_APP,
-                "forceSuspend:$traceName cancelled due to ${cause?.javaClass}",
-            )
-            Trace.asyncTraceForTrackEnd(Trace.TRACE_TAG_APP, TRACK_NAME, cookie)
-        }
-        delayHandler.postDelayed(
-            {
+    val traceMessage = "forceSuspend:$traceName"
+    return traceCoroutine(traceMessage) {
+        val cookie = Random.nextInt()
+        suspendCancellableCoroutine { continuation ->
+            Trace.asyncTraceForTrackBegin(Trace.TRACE_TAG_APP, TRACK_NAME, traceMessage, cookie)
+            Trace.instant(Trace.TRACE_TAG_APP, "will resume in ${timeMillis}ms")
+            continuation.invokeOnCancellation { cause ->
+                Trace.instant(
+                    Trace.TRACE_TAG_APP,
+                    "forceSuspend:$traceName, cancelled due to ${cause?.javaClass}",
+                )
                 Trace.asyncTraceForTrackEnd(Trace.TRACE_TAG_APP, TRACK_NAME, cookie)
-                continuation.resume(Unit)
-            },
-            timeMillis,
-        )
+            }
+            delayHandler.postDelayed(
+                {
+                    Trace.asyncTraceForTrackEnd(Trace.TRACE_TAG_APP, TRACK_NAME, cookie)
+                    Trace.traceBegin(Trace.TRACE_TAG_APP, "resume")
+                    try {
+                        continuation.resume(Unit)
+                    } finally {
+                        Trace.traceEnd(Trace.TRACE_TAG_APP)
+                    }
+                },
+                timeMillis,
+            )
+        }
     }
 }
 
