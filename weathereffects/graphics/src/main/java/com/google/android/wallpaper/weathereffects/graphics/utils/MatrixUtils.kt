@@ -21,6 +21,11 @@ import android.util.SizeF
 
 /** Helper functions for matrix operations. */
 object MatrixUtils {
+    private val inverseMatrix: Matrix = Matrix()
+    private val matrixValues = FloatArray(9)
+    private val transposedValues = FloatArray(9)
+    private val translationOnlyMatrixValues = FloatArray(9)
+
     /** Returns a [Matrix] that crops the image and centers to the screen. */
     fun centerCropMatrix(surfaceSize: SizeF, imageSize: SizeF): Matrix {
         val widthScale = surfaceSize.width / imageSize.width
@@ -35,5 +40,36 @@ object MatrixUtils {
             // Translate back to the center of the screen.
             postTranslate(surfaceSize.width / 2f, surfaceSize.height / 2f)
         }
+    }
+
+    // To apply parallax matrix to fragCoord, we need to invert and transpose the matrix
+    fun postprocessParallaxMatrix(matrix: Matrix): FloatArray {
+        matrix.invert(inverseMatrix)
+        inverseMatrix.getValues(matrixValues)
+        return transposeMatrixArray(matrixValues)
+    }
+
+    // Transpose 3x3 matrix values as a FloatArray[9]
+    private fun transposeMatrixArray(matrix: FloatArray): FloatArray {
+        for (i in 0 until 3) {
+            for (j in 0 until 3) {
+                transposedValues[j * 3 + i] = matrix[i * 3 + j]
+            }
+        }
+        return transposedValues
+    }
+
+    // Extract translation elements from the transposed matrix returned by transposeMatrixArray
+    fun extractTranslationMatrix(matrix: FloatArray): FloatArray {
+        Matrix.IDENTITY_MATRIX.getValues(translationOnlyMatrixValues)
+        return translationOnlyMatrixValues.apply {
+            set(6, matrix[6])
+            set(7, matrix[7])
+        }
+    }
+
+    fun getScale(matrix: Matrix): Float {
+        matrix.getValues(matrixValues)
+        return matrixValues[0]
     }
 }

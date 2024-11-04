@@ -15,8 +15,9 @@
  */
 
 uniform shader foreground;
-uniform half imageWidth;
 uniform half snowThickness;
+uniform half scale;
+uniform half screenWidth;
 
 #include "shaders/simplex2d.agsl"
 #include "shaders/utils.agsl"
@@ -27,7 +28,7 @@ float random(vec2 uv) {
 
 vec4 main(float2 fragCoord) {
     // fragCoord should be already the adjusted UVs to have the expected rect of the image.
-    vec2 uv = fragCoord / imageWidth;
+    vec2 uv = fragCoord * scale / screenWidth;
     float variation = 0.3 + simplex2d(11. * uv);
     float distance = variation * snowThickness;
 
