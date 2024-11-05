@@ -52,7 +52,7 @@ class ImageCrop(
             surfaceWidth: Float,
             surfaceHeight: Float,
             imageWidth: Float,
-            imageHeight: Float
+            imageHeight: Float,
         ): ImageCrop {
             val uvScaleHeight: Float = imageHeight / surfaceHeight
             val uvScaleWidth: Float = imageWidth / surfaceWidth

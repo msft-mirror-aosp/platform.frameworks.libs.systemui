@@ -17,12 +17,14 @@
 package com.google.android.msdl.domain
 
 import android.os.Vibrator
+import android.util.Log
 import com.google.android.msdl.data.model.FeedbackLevel
 import com.google.android.msdl.data.model.HapticComposition
 import com.google.android.msdl.data.model.MSDLToken
 import com.google.android.msdl.data.repository.MSDLRepository
 import com.google.android.msdl.data.repository.MSDLRepositoryImpl
 import com.google.android.msdl.domain.MSDLPlayerImpl.Companion.REQUIRED_PRIMITIVES
+import com.google.android.msdl.logging.MSDLEvent
 import java.util.concurrent.Executor
 import java.util.concurrent.Executors
 
@@ -51,6 +53,12 @@ interface MSDLPlayer {
      */
     fun playToken(token: MSDLToken, properties: InteractionProperties? = null)
 
+    /**
+     * Get the history of recent [MSDLEvent]s. The list can be useful to include in loggers and
+     * system dumps for debugging purposes.
+     */
+    fun getHistory(): List<MSDLEvent>
+
     companion object {
 
         // TODO(b/355230334): remove once we have a system setting for the level
@@ -66,10 +74,18 @@ interface MSDLPlayer {
          *   created using the support information from the given vibrator.
          */
         fun createPlayer(
-            vibrator: Vibrator,
+            vibrator: Vibrator?,
             executor: Executor = Executors.newSingleThreadExecutor(),
             useHapticFeedbackForToken: Map<MSDLToken, Boolean>? = null,
         ): MSDLPlayer {
+            // Return an empty player if no vibrator is available
+            if (vibrator == null) {
+                Log.w(
+                    "MSDLPlayer",
+                    "A null vibrator was used to create a MSDLPlayer. An empty player was created",
+                )
+                return EmptyMSDLPlayer()
+            }
 
             // Create repository
             val repository = MSDLRepositoryImpl()
