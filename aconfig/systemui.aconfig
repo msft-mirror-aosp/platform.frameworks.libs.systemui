@@ -76,11 +76,3 @@ flag {
     description: "Enables ambient wallpaper and AOD enhancements"
     bug: "372655702"
 }
-
-flag {
-   name: "touchpad_three_finger_tap_customization"
-   namespace: "systemui"
-   description: "Customize touchpad three finger tap"
-   bug: "365063048"
-}
-
