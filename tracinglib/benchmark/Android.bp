@@ -13,23 +13,36 @@
 // limitations under the License.
 
 package {
+    default_team: "trendy_team_performance",
     default_applicable_licenses: ["Android-Apache-2.0"],
 }
 
-java_library {
-    name: "tracinglib-platform",
-    static_libs: [
-        "kotlinx_coroutines_android",
-        "com_android_systemui_flags_lib",
-    ],
-    libs: [
-        "androidx.annotation_annotation",
-    ],
-    kotlincflags: [
-        "-Xjvm-default=all",
-        "-opt-in=kotlin.ExperimentalStdlibApi",
-        "-opt-in=kotlinx.coroutines.DelicateCoroutinesApi",
-        "-opt-in=kotlinx.coroutines.ExperimentalCoroutinesApi",
-    ],
+android_test {
+    name: "tracinglib-benchmark",
+
     srcs: ["src/**/*.kt"],
+
+    static_libs: [
+        "androidx.annotation_annotation",
+        "androidx.benchmark_benchmark-common",
+        "androidx.benchmark_benchmark-junit4",
+        "androidx.test.core",
+        "androidx.test.ext.junit",
+        "androidx.test.rules",
+        "androidx.test.runner",
+        "apct-perftests-utils",
+        "collector-device-lib",
+        "flag-junit",
+        "kotlinx_coroutines_android",
+        "platform-test-rules",
+        "tracinglib-platform",
+    ],
+
+    data: [":perfetto_artifacts"],
+
+    sdk_version: "current",
+    certificate: "platform",
+    use_resource_processor: true,
+
+    test_suites: ["device-tests"],
 }
