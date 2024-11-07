@@ -43,8 +43,7 @@ object FakeTraceState {
                     "but there are no open sections",
                 allThreadStates[threadId].isNullOrEmpty(),
             )
-            // TODO: Replace with .removeLast() once available
-            allThreadStates[threadId]!!.removeAt(allThreadStates[threadId]!!.lastIndex)
+            allThreadStates[threadId]!!.removeLast()
         }
     }
 

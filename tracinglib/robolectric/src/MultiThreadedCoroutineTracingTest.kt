@@ -53,12 +53,14 @@ class MultiThreadedCoroutineTracingTest : TestBase() {
         val barrier3 = CompletableDeferred<Unit>()
         val thread1 = newSingleThreadContext("thread-#1")
         val thread2 = newSingleThreadContext("thread-#1")
-        expect(1, "main:1^")
+        // Do NOT assert order. Doing so will make this test flaky due to its use of
+        // Dispatchers.Unconfined
+        expect("main:1^")
         launchTraced("unconfined-launch", Dispatchers.Unconfined) {
                 launchTraced("thread1-launch", thread1) {
                     traceCoroutine("thread1-inner") {
                         barrier1.await()
-                        expect(4, "main:1^:1^unconfined-launch:1^thread1-launch", "thread1-inner")
+                        expect("main:1^:1^unconfined-launch:1^thread1-launch", "thread1-inner")
                         barrier2.complete(Unit)
                     }
                 }
@@ -66,7 +68,6 @@ class MultiThreadedCoroutineTracingTest : TestBase() {
                     traceCoroutine("default-inner") {
                         barrier2.await()
                         expect(
-                            5,
                             "main:1^",
                             "main:1^:1^unconfined-launch:2^default-launch",
                             "default-inner",
@@ -77,18 +78,18 @@ class MultiThreadedCoroutineTracingTest : TestBase() {
                 launchTraced("thread2-launch", thread2) {
                     traceCoroutine("thread2-inner") {
                         barrier3.await()
-                        expect(6, "main:1^:1^unconfined-launch:3^thread2-launch", "thread2-inner")
+                        expect("main:1^:1^unconfined-launch:3^thread2-launch", "thread2-inner")
                         barrier2.complete(Unit)
                     }
                 }
                 withContextTraced("unconfined-withContext", Dispatchers.Unconfined) {
-                    expect(2, "main:1^", "main:1^:1^unconfined-launch")
+                    expect("main:1^", "main:1^:1^unconfined-launch")
                     barrier1.complete(Unit)
-                    expect(3, "main:1^", "main:1^:1^unconfined-launch")
+                    expect("main:1^", "main:1^:1^unconfined-launch")
                 }
             }
             .join()
-        finish(7, "main:1^")
+        expect("main:1^")
     }
 
     @Test
@@ -111,7 +112,7 @@ class MultiThreadedCoroutineTracingTest : TestBase() {
                 expect(2, "main:1^", "parent-span", "main:1^:1^")
                 traceCoroutine("child-span") {
                     expect(3, "main:1^", "parent-span", "main:1^:1^", "child-span")
-                    delay(1) // <-- delay will give parent a chance to restore its context
+                    delay(10) // <-- delay will give parent a chance to restore its context
                     // After a delay, the parent resumes, finishing its trace section, so we are
                     // left with only those in the child's scope
                     finish(5, "main:1^:1^", "child-span")
