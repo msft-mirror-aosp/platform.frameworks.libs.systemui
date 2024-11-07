@@ -1,14 +1,13 @@
 # Coroutine Tracing
 
-This library contains utilities for tracing coroutines. Coroutines cannot normally be traced using
-the `android.os.Trace` APIs because it will often lead to malformed trace sections. This is because
-each `Trace.beginSection` must have a matching `Trace.endSection` on the same thread before the
-scope is finished, so if they are used around a suspend point, the trace section will remain open
-while other unrelated work executes. It could even remain open indefinitely if the coroutine is
-canceled.
+This library contains utilities for tracing coroutines. Coroutines cannot be traced using the
+`android.os.Trace` APIs because suspension points will lead to malformed trace sections. This is
+because each `Trace.beginSection` must have a matching `Trace.endSection`; if a coroutine suspends
+before `Trace.endSection` is called, the trace section will remain open while other unrelated work
+executes.
 
-To address this, we introduce a function `traceCoroutine("name") {}` that can be used for tracing
-sections of coroutine code. When invoked, a trace section with the given name will start
+To address this, we introduce a function `traceCoroutine("name") { ... }` that can be used for
+tracing sections of coroutine code. When invoked, a trace section with the given name will start
 immediately, and its name will also be written to an object in the current `CoroutineContext` used
 for coroutine-local storage. When the coroutine suspends, all trace sections will end immediately.
 When resumed, the coroutine will read the names of the previous sections from coroutine-local
@@ -61,19 +60,19 @@ val coldFlow = flow {
   emit(1)
   emit(2)
   emit(3)
-}.withTraceName("my-flow")
+}
 
-coldFlow.collect {
+coldFlow.collect("F") {
   println(it)
-  delay(10)
+  yield()
 }
 ```
 
 Would be traced as follows:
 
 ```
-Thread #1 |  [=== my-flow:collect ===]    [=== my-flow:collect ===]    [=== my-flow:collect ===]
-          |    [== my-flow:emit ==]         [== my-flow:emit ==]         [== my-flow:emit ==]
+Thread #1 |  [====== collect:F ======]    [==== collect:F =====]    [====== collect:F ======]
+          |    [== collect:F:emit ==]     [== collect:F:emit ==]    [== collect:F:emit ==]
 ```
 
 # Building and Running
