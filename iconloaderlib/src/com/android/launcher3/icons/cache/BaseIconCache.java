@@ -294,7 +294,7 @@ public abstract class BaseIconCache {
         // Remove all active icon update tasks.
         workerHandler.removeCallbacksAndMessages(iconUpdateToken);
 
-        return new IconCacheUpdateHandler(this);
+        return new IconCacheUpdateHandler(this, mIconDb, workerHandler);
     }
 
     /**
@@ -546,7 +546,7 @@ public abstract class BaseIconCache {
     }
 
     @NonNull
-    private static ComponentKey getPackageKey(@NonNull final String packageName,
+    public static ComponentKey getPackageKey(@NonNull final String packageName,
             @NonNull final UserHandle user) {
         ComponentName cn = new ComponentName(packageName, packageName + EMPTY_CLASS_NAME);
         return new ComponentKey(cn, user);
