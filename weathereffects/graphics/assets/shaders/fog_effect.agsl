@@ -25,8 +25,7 @@ uniform half screenAspectRatio;
 uniform half2 screenSize;
 uniform half pixelDensity;
 uniform half intensity;
-uniform mat3 transformMatrixFgd;
-uniform mat3 transformMatrixBgd;
+uniform mat3 transformMatrixBitmap;
 uniform mat3 transformMatrixWeather;
 
 #include "shaders/constants.agsl"
@@ -48,15 +47,13 @@ vec4 main(float2 fragCoord) {
      * - Foreground
      * - fgdFogFar (layer 1) / fgdFogClose (layer 2)
      */
-
-    float2 fgdCoord = transformPoint(transformMatrixFgd, fragCoord);
-    float2 bgdCoord = transformPoint(transformMatrixBgd, fragCoord);
+    float2 adjustedCoord = transformPoint(transformMatrixBitmap, fragCoord);
     float2 uv = transformPoint(transformMatrixWeather, fragCoord) / screenSize;
     uv.y /= screenAspectRatio;
 
     // Load background and foreground.
-    vec4 fgd = foreground.eval(fgdCoord);
-    vec4 bgd = background.eval(bgdCoord);
+    vec4 fgd = foreground.eval(adjustedCoord);
+    vec4 bgd = background.eval(adjustedCoord);
 
     // Adjusts contrast and brightness.
     float noise = 0.025 * triangleNoise(fragCoord.xy + vec2(12.31, 1024.1241));
