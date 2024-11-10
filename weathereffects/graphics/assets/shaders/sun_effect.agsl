@@ -20,8 +20,7 @@ uniform float screenAspectRatio;
 uniform float2 screenSize;
 uniform float time;
 uniform float intensity;
-uniform mat3 transformMatrixFgd;
-uniform mat3 transformMatrixBgd;
+uniform mat3 transformMatrixBitmap;
 uniform mat3 transformMatrixWeather;
 
 
@@ -96,8 +95,7 @@ float checkBrightnessGodRaysAtCenter(
 
 vec4 main(float2 fragCoord) {
     // Apply transform matrix to fragCoord
-    float2 adjustedUvForeground = transformPoint(transformMatrixFgd, fragCoord);
-    float2 adjustedUvBackground = transformPoint(transformMatrixBgd, fragCoord);
+    float2 adjustedUv = transformPoint(transformMatrixBitmap, fragCoord);
 
     float2 uv = transformPoint(transformMatrixWeather, fragCoord) / screenSize;
     uv -= vec2(0.5, 0.5);
@@ -107,8 +105,8 @@ vec4 main(float2 fragCoord) {
     vec2 sunPos = sunVariation + sunCenter / vec2(1., screenAspectRatio);
     //TODO(b/375214506): fix the uv position of the sun
 
-    vec4 colorForeground = foreground.eval(adjustedUvForeground);
-    vec4 color = background.eval(adjustedUvBackground);
+    vec4 colorForeground = foreground.eval(adjustedUv);
+    vec4 color = background.eval(adjustedUv);
     // add foreground
     color.rgb = normalBlend(color.rgb, colorForeground.rgb, colorForeground.a);
 
