@@ -13,19 +13,14 @@
      See the License for the specific language governing permissions and
      limitations under the License.
 -->
+
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
-        package="com.example.tracing.demo">
-    <application
-        android:name=".MainApplication"
-        android:label="@string/app_name">
-        <activity
-            android:name=".MainActivity"
-            android:theme="@style/ActivityTheme"
-            android:exported="true">
-            <intent-filter>
-                <action android:name="android.intent.action.MAIN" />
-                <category android:name="android.intent.category.LAUNCHER" />
-            </intent-filter>
-        </activity>
-    </application>
+    package="com.android.app.tracing.benchmark" >
+
+    <application/>
+
+    <instrumentation android:name="androidx.benchmark.junit4.AndroidBenchmarkRunner"
+                     android:targetPackage="com.android.app.tracing.benchmark"
+                     android:label="Benchmark tests for tracinglib"/>
+
 </manifest>
