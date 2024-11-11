@@ -16,6 +16,13 @@ flag {
 }
 
 flag {
+    name: "return_animation_framework_long_lived"
+    namespace: "systemui"
+    description: "Turn on long-lived Return registrations in the Animation library"
+    bug: "273205603"
+}
+
+flag {
     name: "shade_allow_back_gesture"
     namespace: "systemui"
     description: "Allow Back Gestures in Shade"
@@ -40,4 +47,25 @@ flag {
     metadata {
         purpose: PURPOSE_BUGFIX
     }
+}
+
+flag {
+  name: "new_touchpad_gestures_tutorial"
+  namespace: "systemui"
+  description: "Enables new interactive tutorial for learning touchpad gestures"
+  bug: "309928033"
+}
+
+flag {
+    name: "three_button_corner_swipe"
+    namespace: "systemui"
+    description: "Allow the Assistant corner swipe gesture while in 3 button mode"
+    bug: "361651619"
+}
+
+flag {
+    name: "new_customization_picker_ui"
+    namespace: "systemui"
+    description: "Enables the BC25 design of the customization picker UI."
+    bug: "339081035"
 }
