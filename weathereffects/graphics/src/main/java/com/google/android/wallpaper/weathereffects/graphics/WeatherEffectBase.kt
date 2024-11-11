@@ -55,7 +55,7 @@ abstract class WeatherEffectBase(
     abstract val colorGradingIntensity: Float
 
     override fun setMatrix(matrix: Matrix) {
-        this.parallaxMatrix = matrix
+        this.parallaxMatrix.set(matrix)
         adjustCropping(surfaceSize)
     }
 
