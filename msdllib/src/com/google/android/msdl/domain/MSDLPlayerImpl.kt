@@ -16,6 +16,7 @@
 
 package com.google.android.msdl.domain
 
+import android.os.Build
 import android.os.VibrationAttributes
 import android.os.VibrationEffect
 import android.os.Vibrator
@@ -87,15 +88,21 @@ internal class MSDLPlayerImpl(
                     }
                 }
 
-            // 2. Deliver the haptics with attributes
+            // 2. Deliver the haptics with or without attributes
             if (effect == null || !vibrator.hasVibrator()) return
-            val attributes =
-                if (properties?.vibrationAttributes != null) {
-                    properties.vibrationAttributes
-                } else {
-                    VibrationAttributes.Builder().setUsage(VibrationAttributes.USAGE_TOUCH).build()
-                }
-            executor.execute { vibrator.vibrate(effect, attributes) }
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                val attributes =
+                    if (properties?.vibrationAttributes != null) {
+                        properties.vibrationAttributes
+                    } else {
+                        VibrationAttributes.Builder()
+                            .setUsage(VibrationAttributes.USAGE_TOUCH)
+                            .build()
+                    }
+                executor.execute { vibrator.vibrate(effect, attributes) }
+            } else {
+                executor.execute { vibrator.vibrate(effect) }
+            }
 
             // 3. Log the event
             historyLogger.addEvent(MSDLEvent(token, properties))

@@ -294,7 +294,7 @@ public abstract class BaseIconCache {
         // Remove all active icon update tasks.
         workerHandler.removeCallbacksAndMessages(iconUpdateToken);
 
-        return new IconCacheUpdateHandler(this);
+        return new IconCacheUpdateHandler(this, mIconDb, workerHandler);
     }
 
     /**
@@ -342,9 +342,7 @@ public abstract class BaseIconCache {
         // Icon can't be loaded from cachingLogic, which implies alternative icon was loaded
         // (e.g. fallback icon, default icon). So we drop here since there's no point in caching
         // an empty entry.
-        if (bitmapInfo.isNullOrLowRes() || isDefaultIcon(bitmapInfo, user)) {
-            return;
-        }
+        if (bitmapInfo.isNullOrLowRes()) return;
 
         CharSequence entryTitle = cachingLogic.getLabel(object);
         if (TextUtils.isEmpty(entryTitle)) {
@@ -546,7 +544,7 @@ public abstract class BaseIconCache {
     }
 
     @NonNull
-    private static ComponentKey getPackageKey(@NonNull final String packageName,
+    public static ComponentKey getPackageKey(@NonNull final String packageName,
             @NonNull final UserHandle user) {
         ComponentName cn = new ComponentName(packageName, packageName + EMPTY_CLASS_NAME);
         return new ComponentKey(cn, user);
