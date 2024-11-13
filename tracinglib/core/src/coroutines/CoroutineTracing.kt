@@ -33,7 +33,7 @@ import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
 
 @OptIn(ExperimentalContracts::class)
-suspend inline fun <R> coroutineScopeTraced(
+public suspend inline fun <R> coroutineScopeTraced(
     traceName: String,
     crossinline block: suspend CoroutineScope.() -> R,
 ): R {
@@ -50,7 +50,7 @@ suspend inline fun <R> coroutineScopeTraced(
  *
  * @see traceCoroutine
  */
-inline fun CoroutineScope.launchTraced(
+public inline fun CoroutineScope.launchTraced(
     crossinline spanName: () -> String,
     context: CoroutineContext = EmptyCoroutineContext,
     start: CoroutineStart = CoroutineStart.DEFAULT,
@@ -64,7 +64,7 @@ inline fun CoroutineScope.launchTraced(
  *
  * @see traceCoroutine
  */
-fun CoroutineScope.launchTraced(
+public fun CoroutineScope.launchTraced(
     spanName: String? = null,
     context: CoroutineContext = EmptyCoroutineContext,
     start: CoroutineStart = CoroutineStart.DEFAULT,
@@ -76,7 +76,7 @@ fun CoroutineScope.launchTraced(
  *
  * @see traceCoroutine
  */
-inline fun <T> CoroutineScope.asyncTraced(
+public inline fun <T> CoroutineScope.asyncTraced(
     spanName: () -> String,
     context: CoroutineContext = EmptyCoroutineContext,
     start: CoroutineStart = CoroutineStart.DEFAULT,
@@ -88,7 +88,7 @@ inline fun <T> CoroutineScope.asyncTraced(
  *
  * @see traceCoroutine
  */
-fun <T> CoroutineScope.asyncTraced(
+public fun <T> CoroutineScope.asyncTraced(
     spanName: String? = null,
     context: CoroutineContext = EmptyCoroutineContext,
     start: CoroutineStart = CoroutineStart.DEFAULT,
@@ -101,7 +101,7 @@ fun <T> CoroutineScope.asyncTraced(
  *
  * @see traceCoroutine
  */
-inline fun <T> runBlockingTraced(
+public inline fun <T> runBlockingTraced(
     spanName: () -> String,
     context: CoroutineContext,
     noinline block: suspend CoroutineScope.() -> T,
@@ -112,7 +112,7 @@ inline fun <T> runBlockingTraced(
  *
  * @see traceCoroutine
  */
-fun <T> runBlockingTraced(
+public fun <T> runBlockingTraced(
     spanName: String? = null,
     context: CoroutineContext,
     block: suspend CoroutineScope.() -> T,
@@ -123,7 +123,7 @@ fun <T> runBlockingTraced(
  *
  * @see traceCoroutine
  */
-suspend fun <T> withContextTraced(
+public suspend fun <T> withContextTraced(
     spanName: String? = null,
     context: CoroutineContext,
     block: suspend CoroutineScope.() -> T,
@@ -134,7 +134,7 @@ suspend fun <T> withContextTraced(
  *
  * @see traceCoroutine
  */
-suspend inline fun <T> withContextTraced(
+public suspend inline fun <T> withContextTraced(
     spanName: () -> String,
     context: CoroutineContext,
     noinline block: suspend CoroutineScope.() -> T,
@@ -171,7 +171,7 @@ suspend inline fun <T> withContextTraced(
  * @see traceCoroutine
  */
 @OptIn(ExperimentalContracts::class)
-inline fun <T> traceCoroutine(spanName: () -> String, block: () -> T): T {
+public inline fun <T> traceCoroutine(spanName: () -> String, block: () -> T): T {
     contract {
         callsInPlace(spanName, InvocationKind.AT_MOST_ONCE)
         callsInPlace(block, InvocationKind.EXACTLY_ONCE)
@@ -190,5 +190,5 @@ inline fun <T> traceCoroutine(spanName: () -> String, block: () -> T): T {
 }
 
 /** @see traceCoroutine */
-inline fun <T> traceCoroutine(spanName: String, block: () -> T): T =
+public inline fun <T> traceCoroutine(spanName: String, block: () -> T): T =
     traceCoroutine({ spanName }, block)

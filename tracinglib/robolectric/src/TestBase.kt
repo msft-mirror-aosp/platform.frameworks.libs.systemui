@@ -63,6 +63,7 @@ open class TestBase {
 
     private val eventCounter = AtomicInteger(0)
     private val finalEvent = AtomicInteger(INVALID_EVENT)
+    private var expectedExceptions = false
     private lateinit var allExceptions: MutableList<Throwable>
     private lateinit var shadowLooper: ShadowLooper
     private lateinit var mainTraceScope: CoroutineScope
@@ -89,16 +90,25 @@ open class TestBase {
         val lastEvent = eventCounter.get()
         assertTrue(
             "`finish()` was never called. Last seen event was #$lastEvent",
-            lastEvent == FINAL_EVENT || lastEvent == 0,
+            lastEvent == FINAL_EVENT || lastEvent == 0 || expectedExceptions,
         )
     }
 
-    protected fun runTest(block: suspend CoroutineScope.() -> Unit) {
+    protected fun runTest(
+        expectedException: ((Throwable) -> Boolean)? = null,
+        block: suspend CoroutineScope.() -> Unit,
+    ) {
+        var foundExpectedException = false
+        if (expectedException != null) expectedExceptions = true
         mainTraceScope.launch(
             block = block,
             context =
                 CoroutineExceptionHandler { _, e ->
                     if (e is CancellationException) return@CoroutineExceptionHandler // ignore
+                    if (expectedException != null && expectedException(e)) {
+                        foundExpectedException = true
+                        return@CoroutineExceptionHandler // ignore
+                    }
                     allExceptions.add(e)
                 },
         )
@@ -123,6 +133,9 @@ open class TestBase {
             0,
             numChildren,
         )
+        if (expectedExceptions) {
+            assertTrue("Expected exceptions, but none were thrown", foundExpectedException)
+        }
     }
 
     private fun logInvalidTraceState(message: String) {
