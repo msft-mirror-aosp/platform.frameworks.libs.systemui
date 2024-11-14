@@ -20,7 +20,6 @@ import static com.android.launcher3.icons.BitmapInfo.FLAG_CLONE;
 import static com.android.launcher3.icons.BitmapInfo.FLAG_PRIVATE;
 import static com.android.launcher3.icons.BitmapInfo.FLAG_WORK;
 
-import android.os.Bundle;
 import android.os.UserHandle;
 
 import androidx.annotation.IntDef;
@@ -47,8 +46,6 @@ public class UserIconInfo {
 
     public final long userSerial;
 
-    private final Bundle mUserConfig;
-
     public UserIconInfo(UserHandle user, @UserType int type) {
         this(user, type, user != null ? user.hashCode() : 0);
     }
@@ -57,15 +54,6 @@ public class UserIconInfo {
         this.user = user;
         this.type = type;
         this.userSerial = userSerial;
-        this.mUserConfig = Bundle.EMPTY;
-    }
-
-    public UserIconInfo(UserHandle user, @UserType int type, long userSerial,
-            @NonNull Bundle userConfig) {
-        this.user = user;
-        this.type = type;
-        this.userSerial = userSerial;
-        this.mUserConfig = userConfig;
     }
 
     public boolean isMain() {
@@ -89,14 +77,5 @@ public class UserIconInfo {
         return op.setFlag(FLAG_WORK, isWork())
                 .setFlag(FLAG_CLONE, isCloned())
                 .setFlag(FLAG_PRIVATE, isPrivate());
-    }
-
-    /**
-     * Returns additional configs for the user, e.g., whether to hide the private space entrypoint
-     * when locked.
-     */
-    @NonNull
-    public Bundle getUserConfig() {
-        return mUserConfig;
     }
 }
