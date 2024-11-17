@@ -18,9 +18,12 @@ package {
 }
 
 android_test {
-    name: "tracinglib-benchmark",
+    name: "CoroutineTracingPerfTests",
 
-    srcs: ["src/**/*.kt"],
+    srcs: [
+        "src/**/*.kt",
+        ":tracinglib-core-srcs",
+    ],
 
     static_libs: [
         "androidx.annotation_annotation",
@@ -35,12 +38,12 @@ android_test {
         "flag-junit",
         "kotlinx_coroutines_android",
         "platform-test-rules",
-        "tracinglib-platform",
+        "com_android_systemui_flags_lib",
     ],
 
     data: [":perfetto_artifacts"],
 
-    sdk_version: "current",
+    platform_apis: true,
     certificate: "platform",
     use_resource_processor: true,
 
