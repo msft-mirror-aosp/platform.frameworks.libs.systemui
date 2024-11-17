@@ -59,6 +59,7 @@ public class ColorScheme {
     private final TonalPalette mAccent3;
     private final TonalPalette mNeutral1;
     private final TonalPalette mNeutral2;
+    private final TonalPalette mError;
     private final Hct mProposedSeedHct;
 
 
@@ -96,6 +97,7 @@ public class ColorScheme {
         mAccent3 = new TonalPalette(mMaterialScheme.tertiaryPalette);
         mNeutral1 = new TonalPalette(mMaterialScheme.neutralPalette);
         mNeutral2 = new TonalPalette(mMaterialScheme.neutralVariantPalette);
+        mError = new TonalPalette(mMaterialScheme.errorPalette);
     }
 
     public ColorScheme(@ColorInt int seed, boolean darkTheme) {
@@ -160,6 +162,10 @@ public class ColorScheme {
 
     public TonalPalette getNeutral2() {
         return mNeutral2;
+    }
+
+    public TonalPalette getError() {
+        return mError;
     }
 
     @Override
@@ -253,14 +259,14 @@ public class ColorScheme {
         // in the image.
         Map<Integer, Hct> filteredIntToHct = filter
                 ? intToHct
-                    .entrySet()
-                    .stream()
-                    .filter(entry -> {
-                        Hct hct = entry.getValue();
-                        double proportion = intToHueProportion.get(entry.getKey());
-                        return hct.getChroma() >= MIN_CHROMA && proportion > 0.01;
-                    })
-                    .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue))
+                .entrySet()
+                .stream()
+                .filter(entry -> {
+                    Hct hct = entry.getValue();
+                    double proportion = intToHueProportion.get(entry.getKey());
+                    return hct.getChroma() >= MIN_CHROMA && proportion > 0.01;
+                })
+                .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue))
                 : intToHct;
         // Sort the colors by score, from high to low.
         List<Map.Entry<Integer, Double>> intToScore = filteredIntToHct.entrySet().stream()
@@ -310,7 +316,7 @@ public class ColorScheme {
      * Filters and ranks colors from WallpaperColors. Defaults Filter to TRUE
      *
      * @param newWallpaperColors Colors extracted from an image via quantization.
-     *                        themes.
+     *                           themes.
      * @return List of ARGB ints, ordered from highest scoring to lowest.
      */
     public static List<Integer> getSeedColors(WallpaperColors newWallpaperColors) {
@@ -350,9 +356,9 @@ public class ColorScheme {
     private static String humanReadable(String paletteName, List<Integer> colors) {
         return paletteName + "\n"
                 + colors
-                    .stream()
-                    .map(ColorScheme::stringForColor)
-                    .collect(Collectors.joining("\n"));
+                .stream()
+                .map(ColorScheme::stringForColor)
+                .collect(Collectors.joining("\n"));
     }
 
     private static double score(Hct hct, double proportion) {
