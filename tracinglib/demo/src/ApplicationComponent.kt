@@ -15,12 +15,15 @@
  */
 package com.example.tracing.demo
 
+import com.example.tracing.demo.experiments.BasicTracingTutorial
 import com.example.tracing.demo.experiments.CancellableSharedFlow
 import com.example.tracing.demo.experiments.CollectFlow
 import com.example.tracing.demo.experiments.CombineDeferred
 import com.example.tracing.demo.experiments.Experiment
+import com.example.tracing.demo.experiments.FlowTracingTutorial
 import com.example.tracing.demo.experiments.LaunchNested
 import com.example.tracing.demo.experiments.LaunchSequentially
+import com.example.tracing.demo.experiments.LaunchStressTest
 import com.example.tracing.demo.experiments.LeakySharedFlow
 import com.example.tracing.demo.experiments.SharedFlowUsage
 import com.example.tracing.demo.experiments.startThreadWithLooper
@@ -35,8 +38,10 @@ import javax.inject.Qualifier
 import javax.inject.Singleton
 import kotlin.annotation.AnnotationRetention.RUNTIME
 import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.DelicateCoroutinesApi
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.android.asCoroutineDispatcher
+import kotlinx.coroutines.newFixedThreadPoolContext
 
 @Qualifier @MustBeDocumented @Retention(RUNTIME) annotation class Main
 
@@ -45,6 +50,8 @@ import kotlinx.coroutines.android.asCoroutineDispatcher
 @Qualifier @MustBeDocumented @Retention(RUNTIME) annotation class IO
 
 @Qualifier @MustBeDocumented @Retention(RUNTIME) annotation class Unconfined
+
+@Qualifier @MustBeDocumented @Retention(RUNTIME) annotation class FixedPool
 
 @Qualifier @MustBeDocumented @Retention(RUNTIME) annotation class FixedThreadA
 
@@ -76,6 +83,14 @@ class ConcurrencyModule {
     @Unconfined
     fun provideUnconfinedDispatcher(): CoroutineDispatcher {
         return Dispatchers.Unconfined
+    }
+
+    @OptIn(DelicateCoroutinesApi::class)
+    @Provides
+    @Singleton
+    @FixedPool
+    fun provideFixedThreadPoolDispatcher(): CoroutineDispatcher {
+        return newFixedThreadPoolContext(8, "FixedPool")
     }
 
     @Provides
@@ -143,6 +158,21 @@ interface ExperimentModule {
     @IntoMap
     @ClassKey(LaunchSequentially::class)
     fun bindLaunchSequentially(service: LaunchSequentially): Experiment
+
+    @Binds
+    @IntoMap
+    @ClassKey(LaunchStressTest::class)
+    fun bindLaunchStressTest(service: LaunchStressTest): Experiment
+
+    @Binds
+    @IntoMap
+    @ClassKey(BasicTracingTutorial::class)
+    fun bindBasicTracingTutorial(service: BasicTracingTutorial): Experiment
+
+    @Binds
+    @IntoMap
+    @ClassKey(FlowTracingTutorial::class)
+    fun bindFlowTracingTutorial(service: FlowTracingTutorial): Experiment
 }
 
 @Singleton

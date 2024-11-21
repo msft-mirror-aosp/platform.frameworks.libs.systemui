@@ -38,39 +38,39 @@ constructor(
     @FixedThreadB private var dispatcherB: CoroutineDispatcher,
     @FixedThreadC private val dispatcherC: CoroutineDispatcher,
     @Unconfined private var unconfinedContext: CoroutineDispatcher,
-) : Experiment {
+) : AsyncExperiment {
     override val description: String = "async{} then start()"
 
     override suspend fun start(): Unit = coroutineScope {
         // deferred10 -> deferred20 -> deferred30
         val deferred30 =
             async(start = LAZY, context = dispatcherB) {
-                traceCoroutine("async#30") { forceSuspend("deferred30", 250) }
+                traceCoroutine("async#30") { forceSuspend("deferred30", 25) }
             }
         val deferred20 =
             async(start = LAZY, context = unconfinedContext) {
-                traceCoroutine("async#20") { forceSuspend("deferred20", 250) }
+                traceCoroutine("async#20") { forceSuspend("deferred20", 25) }
                 traceSection("start30") { deferred30.start() }
             }
         val deferred10 =
             async(start = LAZY, context = dispatcherC) {
-                traceCoroutine("async#10") { forceSuspend("deferred10", 250) }
+                traceCoroutine("async#10") { forceSuspend("deferred10", 25) }
                 traceSection("start20") { deferred20.start() }
             }
 
         // deferredA -> deferredB -> deferredC
         val deferredC =
             async(start = LAZY, context = dispatcherB) {
-                traceCoroutine("async#C") { forceSuspend("deferredC", 250) }
+                traceCoroutine("async#C") { forceSuspend("deferredC", 25) }
             }
         val deferredB =
             async(start = LAZY, context = unconfinedContext) {
-                traceCoroutine("async#B") { forceSuspend("deferredB", 250) }
+                traceCoroutine("async#B") { forceSuspend("deferredB", 25) }
                 traceSection("startC") { deferredC.start() }
             }
         val deferredA =
             async(start = LAZY, context = dispatcherC) {
-                traceCoroutine("async#A") { forceSuspend("deferredA", 250) }
+                traceCoroutine("async#A") { forceSuspend("deferredA", 25) }
                 traceSection("startB") { deferredB.start() }
             }
 
@@ -78,7 +78,7 @@ constructor(
         // run(), meaning the main thread
         val deferredE =
             async(nameCoroutine("overridden-scope-name-for-deferredE")) {
-                traceCoroutine("async#E") { forceSuspend("deferredE", 250) }
+                traceCoroutine("async#E") { forceSuspend("deferredE", 25) }
             }
 
         launch(dispatcherA) {
