@@ -342,7 +342,9 @@ public abstract class BaseIconCache {
         // Icon can't be loaded from cachingLogic, which implies alternative icon was loaded
         // (e.g. fallback icon, default icon). So we drop here since there's no point in caching
         // an empty entry.
-        if (bitmapInfo.isNullOrLowRes()) return;
+        if (bitmapInfo.isNullOrLowRes() || isDefaultIcon(bitmapInfo, user)) {
+            return;
+        }
 
         CharSequence entryTitle = cachingLogic.getLabel(object);
         if (TextUtils.isEmpty(entryTitle)) {
