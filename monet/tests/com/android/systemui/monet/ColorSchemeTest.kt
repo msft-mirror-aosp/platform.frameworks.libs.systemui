@@ -101,7 +101,7 @@ class ColorSchemeTest {
             theme.setAttribute("color", sourceColorHex)
             themes.appendChild(theme)
 
-            for (styleValue in Style.entries) {
+            for (styleValue in Style.values()) {
                 if (
                     styleValue == Style.CLOCK ||
                         styleValue == Style.CLOCK_VIBRANT ||
@@ -110,7 +110,7 @@ class ColorSchemeTest {
                     continue
                 }
 
-                val style = document.createElement(styleValue.name.lowercase())
+                val style = document.createElement(Style.name(styleValue).lowercase())
                 val colorScheme = ColorScheme(sourceColor.toInt(), false, styleValue)
 
                 style.appendChild(
