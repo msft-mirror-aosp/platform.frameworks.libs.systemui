@@ -22,11 +22,39 @@ import com.google.ux.material.libmonet.dynamiccolor.MaterialDynamicColors;
 import com.google.ux.material.libmonet.dynamiccolor.ToneDeltaPair;
 import com.google.ux.material.libmonet.dynamiccolor.TonePolarity;
 
+import java.util.function.Supplier;
+
 class CustomDynamicColors {
     private final MaterialDynamicColors mMdc;
+    public final Supplier<DynamicColor>[] allColors;
 
     CustomDynamicColors(boolean isExtendedFidelity) {
         this.mMdc = new MaterialDynamicColors(isExtendedFidelity);
+
+        allColors = new Supplier[]{
+                this::widgetBackground,
+                this::clockHour,
+                this::clockMinute,
+                this::clockSecond,
+                this::weatherTemp,
+                this::themeApp,
+                this::onThemeApp,
+                this::themeAppRing,
+                this::themeNotif,
+                this::brandA,
+                this::brandB,
+                this::brandC,
+                this::brandD,
+                this::underSurface,
+                this::shadeActive,
+                this::onShadeActive,
+                this::onShadeActiveVariant,
+                this::shadeInactive,
+                this::onShadeInactive,
+                this::onShadeInactiveVariant,
+                this::shadeDisabled,
+                this::overviewBackground
+        };
     }
 
     // CLOCK COLORS
