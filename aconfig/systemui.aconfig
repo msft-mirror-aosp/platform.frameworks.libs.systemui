@@ -76,3 +76,10 @@ flag {
     description: "Enables ambient wallpaper and AOD enhancements"
     bug: "372655702"
 }
+
+flag {
+    name: "enable_launcher_icon_shapes"
+    namespace: "systemui"
+    description: "Enables launcher icon shapes customization"
+    bug: "348708061"
+}
