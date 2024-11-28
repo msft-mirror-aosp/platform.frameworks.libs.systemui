@@ -22,8 +22,8 @@ uniform float screenAspectRatio;
 uniform float gridScale;
 uniform float2 screenSize;
 uniform half intensity;
-uniform mat3 transformMatrixFgd;
-uniform mat3 transformMatrixBgd;
+uniform mat3 transformMatrixBitmap;
+uniform mat3 transformMatrixWeather;
 
 #include "shaders/constants.agsl"
 #include "shaders/utils.agsl"
@@ -55,9 +55,9 @@ vec3 drawSplashes(vec2 uv, vec2 fragCoord, vec3 color) {
     vec2 pixUv = cellUv;
     pixUv.x *= -1;
     vec2 pixDistance = screenSize * pixUv / gridSize;
-    float2 uvTextureFgd =  transformPoint(transformMatrixFgd, fragCoord + pixDistance);
+    float2 uvTexture =  transformPoint(transformMatrixBitmap, fragCoord + pixDistance);
 
-    float outline = step(0.1, outlineBuffer.eval(uvTextureFgd).r);
+    float outline = step(0.1, outlineBuffer.eval(uvTexture).r);
     if (outline < 0.1) {
         // Simply return the given color when it's not considered as an outline.
         return color;
@@ -80,13 +80,17 @@ vec3 drawSplashes(vec2 uv, vec2 fragCoord, vec3 color) {
 
 vec4 main(float2 fragCoord) {
     // Apply transform matrix to fragCoord
-    float2 uvTextureFgd = transformPoint(transformMatrixFgd, fragCoord);
-    float2 uvTextureBgd = transformPoint(transformMatrixBgd, fragCoord);
+    float2 uvTexture = transformPoint(transformMatrixBitmap, fragCoord);
     // Calculate uv for snow based on transformed coordinates
-    float2 uv = uvTextureFgd / screenSize;
+    float2 uv = transformPoint(transformMatrixWeather, fragCoord) / screenSize;
 
-    vec4 colorForeground = foreground.eval(uvTextureFgd);
-    vec4 color = background.eval(uvTextureBgd);
+    vec4 colorForeground = foreground.eval(uvTexture);
+    vec4 color = background.eval(uvTexture);
+
+    // Adjusts contrast and brightness.
+    float noise = 0.025 * triangleNoise(fragCoord.xy + vec2(12.31, 1024.1241));
+    color.rgb = imageRangeConversion(color.rgb, 0.84, 0.02, noise, intensity);
+    colorForeground.rgb = imageRangeConversion(colorForeground.rgb, 0.84, 0.02, noise, intensity);
 
     // Add rotation for the rain (as a default sin(time * 0.05) can be used).
     float variation = wiggle(time - uv.y * 1.1, 0.10);

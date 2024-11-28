@@ -19,46 +19,34 @@ package com.google.android.wallpaper.weathereffects.graphics.fog
 import android.graphics.Bitmap
 import android.graphics.BitmapShader
 import android.graphics.Canvas
-import android.graphics.Matrix
 import android.graphics.Paint
+import android.graphics.RuntimeShader
 import android.graphics.Shader
 import android.util.SizeF
-import com.google.android.wallpaper.weathereffects.graphics.WeatherEffect
 import com.google.android.wallpaper.weathereffects.graphics.WeatherEffect.Companion.DEFAULT_INTENSITY
+import com.google.android.wallpaper.weathereffects.graphics.WeatherEffectBase
 import com.google.android.wallpaper.weathereffects.graphics.utils.GraphicsUtils
-import com.google.android.wallpaper.weathereffects.graphics.utils.MatrixUtils.centerCropMatrix
-import com.google.android.wallpaper.weathereffects.graphics.utils.MatrixUtils.postprocessParallaxMatrix
 import com.google.android.wallpaper.weathereffects.graphics.utils.TimeUtils
 import kotlin.math.sin
-import kotlin.random.Random
 
 /** Defines and generates the fog weather effect animation. */
 class FogEffect(
     private val fogConfig: FogEffectConfig,
-    private var foreground: Bitmap,
-    private var background: Bitmap,
-    private var intensity: Float = DEFAULT_INTENSITY,
+    foreground: Bitmap,
+    background: Bitmap,
+    intensity: Float = DEFAULT_INTENSITY,
     /** The initial size of the surface where the effect will be shown. */
-    private var surfaceSize: SizeF,
-) : WeatherEffect {
+    surfaceSize: SizeF,
+) : WeatherEffectBase(foreground, background, surfaceSize) {
 
     private val fogPaint = Paint().also { it.shader = fogConfig.colorGradingShader }
-    private var elapsedTime: Float = 0f
-
-    private var matrix: Matrix? = null
 
     init {
         updateTextureUniforms()
         adjustCropping(surfaceSize)
         prepareColorGrading()
-        updateFogGridSize(surfaceSize)
+        updateGridSize(surfaceSize)
         setIntensity(intensity)
-    }
-
-    override fun resize(newSurfaceSize: SizeF) {
-        adjustCropping(newSurfaceSize)
-        updateFogGridSize(newSurfaceSize)
-        surfaceSize = newSurfaceSize
     }
 
     override fun update(deltaMillis: Long, frameTimeNanos: Long) {
@@ -91,79 +79,8 @@ class FogEffect(
         canvas.drawPaint(fogPaint)
     }
 
-    override fun reset() {
-        elapsedTime = Random.nextFloat() * 90f
-    }
-
-    override fun release() {
-        fogConfig.lut?.recycle()
-    }
-
-    override fun setIntensity(intensity: Float) {
-        fogConfig.shader.setFloatUniform("intensity", intensity)
-        fogConfig.colorGradingShader.setFloatUniform(
-            "intensity",
-            fogConfig.colorGradingIntensity * intensity,
-        )
-    }
-
-    override fun setBitmaps(foreground: Bitmap?, background: Bitmap) {
-        if (this.foreground == foreground && this.background == background) {
-            return
-        }
-        // Only when background changes, we can infer the bitmap set changes
-        if (this.background != background) {
-            this.background.recycle()
-            this.foreground.recycle()
-        }
-        this.background = background
-        this.foreground = foreground ?: background
-        fogConfig.shader.setInputBuffer(
-            "background",
-            BitmapShader(this.background, Shader.TileMode.MIRROR, Shader.TileMode.MIRROR),
-        )
-        fogConfig.shader.setInputBuffer(
-            "foreground",
-            BitmapShader(this.foreground, Shader.TileMode.MIRROR, Shader.TileMode.MIRROR),
-        )
-        adjustCropping(surfaceSize)
-    }
-
-    override fun setMatrix(matrix: Matrix) {
-        this.matrix = matrix
-        adjustCropping(surfaceSize)
-    }
-
-    private fun adjustCropping(surfaceSize: SizeF) {
-        if (matrix == null) {
-            matrix =
-                centerCropMatrix(
-                    surfaceSize,
-                    SizeF(foreground.width.toFloat(), foreground.height.toFloat()),
-                )
-        }
-        val postprocessedMatrix = postprocessParallaxMatrix(matrix!!)
-        fogConfig.shader.setFloatUniform("transformMatrixFgd", postprocessedMatrix)
-        fogConfig.shader.setFloatUniform("transformMatrixBgd", postprocessedMatrix)
-
-        fogConfig.shader.setFloatUniform("screenSize", surfaceSize.width, surfaceSize.height)
-        fogConfig.shader.setFloatUniform(
-            "screenAspectRatio",
-            GraphicsUtils.getAspectRatio(surfaceSize),
-        )
-    }
-
-    private fun updateTextureUniforms() {
-        fogConfig.shader.setInputBuffer(
-            "foreground",
-            BitmapShader(foreground, Shader.TileMode.MIRROR, Shader.TileMode.MIRROR),
-        )
-
-        fogConfig.shader.setInputBuffer(
-            "background",
-            BitmapShader(background, Shader.TileMode.MIRROR, Shader.TileMode.MIRROR),
-        )
-
+    override fun updateTextureUniforms() {
+        super.updateTextureUniforms()
         fogConfig.shader.setInputBuffer(
             "clouds",
             BitmapShader(fogConfig.cloudsTexture, Shader.TileMode.REPEAT, Shader.TileMode.REPEAT),
@@ -188,9 +105,21 @@ class FogEffect(
         fogConfig.colorGradingShader.setFloatUniform("intensity", fogConfig.colorGradingIntensity)
     }
 
-    private fun updateFogGridSize(surfaceSize: SizeF) {
+    override val shader: RuntimeShader
+        get() = fogConfig.shader
+
+    override val colorGradingShader: RuntimeShader
+        get() = fogConfig.colorGradingShader
+
+    override val lut: Bitmap?
+        get() = fogConfig.lut
+
+    override val colorGradingIntensity: Float
+        get() = fogConfig.colorGradingIntensity
+
+    override fun updateGridSize(newSurfaceSize: SizeF) {
         val widthScreenScale =
-            GraphicsUtils.computeDefaultGridSize(surfaceSize, fogConfig.pixelDensity)
+            GraphicsUtils.computeDefaultGridSize(newSurfaceSize, fogConfig.pixelDensity)
         fogConfig.shader.setFloatUniform(
             "cloudsSize",
             widthScreenScale * fogConfig.cloudsTexture.width.toFloat(),

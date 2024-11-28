@@ -20,8 +20,8 @@ uniform float screenAspectRatio;
 uniform float2 screenSize;
 uniform float time;
 uniform float intensity;
-uniform mat3 transformMatrixFgd;
-uniform mat3 transformMatrixBgd;
+uniform mat3 transformMatrixBitmap;
+uniform mat3 transformMatrixWeather;
 
 
 #include "shaders/constants.agsl"
@@ -95,11 +95,9 @@ float checkBrightnessGodRaysAtCenter(
 
 vec4 main(float2 fragCoord) {
     // Apply transform matrix to fragCoord
-    float2 adjustedUvForeground = transformPoint(transformMatrixFgd, fragCoord);
-    float2 adjustedUvBackground = transformPoint(transformMatrixBgd, fragCoord);
+    float2 adjustedUv = transformPoint(transformMatrixBitmap, fragCoord);
 
-
-    float2 uv = fragCoord / screenSize;
+    float2 uv = transformPoint(transformMatrixWeather, fragCoord) / screenSize;
     uv -= vec2(0.5, 0.5);
     uv.y /= screenAspectRatio;
     vec2 sunVariation = vec2(0.1 * sin(time * 0.3), 0.14 * cos(time * 0.5));
@@ -107,8 +105,8 @@ vec4 main(float2 fragCoord) {
     vec2 sunPos = sunVariation + sunCenter / vec2(1., screenAspectRatio);
     //TODO(b/375214506): fix the uv position of the sun
 
-    vec4 colorForeground = foreground.eval(adjustedUvForeground);
-    vec4 color = background.eval(adjustedUvBackground);
+    vec4 colorForeground = foreground.eval(adjustedUv);
+    vec4 color = background.eval(adjustedUv);
     // add foreground
     color.rgb = normalBlend(color.rgb, colorForeground.rgb, colorForeground.a);
 
@@ -117,11 +115,8 @@ vec4 main(float2 fragCoord) {
     brightnessSunray *= brightnessSunray;
 
     // Adjusts contrast and brightness.
-    float compression = 0.88;
-    float brightnessIncriease = 0.02;
-    float noise = triangleNoise(fragCoord.xy + vec2(12.31, 1024.1241));
-    color.rgb *= mix(1., compression + noise * 0.025, intensity);
-    color.rgb += brightnessIncriease * intensity;
+    float noise = 0.025 * triangleNoise(fragCoord.xy + vec2(12.31, 1024.1241));
+    color.rgb = imageRangeConversion(color.rgb, 0.88, 0.02, noise, intensity);
 
     // Adjust color grading for shadows and highlights.
     float lum = relativeLuminance(color.rgb);
