@@ -83,3 +83,13 @@ flag {
     description: "Enables launcher icon shapes customization"
     bug: "348708061"
 }
+
+flag {
+    name: "smartspace_sports_card_background"
+    namespace: "systemui"
+    description: "Enables Smartspace sports card background protection and related ui updates"
+    bug: "380285747"
+    metadata {
+         purpose: PURPOSE_BUGFIX
+    }
+}
