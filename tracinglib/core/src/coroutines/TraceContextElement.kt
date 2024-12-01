@@ -17,6 +17,7 @@
 package com.android.app.tracing.coroutines
 
 import android.annotation.SuppressLint
+import android.os.SystemProperties
 import android.os.Trace
 import android.util.Log
 import com.android.systemui.Flags
@@ -50,6 +51,10 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
  */
 @PublishedApi internal val traceThreadLocal: TraceDataThreadLocal = TraceDataThreadLocal()
 
+private val alwaysEnableStackWalker: Boolean by lazy {
+    SystemProperties.getBoolean("debug.coroutine_tracing.walk_stack_override", false)
+}
+
 /**
  * Returns a new [TraceContextElement] (or [EmptyCoroutineContext] if `coroutine_tracing` feature is
  * flagged off). This context should only be installed on root coroutines (e.g. when constructing a
@@ -73,6 +78,10 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
  * }
  * ```
  *
+ * **NOTE:** The sysprop `debug.coroutine_tracing.walk_stack_override` can be used to override the
+ * `walkStackForDefaultNames` parameter, forcing it to always be `true`. If the sysprop is `false`
+ * (or does not exist), the value of `walkStackForDefaultNames` is used, whether `true` or `false`.
+ *
  * @param name the name of the coroutine scope. Since this should only be installed on top-level
  *   coroutines, this should be the name of the root [CoroutineScope].
  * @param walkStackForDefaultNames whether to walk the stack and use the class name of the current
@@ -93,8 +102,8 @@ public fun createCoroutineTracingContext(
     includeParentNames: Boolean = false,
     strictMode: Boolean = false,
     shouldIgnoreClassName: (String) -> Boolean = { false },
-): CoroutineContext =
-    if (Flags.coroutineTracing()) {
+): CoroutineContext {
+    return if (Flags.coroutineTracing()) {
         TraceContextElement(
             name = name,
             // Minor perf optimization: no need to create TraceData() for root scopes since all
@@ -104,7 +113,7 @@ public fun createCoroutineTracingContext(
             coroutineDepth = 0,
             parentId = -1,
             TraceConfig(
-                walkStackForDefaultNames = walkStackForDefaultNames,
+                walkStackForDefaultNames = walkStackForDefaultNames || alwaysEnableStackWalker,
                 includeParentNames = includeParentNames,
                 strictMode = strictMode,
                 shouldIgnoreClassName = shouldIgnoreClassName,
@@ -113,6 +122,7 @@ public fun createCoroutineTracingContext(
     } else {
         EmptyCoroutineContext
     }
+}
 
 /**
  * Returns a new [CoroutineTraceName] (or [EmptyCoroutineContext] if `coroutine_tracing` feature is
@@ -390,5 +400,7 @@ private fun walkStackForClassName(
 private const val UNEXPECTED_TRACE_DATA_ERROR_MESSAGE =
     "Overwriting context element with non-empty trace data. There should only be one " +
         "TraceContextElement per coroutine, and it should be installed in the root scope. "
+
 @PublishedApi internal const val TAG: String = "CoroutineTracing"
+
 @PublishedApi internal const val DEBUG: Boolean = false
