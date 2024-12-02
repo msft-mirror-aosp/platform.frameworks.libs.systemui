@@ -73,7 +73,7 @@ public class FastBitmapDrawable extends Drawable implements Drawable.Callback {
     @VisibleForTesting protected boolean mIsPressed;
     @VisibleForTesting protected boolean mIsHovered;
     protected boolean mIsDisabled;
-    float mDisabledAlpha = 1f;
+    protected float mDisabledAlpha = 1f;
 
     @DrawableCreationFlags int mCreationFlags = 0;
 
