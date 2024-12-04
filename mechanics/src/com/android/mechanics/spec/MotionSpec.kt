@@ -94,6 +94,31 @@ data class DirectionalMotionSpec(val breakpoints: List<Breakpoint>, val mappings
         require(mappings.size == breakpoints.size - 1)
     }
 
+    /**
+     * Returns the index of the closest breakpoint where `Breakpoint.position <= position`.
+     *
+     * Guaranteed to be a valid index into [breakpoints], and guaranteed not to be the last element.
+     *
+     * @param position the position in the input domain.
+     * @return Index into [breakpoints], guaranteed to be in range `0..breakpoints.size - 2`
+     */
+    fun findBreakpointIndex(position: Float): Int {
+        require(position.isFinite())
+        val breakpointPosition = breakpoints.binarySearchBy(position) { it.position }
+
+        val result =
+            when {
+                // position is between two anchors, return the min one.
+                breakpointPosition < 0 -> -breakpointPosition - 2
+                else -> breakpointPosition
+            }
+
+        check(result >= 0)
+        check(result < breakpoints.size - 1)
+
+        return result
+    }
+
     companion object {
         /* Empty spec, the full input domain is mapped to output using [Mapping.identity]. */
         val Empty =
