@@ -18,6 +18,9 @@ package com.android.mechanics.spec
 
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.android.mechanics.spring.SpringParameters
+import com.google.common.truth.Truth.assertThat
+import kotlin.math.nextDown
+import kotlin.math.nextUp
 import kotlin.test.assertFailsWith
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -69,6 +72,52 @@ class MotionSpecTest {
                 listOf(Mapping.Zero, Mapping.One, Mapping.Two),
             )
         }
+    }
+
+    @Test
+    fun directionalMotionSpec_findBreakpointIndex_returnsMinForEmptySpec() {
+        val underTest = DirectionalMotionSpec.builder(spring).complete()
+
+        assertThat(underTest.findBreakpointIndex(0f)).isEqualTo(0)
+        assertThat(underTest.findBreakpointIndex(Float.MAX_VALUE)).isEqualTo(0)
+        assertThat(underTest.findBreakpointIndex(-Float.MAX_VALUE)).isEqualTo(0)
+    }
+
+    @Test
+    fun directionalMotionSpec_findBreakpointIndex_throwsForNonFiniteInput() {
+        val underTest = DirectionalMotionSpec.builder(spring).complete()
+
+        assertFailsWith<IllegalArgumentException> { underTest.findBreakpointIndex(Float.NaN) }
+        assertFailsWith<IllegalArgumentException> {
+            underTest.findBreakpointIndex(Float.NEGATIVE_INFINITY)
+        }
+        assertFailsWith<IllegalArgumentException> {
+            underTest.findBreakpointIndex(Float.POSITIVE_INFINITY)
+        }
+    }
+
+    @Test
+    fun directionalMotionSpec_findBreakpointIndex_atBreakpoint_returnsIndex() {
+        val underTest =
+            DirectionalMotionSpec.builder(spring).toBreakpoint(10f).completeWith(Mapping.Identity)
+
+        assertThat(underTest.findBreakpointIndex(10f)).isEqualTo(1)
+    }
+
+    @Test
+    fun directionalMotionSpec_findBreakpointIndex_afterBreakpoint_returnsPreviousIndex() {
+        val underTest =
+            DirectionalMotionSpec.builder(spring).toBreakpoint(10f).completeWith(Mapping.Identity)
+
+        assertThat(underTest.findBreakpointIndex(10f.nextUp())).isEqualTo(1)
+    }
+
+    @Test
+    fun directionalMotionSpec_findBreakpointIndex_beforeBreakpoint_returnsIndex() {
+        val underTest =
+            DirectionalMotionSpec.builder(spring).toBreakpoint(10f).completeWith(Mapping.Identity)
+
+        assertThat(underTest.findBreakpointIndex(10f.nextDown())).isEqualTo(0)
     }
 
     companion object {
