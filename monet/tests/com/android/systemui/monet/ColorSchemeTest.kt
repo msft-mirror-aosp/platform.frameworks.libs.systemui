@@ -38,6 +38,10 @@ import org.w3c.dom.Document
 import org.w3c.dom.Element
 import org.w3c.dom.Node
 
+private const val CONTRAST = 0.0
+
+private const val IS_FIDELITY_ENABLED = false
+
 private const val fileHeader =
     """
   ~ Copyright (C) 2022 The Android Open Source Project
@@ -97,7 +101,7 @@ class ColorSchemeTest {
             theme.setAttribute("color", sourceColorHex)
             themes.appendChild(theme)
 
-            for (styleValue in Style.entries) {
+            for (styleValue in Style.values()) {
                 if (
                     styleValue == Style.CLOCK ||
                         styleValue == Style.CLOCK_VIBRANT ||
@@ -106,7 +110,7 @@ class ColorSchemeTest {
                     continue
                 }
 
-                val style = document.createElement(styleValue.name.lowercase())
+                val style = document.createElement(Style.name(styleValue).lowercase())
                 val colorScheme = ColorScheme(sourceColor.toInt(), false, styleValue)
 
                 style.appendChild(
@@ -116,7 +120,8 @@ class ColorSchemeTest {
                                 colorScheme.accent2,
                                 colorScheme.accent3,
                                 colorScheme.neutral1,
-                                colorScheme.neutral2
+                                colorScheme.neutral2,
+                                colorScheme.error,
                             )
                             .flatMap { a -> listOf(*a.allShades.toTypedArray()) }
                             .joinToString(",", transform = Int::toRGBHex)
@@ -128,7 +133,7 @@ class ColorSchemeTest {
             hue += 60
         }
 
-        saveFile(document, "current_themes.xml")
+        saveFile(document, "themes.xml")
     }
 
     @Test
@@ -145,11 +150,14 @@ class ColorSchemeTest {
                 Triple("accent2", "Secondary", colorScheme.accent2),
                 Triple("accent3", "Tertiary", colorScheme.accent3),
                 Triple("neutral1", "Neutral", colorScheme.neutral1),
-                Triple("neutral2", "Secondary Neutral", colorScheme.neutral2)
+                Triple("neutral2", "Secondary Neutral", colorScheme.neutral2),
+                Triple("error", "Error", colorScheme.error),
             )
             .forEach {
                 val (paletteName, readable, palette) = it
-                palette.allShadesMapped.entries.forEachIndexed { index, (shade, colorValue) ->
+                palette.allShadesMapped.toSortedMap().entries.forEachIndexed {
+                    index,
+                    (shade, colorValue) ->
                     val comment =
                         when (index) {
                             0 -> commentWhite(readable)
@@ -165,22 +173,145 @@ class ColorSchemeTest {
         // dynamic colors
         arrayOf(false, true).forEach { isDark ->
             val suffix = if (isDark) "_dark" else "_light"
-            val dynamicScheme = SchemeTonalSpot(Hct.fromInt(GOOGLE_BLUE), isDark, 0.5)
-            DynamicColors.getAllDynamicColorsMapped(false).forEach {
+            val dynamicScheme = SchemeTonalSpot(Hct.fromInt(GOOGLE_BLUE), isDark, CONTRAST)
+            DynamicColors.getAllDynamicColorsMapped(IS_FIDELITY_ENABLED).forEach {
                 resources.createColorEntry(
                     "system_${it.first}$suffix",
-                    it.second.getArgb(dynamicScheme)
+                    it.second.getArgb(dynamicScheme),
                 )
             }
         }
 
         // fixed colors
-        val dynamicScheme = SchemeTonalSpot(Hct.fromInt(GOOGLE_BLUE), false, 0.5)
-        DynamicColors.getFixedColorsMapped(false).forEach {
+        val dynamicScheme = SchemeTonalSpot(Hct.fromInt(GOOGLE_BLUE), false, CONTRAST)
+        DynamicColors.getFixedColorsMapped(IS_FIDELITY_ENABLED).forEach {
             resources.createColorEntry("system_${it.first}", it.second.getArgb(dynamicScheme))
         }
 
-        saveFile(document, "role_values.xml")
+        // custom colors
+        arrayOf(false, true).forEach { isDark ->
+            val suffix = if (isDark) "_dark" else "_light"
+            val dynamicScheme = SchemeTonalSpot(Hct.fromInt(GOOGLE_BLUE), isDark, CONTRAST)
+            DynamicColors.getCustomColorsMapped(IS_FIDELITY_ENABLED).forEach {
+                resources.createColorEntry(
+                    "system_${it.first}$suffix",
+                    it.second.getArgb(dynamicScheme),
+                )
+            }
+        }
+
+        saveFile(document, "colors.xml")
+    }
+
+    @Test
+    fun generateSymbols() {
+        val document = buildDoc<Any>()
+
+        val resources = document.createElement("resources")
+        document.appendWithBreak(resources)
+
+        (DynamicColors.getAllDynamicColorsMapped(IS_FIDELITY_ENABLED) +
+                DynamicColors.getFixedColorsMapped(IS_FIDELITY_ENABLED))
+            .forEach {
+                val newName = ("material_color_" + it.first).snakeToLowerCamelCase()
+
+                resources.createEntry(
+                    "java-symbol",
+                    arrayOf(Pair("name", newName), Pair("type", "color")),
+                    null,
+                )
+            }
+
+        DynamicColors.getCustomColorsMapped(IS_FIDELITY_ENABLED).forEach {
+            val newName = ("custom_color_" + it.first).snakeToLowerCamelCase()
+
+            resources.createEntry(
+                "java-symbol",
+                arrayOf(Pair("name", newName), Pair("type", "color")),
+                null,
+            )
+        }
+
+        arrayOf("_light", "_dark").forEach { suffix ->
+            DynamicColors.getCustomColorsMapped(IS_FIDELITY_ENABLED).forEach {
+                val newName = "system_" + it.first + suffix
+
+                resources.createEntry(
+                    "java-symbol",
+                    arrayOf(Pair("name", newName), Pair("type", "color")),
+                    null,
+                )
+            }
+        }
+
+        saveFile(document, "symbols.xml")
+    }
+
+    @Test
+    fun generateDynamicColors() {
+        arrayOf(false, true).forEach { isDark ->
+            val document = buildDoc<Any>()
+
+            val resources = document.createElement("resources")
+            document.appendWithBreak(resources)
+
+            (DynamicColors.getAllDynamicColorsMapped(IS_FIDELITY_ENABLED) +
+                    DynamicColors.getFixedColorsMapped(IS_FIDELITY_ENABLED))
+                .forEach {
+                    val newName = ("material_color_" + it.first).snakeToLowerCamelCase()
+
+                    val suffix = if (isDark) "_dark" else "_light"
+                    val colorValue =
+                        "@color/system_" + it.first + if (it.first.contains("fixed")) "" else suffix
+
+                    resources.createColorEntry(newName, colorValue)
+                }
+
+            val suffix = if (isDark) "_dark" else "_light"
+
+            DynamicColors.getCustomColorsMapped(IS_FIDELITY_ENABLED).forEach {
+                val newName = ("custom_color_" + it.first).snakeToLowerCamelCase()
+                resources.createColorEntry(newName, "@color/system_" + it.first + suffix)
+            }
+
+            saveFile(document, "colors_dynamic_$suffix.xml")
+        }
+    }
+
+    @Test
+    fun generatePublic() {
+        val document = buildDoc<Any>()
+
+        val resources = document.createElement("resources")
+
+        val group = document.createElement("staging-public-group")
+        resources.appendChild(group)
+
+        document.appendWithBreak(resources)
+
+        val context = InstrumentationRegistry.getInstrumentation().targetContext
+        val res = context.resources
+
+        val rClass = com.android.internal.R.color::class.java
+        val existingFields = rClass.declaredFields.map { it.name }.toSet()
+
+        arrayOf("_light", "_dark").forEach { suffix ->
+            DynamicColors.getAllDynamicColorsMapped(IS_FIDELITY_ENABLED).forEach {
+                val name = "system_" + it.first + suffix
+                if (!existingFields.contains(name)) {
+                    group.createEntry("public", arrayOf(Pair("name", name)), null)
+                }
+            }
+        }
+
+        DynamicColors.getFixedColorsMapped(IS_FIDELITY_ENABLED).forEach {
+            val name = "system_${it.first}"
+            if (!existingFields.contains(name)) {
+                group.createEntry("public", arrayOf(Pair("name", name)), null)
+            }
+        }
+
+        saveFile(document, "public.xml")
     }
 
     // Helper Functions
@@ -225,17 +356,33 @@ class ColorSchemeTest {
 }
 
 private fun Element.createColorEntry(name: String, value: Int, comment: String? = null) {
+    this.createColorEntry(name, "#" + value.toRGBHex(), comment)
+}
+
+private fun Element.createColorEntry(name: String, value: String, comment: String? = null) {
+    this.createEntry("color", arrayOf(Pair("name", name)), value, comment)
+}
+
+private fun Element.createEntry(
+    tagName: String,
+    attrs: Array<Pair<String, String>>,
+    value: String?,
+    comment: String? = null,
+) {
     val doc = this.ownerDocument
 
     if (comment != null) {
         this.appendChild(doc.createComment(comment))
     }
 
-    val color = doc.createElement("color")
-    this.appendChild(color)
+    val child = doc.createElement(tagName)
+    this.appendChild(child)
 
-    color.setAttribute("name", name)
-    color.appendChild(doc.createTextNode("#" + value.toRGBHex()))
+    attrs.forEach { child.setAttribute(it.first, it.second) }
+
+    if (value !== null) {
+        child.appendChild(doc.createTextNode(value))
+    }
 }
 
 private fun Node.appendWithBreak(child: Node, lineBreaks: Int = 1): Node {
@@ -247,4 +394,9 @@ private fun Node.appendWithBreak(child: Node, lineBreaks: Int = 1): Node {
 
 private fun Int.toRGBHex(): String {
     return "%06X".format(0xFFFFFF and this)
+}
+
+private fun String.snakeToLowerCamelCase(): String {
+    val pattern = "_[a-z]".toRegex()
+    return replace(pattern) { it.value.last().uppercase() }
 }
