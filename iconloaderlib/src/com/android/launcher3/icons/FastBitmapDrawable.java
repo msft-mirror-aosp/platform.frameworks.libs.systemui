@@ -414,7 +414,7 @@ public class FastBitmapDrawable extends Drawable implements Drawable.Callback {
         sFlagHoverEnabled = isFlagHoverEnabled;
     }
 
-    protected static class FastBitmapConstantState extends ConstantState {
+    public static class FastBitmapConstantState extends ConstantState {
         protected final Bitmap mBitmap;
         protected final int mIconColor;
 
