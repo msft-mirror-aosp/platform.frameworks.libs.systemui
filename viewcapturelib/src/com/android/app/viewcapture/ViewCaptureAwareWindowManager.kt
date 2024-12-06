@@ -17,7 +17,6 @@
 package com.android.app.viewcapture
 
 import android.media.permission.SafeCloseable
-import android.util.Log
 import android.view.View
 import android.view.ViewGroup
 import android.view.WindowManager
@@ -63,9 +62,11 @@ class ViewCaptureAwareWindowManager(
             if (viewCaptureCloseableMap.containsKey(view)) {
                 viewCaptureCloseableMap[view]?.close()
                 viewCaptureCloseableMap.remove(view)
-            } else {
-                Log.wtf(TAG, "removeView called with view not present in closeable map!")
             }
         }
+    }
+
+    interface Factory {
+        fun create(windowManager: WindowManager): ViewCaptureAwareWindowManager
     }
 }
