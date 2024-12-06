@@ -16,6 +16,7 @@
 
 package com.android.systemui.monet;
 
+
 import android.annotation.ColorInt;
 import android.app.WallpaperColors;
 import android.graphics.Color;
@@ -52,7 +53,8 @@ public class ColorScheme {
     @ColorInt
     private final int mSeed;
     private final boolean mIsDark;
-    private final Style mStyle;
+    @Style.Type
+    private final  int mStyle;
     private final DynamicScheme mMaterialScheme;
     private final TonalPalette mAccent1;
     private final TonalPalette mAccent2;
@@ -63,7 +65,8 @@ public class ColorScheme {
     private final Hct mProposedSeedHct;
 
 
-    public ColorScheme(@ColorInt int seed, boolean isDark, Style style, double contrastLevel) {
+    public ColorScheme(@ColorInt int seed, boolean isDark, @Style.Type int style,
+            double contrastLevel) {
         this.mSeed = seed;
         this.mIsDark = isDark;
         this.mStyle = style;
@@ -78,17 +81,17 @@ public class ColorScheme {
                                 : seed));
 
         mMaterialScheme = switch (style) {
-            case SPRITZ -> new SchemeNeutral(seedHct, isDark, contrastLevel);
-            case TONAL_SPOT -> new SchemeTonalSpot(seedHct, isDark, contrastLevel);
-            case VIBRANT -> new SchemeVibrant(seedHct, isDark, contrastLevel);
-            case EXPRESSIVE -> new SchemeExpressive(seedHct, isDark, contrastLevel);
-            case RAINBOW -> new SchemeRainbow(seedHct, isDark, contrastLevel);
-            case FRUIT_SALAD -> new SchemeFruitSalad(seedHct, isDark, contrastLevel);
-            case CONTENT -> new SchemeContent(seedHct, isDark, contrastLevel);
-            case MONOCHROMATIC -> new SchemeMonochrome(seedHct, isDark, contrastLevel);
+            case Style.SPRITZ -> new SchemeNeutral(seedHct, isDark, contrastLevel);
+            case Style.TONAL_SPOT -> new SchemeTonalSpot(seedHct, isDark, contrastLevel);
+            case Style.VIBRANT -> new SchemeVibrant(seedHct, isDark, contrastLevel);
+            case Style.EXPRESSIVE -> new SchemeExpressive(seedHct, isDark, contrastLevel);
+            case Style.RAINBOW -> new SchemeRainbow(seedHct, isDark, contrastLevel);
+            case Style.FRUIT_SALAD -> new SchemeFruitSalad(seedHct, isDark, contrastLevel);
+            case Style.CONTENT -> new SchemeContent(seedHct, isDark, contrastLevel);
+            case Style.MONOCHROMATIC -> new SchemeMonochrome(seedHct, isDark, contrastLevel);
             // SystemUI Schemes
-            case CLOCK -> new SchemeClock(seedHct, isDark, contrastLevel);
-            case CLOCK_VIBRANT -> new SchemeClockVibrant(seedHct, isDark, contrastLevel);
+            case Style.CLOCK -> new SchemeClock(seedHct, isDark, contrastLevel);
+            case Style.CLOCK_VIBRANT -> new SchemeClockVibrant(seedHct, isDark, contrastLevel);
             default -> throw new IllegalArgumentException("Unknown style: " + style);
         };
 
@@ -104,11 +107,11 @@ public class ColorScheme {
         this(seed, darkTheme, Style.TONAL_SPOT);
     }
 
-    public ColorScheme(@ColorInt int seed, boolean darkTheme, Style style) {
+    public ColorScheme(@ColorInt int seed, boolean darkTheme, @Style.Type int style) {
         this(seed, darkTheme, style, 0.0);
     }
 
-    public ColorScheme(WallpaperColors wallpaperColors, boolean darkTheme, Style style) {
+    public ColorScheme(WallpaperColors wallpaperColors, boolean darkTheme, @Style.Type int style) {
         this(getSeedColor(wallpaperColors, style != Style.CONTENT), darkTheme, style);
     }
 
@@ -136,7 +139,8 @@ public class ColorScheme {
         return mSeed;
     }
 
-    public Style getStyle() {
+    @Style.Type
+    public int getStyle() {
         return mStyle;
     }
 
