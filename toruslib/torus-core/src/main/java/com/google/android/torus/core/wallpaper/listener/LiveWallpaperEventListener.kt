@@ -110,19 +110,44 @@ interface LiveWallpaperEventListener {
     fun shouldZoomOutWallpaper() = false
 
     /**
-     * React to COMMAND_LOCKSCREEN_LAYOUT_CHANGED from SystemUI. Current usage is to show the
-     * remaining space in lockscreen to bound the position for wallpaper shape effects. We also pass
-     * the bottom of smartspace as a reference.
+     * React to COMMAND_LOCKSCREEN_LAYOUT_CHANGED from SystemUI to give wallpaper focal area on
+     * lockscreen
      *
-     * @param extras contains the necessary value from lockscreen layout currently for magic
-     *   portrait, it contains
-     * - "screenLeft": the left of the screen
-     * - "screenRight": the left of the screen
-     * - "smartspaceBottom": the bottom of the smartspace date and weather part, not bc smartspace
-     * - "shortCutTop": the top of the shortcut in locksreen
-     * - "notificationBottom": the bottom of notifications in lockscreen With smartspaceBottom,
-     *   screenLeft, screenRight, shortCutTop, we can get the remaining space bounds in lockscreen
-     *   without notifications. And with notificationBottom, we have bounds with notifications
+     * @param extras contains the wallpaper focal area bounds from lockscreen
+     *
+     * For handheld,
+     *
+     * when there's notification, the focal area should be below notification stack, and above
+     * shortcut, and horizontally constrained by screen width. i.e. (screenLeft,
+     * notificationStackBottom, screenRight, shortcutTop)
+     *
+     * when there's no notification, the only difference is the top of focal area, which is below
+     * smartspace. i.e. (screenLeft, smartspaceBottom, screenRight, shortcutTop)
+     *
+     * For tablet portrait, we have the similar logic with handheld, but we have its width
+     * constrained by a maxFocalAreaWidth, which is 500dp. i.e. left = screenCenterX -
+     * maxFocalAreaWidth / 2, top = smartspaceBottom or notificationStackBottom, right =
+     * screenCenterX + maxFocalAreaWidth / 2, bottom = shortcutTop.
+     *
+     * For tablet landscape, focal area is always in the center of screen, and we need to have a top
+     * margin as margin from the shortcut top to the screen bottom to make focal area vertically
+     * symmetric i.e. left = screenCenterX - maxFocalAreaWidth / 2, top =
+     * shortcutMarginToScreenBottom, right = screenCenterX + maxFocalAreaWidth / 2, bottom =
+     * shortcutTop
+     *
+     * For foldable fold mode, we have the same logic with handheld.
+     *
+     * For foldable unfold portrait, we have same logic with tablet portrait.
+     *
+     * For foldable unfold landscape, when there's notification, focal area is in left half screen,
+     * top to bottom of smartspace, bottom to top of shortcut, left and right is constrained by half
+     * screen width, i.e. (screenLeft, smartspaceBottom, screenCenterX, shortcutTop)
+     *
+     * when there's no notification, focal area is in right half screen, top to bottom of
+     * smartspace, bottom to top of shortcut, left and right is constrained by half screen width.
+     * i.e. (screenCenterX, smartspaceBottom, screenRight, shortcutTop)
      */
+    // TODO: when smartspace is moved from below small clock to the right of the clock, we need to
+    // change all smartspace bottom mentioned above to small clock bottom
     fun onLockscreenLayoutChanged(extras: Bundle) {}
 }
