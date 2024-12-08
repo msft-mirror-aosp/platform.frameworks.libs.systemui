@@ -197,6 +197,16 @@ abstract class LiveWallpaper : WallpaperService() {
             return false
         }
 
+        /**
+         * Returns the information if the wallpaper is visible.
+         */
+        fun isVisible(): Boolean {
+            this.wallpaperServiceEngine?.let {
+                return it.isVisible
+            }
+            return false
+        }
+
         /** Triggers the [WallpaperService] to recompute the Wallpaper Colors. */
         fun notifyWallpaperColorsChanged() {
             this.wallpaperServiceEngine?.notifyColorsChanged()
