@@ -13,33 +13,29 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.android.launcher3.icons.mono
+package com.android.launcher3.icons
 
 import android.content.Context
-import android.graphics.Bitmap
 import android.graphics.BlendMode.SRC_IN
 import android.graphics.BlendModeColorFilter
 import android.graphics.Canvas
 import android.graphics.Paint
 import android.graphics.Rect
-import com.android.launcher3.icons.BitmapInfo
-import com.android.launcher3.icons.FastBitmapDrawable
-import com.android.launcher3.icons.R
 
 /** Class to handle monochrome themed app icons */
 class ThemedIconDrawable(constantState: ThemedConstantState) :
-    FastBitmapDrawable(constantState.getBitmap(), constantState.colorFg) {
+    FastBitmapDrawable(constantState.mBitmap, constantState.colorFg) {
     val bitmapInfo = constantState.bitmapInfo
     private val colorFg = constantState.colorFg
     private val colorBg = constantState.colorBg
 
     // The foreground/monochrome icon for the app
-    private val monoIcon = constantState.mono
+    private val monoIcon = bitmapInfo.mMono!!
     private val monoFilter = BlendModeColorFilter(colorFg, SRC_IN)
     private val monoPaint =
         Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG).apply { colorFilter = monoFilter }
 
-    private val bgBitmap = constantState.whiteShadowLayer
+    private val bgBitmap = bitmapInfo.mWhiteShadowLayer
     private val bgFilter = BlendModeColorFilter(colorBg, SRC_IN)
     private val mBgPaint =
         Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG).apply { colorFilter = bgFilter }
@@ -65,26 +61,24 @@ class ThemedIconDrawable(constantState: ThemedConstantState) :
 
     override fun isThemed() = true
 
-    override fun newConstantState() =
-        ThemedConstantState(bitmapInfo, monoIcon, bgBitmap, colorBg, colorFg)
+    override fun newConstantState() = ThemedConstantState(bitmapInfo, colorBg, colorFg)
 
     override fun getIconColor() = colorFg
 
-    class ThemedConstantState(
-        val bitmapInfo: BitmapInfo,
-        val mono: Bitmap,
-        val whiteShadowLayer: Bitmap,
-        val colorBg: Int,
-        val colorFg: Int,
-    ) : FastBitmapConstantState(bitmapInfo.icon, bitmapInfo.color) {
+    class ThemedConstantState(val bitmapInfo: BitmapInfo, val colorBg: Int, val colorFg: Int) :
+        FastBitmapConstantState(bitmapInfo.icon, bitmapInfo.color) {
 
         public override fun createDrawable() = ThemedIconDrawable(this)
-
-        fun getBitmap(): Bitmap = mBitmap
     }
 
     companion object {
         const val TAG: String = "ThemedIconDrawable"
+
+        @JvmStatic
+        fun newDrawable(info: BitmapInfo, context: Context): FastBitmapDrawable {
+            val colors = getColors(context)
+            return ThemedConstantState(info, colors[0], colors[1]).newDrawable()
+        }
 
         /** Get an int array representing background and foreground colors for themed icons */
         @JvmStatic

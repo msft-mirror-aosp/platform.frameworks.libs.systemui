@@ -60,7 +60,8 @@ public class BitmapInfo {
     public final int color;
 
     @Nullable
-    private ThemedBitmap mThemedBitmap;
+    protected Bitmap mMono;
+    protected Bitmap mWhiteShadowLayer;
 
     public @BitmapInfoFlags int flags;
     private BitmapInfo badgeInfo;
@@ -89,7 +90,8 @@ public class BitmapInfo {
     }
 
     protected BitmapInfo copyInternalsTo(BitmapInfo target) {
-        target.mThemedBitmap = mThemedBitmap;
+        target.mMono = mMono;
+        target.mWhiteShadowLayer = mWhiteShadowLayer;
         target.flags = flags;
         target.badgeInfo = badgeInfo;
         return target;
@@ -100,13 +102,9 @@ public class BitmapInfo {
         return copyInternalsTo(new BitmapInfo(icon, color));
     }
 
-    public void setThemedBitmap(@Nullable ThemedBitmap themedBitmap) {
-        mThemedBitmap = themedBitmap;
-    }
-
-    @Nullable
-    public ThemedBitmap getThemedBitmap() {
-        return mThemedBitmap;
+    public void setMonoIcon(Bitmap mono, BaseIconFactory iconFactory) {
+        mMono = mono;
+        mWhiteShadowLayer = iconFactory.getWhiteShadowLayer();
     }
 
     /**
@@ -127,6 +125,10 @@ public class BitmapInfo {
         return !isNullOrLowRes();
     }
 
+    public Bitmap getMono() {
+        return mMono;
+    }
+
     /**
      * Creates a drawable for the provided BitmapInfo
      */
@@ -141,8 +143,8 @@ public class BitmapInfo {
         FastBitmapDrawable drawable;
         if (isLowRes()) {
             drawable = new PlaceHolderIconDrawable(this, context);
-        } else  if ((creationFlags & FLAG_THEMED) != 0 && mThemedBitmap != null) {
-            drawable = mThemedBitmap.newDrawable(this, context);
+        } else  if ((creationFlags & FLAG_THEMED) != 0 && mMono != null) {
+            drawable = ThemedIconDrawable.newDrawable(this, context);
         } else {
             drawable = new FastBitmapDrawable(this);
         }

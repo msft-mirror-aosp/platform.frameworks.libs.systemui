@@ -59,14 +59,13 @@ import com.android.launcher3.icons.BaseIconFactory;
 import com.android.launcher3.icons.BaseIconFactory.IconOptions;
 import com.android.launcher3.icons.BitmapInfo;
 import com.android.launcher3.icons.IconProvider;
-import com.android.launcher3.icons.IconThemeController;
-import com.android.launcher3.icons.ThemedBitmap;
 import com.android.launcher3.util.ComponentKey;
 import com.android.launcher3.util.FlagOp;
 import com.android.launcher3.util.SQLiteCacheHelper;
 
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
+import java.nio.ByteBuffer;
 import java.util.AbstractMap;
 import java.util.Arrays;
 import java.util.Collections;
@@ -693,13 +692,20 @@ public abstract class BaseIconCache {
                 return false;
             }
 
-            // Decode theme bitmap
-            try (BaseIconFactory factory = getIconFactory()) {
-                IconThemeController themeController = factory.getThemeController();
-                data = c.getBlob(IconDB.INDEX_MONO_ICON);
-                if (themeController != null && data != null) {
-                    entry.bitmap.setThemedBitmap(
-                            themeController.decode(data, entry.bitmap, factory));
+            // Decode mono bitmap
+            data = c.getBlob(IconDB.INDEX_MONO_ICON);
+            Bitmap icon = entry.bitmap.icon;
+            if (data != null && data.length == icon.getHeight() * icon.getWidth()) {
+                Bitmap monoBitmap = Bitmap.createBitmap(
+                        icon.getWidth(), icon.getHeight(), Config.ALPHA_8);
+                monoBitmap.copyPixelsFromBuffer(ByteBuffer.wrap(data));
+                Bitmap hwMonoBitmap = monoBitmap.copy(Config.HARDWARE, false /*isMutable*/);
+                if (hwMonoBitmap != null) {
+                    monoBitmap.recycle();
+                    monoBitmap = hwMonoBitmap;
+                }
+                try (BaseIconFactory factory = getIconFactory()) {
+                    entry.bitmap.setMonoIcon(monoBitmap, factory);
                 }
             }
         }
@@ -786,9 +792,17 @@ public abstract class BaseIconCache {
         if (bitmapInfo.canPersist()) {
             values.put(IconDB.COLUMN_ICON, flattenBitmap(bitmapInfo.icon));
 
-            ThemedBitmap themedBitmap = bitmapInfo.getThemedBitmap();
-            values.put(IconDB.COLUMN_MONO_ICON,
-                    themedBitmap != null ? themedBitmap.serialize() : null);
+            // Persist mono bitmap as alpha channel
+            Bitmap mono = bitmapInfo.getMono();
+            if (mono != null && mono.getHeight() == bitmapInfo.icon.getHeight()
+                    && mono.getWidth() == bitmapInfo.icon.getWidth()
+                    && mono.getConfig() == Config.ALPHA_8) {
+                byte[] pixels = new byte[mono.getWidth() * mono.getHeight()];
+                mono.copyPixelsToBuffer(ByteBuffer.wrap(pixels));
+                values.put(IconDB.COLUMN_MONO_ICON, pixels);
+            } else {
+                values.put(IconDB.COLUMN_MONO_ICON, (byte[]) null);
+            }
         } else {
             values.put(IconDB.COLUMN_ICON, (byte[]) null);
             values.put(IconDB.COLUMN_MONO_ICON, (byte[]) null);
