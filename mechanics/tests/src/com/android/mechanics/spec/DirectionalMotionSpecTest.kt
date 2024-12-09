@@ -37,8 +37,8 @@ class DirectionalMotionSpecTest {
 
     @Test
     fun wrongSentinelBreakpoints_throws() {
-        val breakpoint1 = Breakpoint(b1, position = 10f, spring, Guarantee.None)
-        val breakpoint2 = Breakpoint(b2, position = 20f, spring, Guarantee.None)
+        val breakpoint1 = Breakpoint(B1, position = 10f, Spring, Guarantee.None)
+        val breakpoint2 = Breakpoint(B2, position = 20f, Spring, Guarantee.None)
 
         assertFailsWith<IllegalArgumentException> {
             DirectionalMotionSpec(listOf(breakpoint1, breakpoint2), listOf(Mapping.Identity))
@@ -64,8 +64,8 @@ class DirectionalMotionSpecTest {
 
     @Test
     fun breakpointsOutOfOrder_throws() {
-        val breakpoint1 = Breakpoint(b1, position = 10f, spring, Guarantee.None)
-        val breakpoint2 = Breakpoint(b2, position = 20f, spring, Guarantee.None)
+        val breakpoint1 = Breakpoint(B1, position = 10f, Spring, Guarantee.None)
+        val breakpoint2 = Breakpoint(B2, position = 20f, Spring, Guarantee.None)
         assertFailsWith<IllegalArgumentException> {
             DirectionalMotionSpec(
                 listOf(Breakpoint.minLimit, breakpoint2, breakpoint1, Breakpoint.maxLimit),
@@ -76,7 +76,7 @@ class DirectionalMotionSpecTest {
 
     @Test
     fun findBreakpointIndex_returnsMinForEmptySpec() {
-        val underTest = DirectionalMotionSpec.builder(spring).complete()
+        val underTest = DirectionalMotionSpec.builder(Spring).complete()
 
         assertThat(underTest.findBreakpointIndex(0f)).isEqualTo(0)
         assertThat(underTest.findBreakpointIndex(Float.MAX_VALUE)).isEqualTo(0)
@@ -85,7 +85,7 @@ class DirectionalMotionSpecTest {
 
     @Test
     fun findBreakpointIndex_throwsForNonFiniteInput() {
-        val underTest = DirectionalMotionSpec.builder(spring).complete()
+        val underTest = DirectionalMotionSpec.builder(Spring).complete()
 
         assertFailsWith<IllegalArgumentException> { underTest.findBreakpointIndex(Float.NaN) }
         assertFailsWith<IllegalArgumentException> {
@@ -99,7 +99,7 @@ class DirectionalMotionSpecTest {
     @Test
     fun findBreakpointIndex_atBreakpoint_returnsIndex() {
         val underTest =
-            DirectionalMotionSpec.builder(spring).toBreakpoint(10f).completeWith(Mapping.Identity)
+            DirectionalMotionSpec.builder(Spring).toBreakpoint(10f).completeWith(Mapping.Identity)
 
         assertThat(underTest.findBreakpointIndex(10f)).isEqualTo(1)
     }
@@ -107,7 +107,7 @@ class DirectionalMotionSpecTest {
     @Test
     fun findBreakpointIndex_afterBreakpoint_returnsPreviousIndex() {
         val underTest =
-            DirectionalMotionSpec.builder(spring).toBreakpoint(10f).completeWith(Mapping.Identity)
+            DirectionalMotionSpec.builder(Spring).toBreakpoint(10f).completeWith(Mapping.Identity)
 
         assertThat(underTest.findBreakpointIndex(10f.nextUp())).isEqualTo(1)
     }
@@ -115,7 +115,7 @@ class DirectionalMotionSpecTest {
     @Test
     fun findBreakpointIndex_beforeBreakpoint_returnsIndex() {
         val underTest =
-            DirectionalMotionSpec.builder(spring).toBreakpoint(10f).completeWith(Mapping.Identity)
+            DirectionalMotionSpec.builder(Spring).toBreakpoint(10f).completeWith(Mapping.Identity)
 
         assertThat(underTest.findBreakpointIndex(10f.nextDown())).isEqualTo(0)
     }
@@ -123,55 +123,55 @@ class DirectionalMotionSpecTest {
     @Test
     fun findBreakpointIndexByKey_returnsIndex() {
         val underTest =
-            DirectionalMotionSpec.builder(spring)
-                .toBreakpoint(10f, key = b1)
+            DirectionalMotionSpec.builder(Spring)
+                .toBreakpoint(10f, key = B1)
                 .completeWith(Mapping.Identity)
 
-        assertThat(underTest.findBreakpointIndex(b1)).isEqualTo(1)
+        assertThat(underTest.findBreakpointIndex(B1)).isEqualTo(1)
     }
 
     @Test
     fun findBreakpointIndexByKey_unknown_returnsMinusOne() {
         val underTest =
-            DirectionalMotionSpec.builder(spring)
-                .toBreakpoint(10f, key = b1)
+            DirectionalMotionSpec.builder(Spring)
+                .toBreakpoint(10f, key = B1)
                 .completeWith(Mapping.Identity)
 
-        assertThat(underTest.findBreakpointIndex(b2)).isEqualTo(-1)
+        assertThat(underTest.findBreakpointIndex(B2)).isEqualTo(-1)
     }
 
     @Test
     fun findSegmentIndex_returnsIndexForSegment_ignoringDirection() {
         val underTest =
-            DirectionalMotionSpec.builder(spring)
-                .toBreakpoint(10f, key = b1)
+            DirectionalMotionSpec.builder(Spring)
+                .toBreakpoint(10f, key = B1)
                 .continueWith(Mapping.One)
-                .toBreakpoint(20f, key = b2)
+                .toBreakpoint(20f, key = B2)
                 .completeWith(Mapping.Identity)
 
-        assertThat(underTest.findSegmentIndex(SegmentKey(b1, b2, InputDirection.Max))).isEqualTo(1)
-        assertThat(underTest.findSegmentIndex(SegmentKey(b1, b2, InputDirection.Min))).isEqualTo(1)
+        assertThat(underTest.findSegmentIndex(SegmentKey(B1, B2, InputDirection.Max))).isEqualTo(1)
+        assertThat(underTest.findSegmentIndex(SegmentKey(B1, B2, InputDirection.Min))).isEqualTo(1)
     }
 
     @Test
     fun findSegmentIndex_forInvalidKeys_returnsMinusOne() {
         val underTest =
-            DirectionalMotionSpec.builder(spring)
-                .toBreakpoint(10f, key = b1)
+            DirectionalMotionSpec.builder(Spring)
+                .toBreakpoint(10f, key = B1)
                 .continueWith(Mapping.One)
-                .toBreakpoint(20f, key = b2)
+                .toBreakpoint(20f, key = B2)
                 .continueWith(Mapping.One)
-                .toBreakpoint(30f, key = b3)
+                .toBreakpoint(30f, key = B3)
                 .completeWith(Mapping.Identity)
 
-        assertThat(underTest.findSegmentIndex(SegmentKey(b2, b1, InputDirection.Max))).isEqualTo(-1)
-        assertThat(underTest.findSegmentIndex(SegmentKey(b1, b3, InputDirection.Max))).isEqualTo(-1)
+        assertThat(underTest.findSegmentIndex(SegmentKey(B2, B1, InputDirection.Max))).isEqualTo(-1)
+        assertThat(underTest.findSegmentIndex(SegmentKey(B1, B3, InputDirection.Max))).isEqualTo(-1)
     }
 
     companion object {
-        val b1 = BreakpointKey("one")
-        val b2 = BreakpointKey("two")
-        val b3 = BreakpointKey("three")
-        val spring = SpringParameters(stiffness = 100f, dampingRatio = 1f)
+        val B1 = BreakpointKey("one")
+        val B2 = BreakpointKey("two")
+        val B3 = BreakpointKey("three")
+        val Spring = SpringParameters(stiffness = 100f, dampingRatio = 1f)
     }
 }

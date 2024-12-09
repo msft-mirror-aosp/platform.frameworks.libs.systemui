@@ -30,8 +30,8 @@ class SegmentTest {
 
     @Test
     fun segmentData_isValidForInput_betweenBreakpointsSameDirection_isTrue() {
-        val breakpoint1 = Breakpoint(b1, position = 10f, spring, Guarantee.None)
-        val breakpoint2 = Breakpoint(b2, position = 20f, spring, Guarantee.None)
+        val breakpoint1 = Breakpoint(B1, position = 10f, Spring, Guarantee.None)
+        val breakpoint2 = Breakpoint(B2, position = 20f, Spring, Guarantee.None)
         val underTest =
             SegmentData(fakeSpec, breakpoint1, breakpoint2, InputDirection.Max, Mapping.Identity)
 
@@ -40,8 +40,8 @@ class SegmentTest {
 
     @Test
     fun segmentData_isValidForInput_betweenBreakpointsOppositeDirection_isFalse() {
-        val breakpoint1 = Breakpoint(b1, position = 10f, spring, Guarantee.None)
-        val breakpoint2 = Breakpoint(b2, position = 20f, spring, Guarantee.None)
+        val breakpoint1 = Breakpoint(B1, position = 10f, Spring, Guarantee.None)
+        val breakpoint2 = Breakpoint(B2, position = 20f, Spring, Guarantee.None)
         val underTest =
             SegmentData(fakeSpec, breakpoint1, breakpoint2, InputDirection.Max, Mapping.Identity)
 
@@ -50,8 +50,8 @@ class SegmentTest {
 
     @Test
     fun segmentData_isValidForInput_inMaxDirection_sampledAtVariousPositions_matchesExpectation() {
-        val breakpoint1 = Breakpoint(b1, position = 10f, spring, Guarantee.None)
-        val breakpoint2 = Breakpoint(b2, position = 20f, spring, Guarantee.None)
+        val breakpoint1 = Breakpoint(B1, position = 10f, Spring, Guarantee.None)
+        val breakpoint2 = Breakpoint(B2, position = 20f, Spring, Guarantee.None)
         val underTest =
             SegmentData(fakeSpec, breakpoint1, breakpoint2, InputDirection.Max, Mapping.Identity)
 
@@ -65,8 +65,8 @@ class SegmentTest {
 
     @Test
     fun segmentData_isValidForInput_inMinDirection_sampledAtVariousPositions_matchesExpectation() {
-        val breakpoint1 = Breakpoint(b1, position = 10f, spring, Guarantee.None)
-        val breakpoint2 = Breakpoint(b2, position = 20f, spring, Guarantee.None)
+        val breakpoint1 = Breakpoint(B1, position = 10f, Spring, Guarantee.None)
+        val breakpoint2 = Breakpoint(B2, position = 20f, Spring, Guarantee.None)
         val underTest =
             SegmentData(fakeSpec, breakpoint1, breakpoint2, InputDirection.Min, Mapping.Identity)
 
@@ -80,8 +80,8 @@ class SegmentTest {
 
     @Test
     fun segmentData_entryBreakpoint_maxDirection_returnsMinBreakpoint() {
-        val breakpoint1 = Breakpoint(b1, position = 10f, spring, Guarantee.None)
-        val breakpoint2 = Breakpoint(b2, position = 20f, spring, Guarantee.None)
+        val breakpoint1 = Breakpoint(B1, position = 10f, Spring, Guarantee.None)
+        val breakpoint2 = Breakpoint(B2, position = 20f, Spring, Guarantee.None)
         val underTest =
             SegmentData(fakeSpec, breakpoint1, breakpoint2, InputDirection.Max, Mapping.Identity)
 
@@ -90,8 +90,8 @@ class SegmentTest {
 
     @Test
     fun segmentData_entryBreakpoint_minDirection_returnsMaxBreakpoint() {
-        val breakpoint1 = Breakpoint(b1, position = 10f, spring, Guarantee.None)
-        val breakpoint2 = Breakpoint(b2, position = 20f, spring, Guarantee.None)
+        val breakpoint1 = Breakpoint(B1, position = 10f, Spring, Guarantee.None)
+        val breakpoint2 = Breakpoint(B2, position = 20f, Spring, Guarantee.None)
         val underTest =
             SegmentData(fakeSpec, breakpoint1, breakpoint2, InputDirection.Min, Mapping.Identity)
 
@@ -99,8 +99,8 @@ class SegmentTest {
     }
 
     companion object {
-        val b1 = BreakpointKey("one")
-        val b2 = BreakpointKey("two")
-        val spring = SpringParameters(stiffness = 100f, dampingRatio = 1f)
+        val B1 = BreakpointKey("one")
+        val B2 = BreakpointKey("two")
+        val Spring = SpringParameters(stiffness = 100f, dampingRatio = 1f)
     }
 }

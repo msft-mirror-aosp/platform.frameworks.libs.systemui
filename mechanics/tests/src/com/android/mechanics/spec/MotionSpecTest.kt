@@ -28,58 +28,58 @@ class MotionSpecTest {
 
     @Test
     fun containsSegment_unknownSegment_returnsFalse() {
-        val underTest = MotionSpec.builder(spring).complete()
-        assertThat(underTest.containsSegment(SegmentKey(b1, b2, InputDirection.Max))).isFalse()
+        val underTest = MotionSpec.builder(Spring).complete()
+        assertThat(underTest.containsSegment(SegmentKey(B1, B2, InputDirection.Max))).isFalse()
     }
 
     @Test
     fun containsSegment_symmetricSpec_knownSegment_returnsTrue() {
         val underTest =
-            MotionSpec.builder(spring)
-                .toBreakpoint(10f, key = b1)
+            MotionSpec.builder(Spring)
+                .toBreakpoint(10f, key = B1)
                 .continueWith(Mapping.One)
-                .toBreakpoint(20f, key = b2)
+                .toBreakpoint(20f, key = B2)
                 .completeWith(Mapping.Identity)
 
-        assertThat(underTest.containsSegment(SegmentKey(b1, b2, InputDirection.Max))).isTrue()
-        assertThat(underTest.containsSegment(SegmentKey(b1, b2, InputDirection.Min))).isTrue()
+        assertThat(underTest.containsSegment(SegmentKey(B1, B2, InputDirection.Max))).isTrue()
+        assertThat(underTest.containsSegment(SegmentKey(B1, B2, InputDirection.Min))).isTrue()
     }
 
     @Test
     fun containsSegment_asymmetricSpec_knownMaxDirectionSegment_trueOnlyInMaxDirection() {
         val forward =
-            DirectionalMotionSpec.builder(spring)
-                .toBreakpoint(10f, key = b1)
+            DirectionalMotionSpec.builder(Spring)
+                .toBreakpoint(10f, key = B1)
                 .continueWith(Mapping.One)
-                .toBreakpoint(20f, key = b2)
+                .toBreakpoint(20f, key = B2)
                 .completeWith(Mapping.Identity)
-        val reverse = DirectionalMotionSpec.builder(spring).complete()
+        val reverse = DirectionalMotionSpec.builder(Spring).complete()
 
         val underTest = MotionSpec(forward, reverse)
 
-        assertThat(underTest.containsSegment(SegmentKey(b1, b2, InputDirection.Max))).isTrue()
-        assertThat(underTest.containsSegment(SegmentKey(b1, b2, InputDirection.Min))).isFalse()
+        assertThat(underTest.containsSegment(SegmentKey(B1, B2, InputDirection.Max))).isTrue()
+        assertThat(underTest.containsSegment(SegmentKey(B1, B2, InputDirection.Min))).isFalse()
     }
 
     @Test
     fun containsSegment_asymmetricSpec_knownMinDirectionSegment_trueOnlyInMinDirection() {
-        val forward = DirectionalMotionSpec.builder(spring).complete()
+        val forward = DirectionalMotionSpec.builder(Spring).complete()
         val reverse =
-            DirectionalMotionSpec.builder(spring)
-                .toBreakpoint(10f, key = b1)
+            DirectionalMotionSpec.builder(Spring)
+                .toBreakpoint(10f, key = B1)
                 .continueWith(Mapping.One)
-                .toBreakpoint(20f, key = b2)
+                .toBreakpoint(20f, key = B2)
                 .completeWith(Mapping.Identity)
 
         val underTest = MotionSpec(forward, reverse)
 
-        assertThat(underTest.containsSegment(SegmentKey(b1, b2, InputDirection.Max))).isFalse()
-        assertThat(underTest.containsSegment(SegmentKey(b1, b2, InputDirection.Min))).isTrue()
+        assertThat(underTest.containsSegment(SegmentKey(B1, B2, InputDirection.Max))).isFalse()
+        assertThat(underTest.containsSegment(SegmentKey(B1, B2, InputDirection.Min))).isTrue()
     }
 
     @Test
     fun segmentAtInput_emptySpec_maxDirection_segmentDataIsCorrect() {
-        val underTest = MotionSpec.builder(spring).complete()
+        val underTest = MotionSpec.builder(Spring).complete()
 
         val segmentAtInput = underTest.segmentAtInput(0f, InputDirection.Max)
 
@@ -92,7 +92,7 @@ class MotionSpecTest {
 
     @Test
     fun segmentAtInput_emptySpec_minDirection_segmentDataIsCorrect() {
-        val underTest = MotionSpec.builder(spring).complete()
+        val underTest = MotionSpec.builder(Spring).complete()
 
         val segmentAtInput = underTest.segmentAtInput(0f, InputDirection.Min)
 
@@ -106,15 +106,15 @@ class MotionSpecTest {
     @Test
     fun segmentAtInput_atBreakpointPosition() {
         val underTest =
-            MotionSpec.builder(spring)
-                .toBreakpoint(10f, key = b1)
+            MotionSpec.builder(Spring)
+                .toBreakpoint(10f, key = B1)
                 .continueWith(Mapping.One)
-                .toBreakpoint(20f, key = b2)
+                .toBreakpoint(20f, key = B2)
                 .completeWith(Mapping.Identity)
 
         val segmentAtInput = underTest.segmentAtInput(10f, InputDirection.Max)
 
-        assertThat(segmentAtInput.key).isEqualTo(SegmentKey(b1, b2, InputDirection.Max))
+        assertThat(segmentAtInput.key).isEqualTo(SegmentKey(B1, B2, InputDirection.Max))
         assertThat(segmentAtInput.minBreakpoint).isAt(10f)
         assertThat(segmentAtInput.maxBreakpoint).isAt(20f)
         assertThat(segmentAtInput.mapping).isEqualTo(Mapping.One)
@@ -123,15 +123,15 @@ class MotionSpecTest {
     @Test
     fun segmentAtInput_reverse_atBreakpointPosition() {
         val underTest =
-            MotionSpec.builder(spring)
-                .toBreakpoint(10f, key = b1)
+            MotionSpec.builder(Spring)
+                .toBreakpoint(10f, key = B1)
                 .continueWith(Mapping.One)
-                .toBreakpoint(20f, key = b2)
+                .toBreakpoint(20f, key = B2)
                 .completeWith(Mapping.Identity)
 
         val segmentAtInput = underTest.segmentAtInput(20f, InputDirection.Min)
 
-        assertThat(segmentAtInput.key).isEqualTo(SegmentKey(b1, b2, InputDirection.Min))
+        assertThat(segmentAtInput.key).isEqualTo(SegmentKey(B1, B2, InputDirection.Min))
         assertThat(segmentAtInput.minBreakpoint).isAt(10f)
         assertThat(segmentAtInput.maxBreakpoint).isAt(20f)
         assertThat(segmentAtInput.mapping).isEqualTo(Mapping.One)
@@ -140,28 +140,28 @@ class MotionSpecTest {
     @Test
     fun containsSegment_asymmetricSpec_readsFromIndicatedDirection() {
         val forward =
-            DirectionalMotionSpec.builder(spring)
-                .toBreakpoint(10f, key = b1)
+            DirectionalMotionSpec.builder(Spring)
+                .toBreakpoint(10f, key = B1)
                 .continueWith(Mapping.One)
-                .toBreakpoint(20f, key = b2)
+                .toBreakpoint(20f, key = B2)
                 .completeWith(Mapping.Identity)
         val reverse =
-            DirectionalMotionSpec.builder(spring)
-                .toBreakpoint(5f, key = b1)
+            DirectionalMotionSpec.builder(Spring)
+                .toBreakpoint(5f, key = B1)
                 .continueWith(Mapping.Two)
-                .toBreakpoint(25f, key = b2)
+                .toBreakpoint(25f, key = B2)
                 .completeWith(Mapping.Identity)
 
         val underTest = MotionSpec(forward, reverse)
 
         val segmentAtInputMax = underTest.segmentAtInput(15f, InputDirection.Max)
-        assertThat(segmentAtInputMax.key).isEqualTo(SegmentKey(b1, b2, InputDirection.Max))
+        assertThat(segmentAtInputMax.key).isEqualTo(SegmentKey(B1, B2, InputDirection.Max))
         assertThat(segmentAtInputMax.minBreakpoint).isAt(10f)
         assertThat(segmentAtInputMax.maxBreakpoint).isAt(20f)
         assertThat(segmentAtInputMax.mapping).isEqualTo(Mapping.One)
 
         val segmentAtInputMin = underTest.segmentAtInput(15f, InputDirection.Min)
-        assertThat(segmentAtInputMin.key).isEqualTo(SegmentKey(b1, b2, InputDirection.Min))
+        assertThat(segmentAtInputMin.key).isEqualTo(SegmentKey(B1, B2, InputDirection.Min))
         assertThat(segmentAtInputMin.minBreakpoint).isAt(5f)
         assertThat(segmentAtInputMin.maxBreakpoint).isAt(25f)
         assertThat(segmentAtInputMin.mapping).isEqualTo(Mapping.Two)
@@ -170,10 +170,10 @@ class MotionSpecTest {
     @Test
     fun onSegmentChanged_noHandler_returnsEqualSegmentForSameInput() {
         val underTest =
-            MotionSpec.builder(spring)
-                .toBreakpoint(10f, key = b1)
+            MotionSpec.builder(Spring)
+                .toBreakpoint(10f, key = B1)
                 .continueWith(Mapping.One)
-                .toBreakpoint(20f, key = b2)
+                .toBreakpoint(20f, key = B2)
                 .completeWith(Mapping.Identity)
 
         val segmentAtInput = underTest.segmentAtInput(15f, InputDirection.Max)
@@ -184,51 +184,51 @@ class MotionSpecTest {
     @Test
     fun onSegmentChanged_noHandler_returnsNewSegmentForNewInput() {
         val underTest =
-            MotionSpec.builder(spring)
-                .toBreakpoint(10f, key = b1)
+            MotionSpec.builder(Spring)
+                .toBreakpoint(10f, key = B1)
                 .continueWith(Mapping.One)
-                .toBreakpoint(20f, key = b2)
+                .toBreakpoint(20f, key = B2)
                 .completeWith(Mapping.Identity)
 
         val segmentAtInput = underTest.segmentAtInput(15f, InputDirection.Max)
         val onChangedResult = underTest.onChangeSegment(segmentAtInput, 15f, InputDirection.Min)
         assertThat(segmentAtInput).isNotEqualTo(onChangedResult)
 
-        assertThat(onChangedResult.key).isEqualTo(SegmentKey(b1, b2, InputDirection.Min))
+        assertThat(onChangedResult.key).isEqualTo(SegmentKey(B1, B2, InputDirection.Min))
     }
 
     @Test
     fun onSegmentChanged_withHandlerReturningNull_returnsSegmentAtInput() {
         val underTest =
-            MotionSpec.builder(spring)
-                .toBreakpoint(10f, key = b1)
+            MotionSpec.builder(Spring)
+                .toBreakpoint(10f, key = B1)
                 .continueWith(Mapping.One)
-                .toBreakpoint(20f, key = b2)
+                .toBreakpoint(20f, key = B2)
                 .completeWith(Mapping.Identity)
                 .copy(
                     segmentHandlers =
-                        mapOf(SegmentKey(b1, b2, InputDirection.Max) to { _, _, _ -> null })
+                        mapOf(SegmentKey(B1, B2, InputDirection.Max) to { _, _, _ -> null })
                 )
 
         val segmentAtInput = underTest.segmentAtInput(15f, InputDirection.Max)
         val onChangedResult = underTest.onChangeSegment(segmentAtInput, 15f, InputDirection.Min)
 
         assertThat(segmentAtInput).isNotEqualTo(onChangedResult)
-        assertThat(onChangedResult.key).isEqualTo(SegmentKey(b1, b2, InputDirection.Min))
+        assertThat(onChangedResult.key).isEqualTo(SegmentKey(B1, B2, InputDirection.Min))
     }
 
     @Test
     fun onSegmentChanged_withHandlerReturningSegment_returnsHandlerResult() {
         val underTest =
-            MotionSpec.builder(spring)
-                .toBreakpoint(10f, key = b1)
+            MotionSpec.builder(Spring)
+                .toBreakpoint(10f, key = B1)
                 .continueWith(Mapping.One)
-                .toBreakpoint(20f, key = b2)
+                .toBreakpoint(20f, key = B2)
                 .completeWith(Mapping.Identity)
                 .copy(
                     segmentHandlers =
                         mapOf(
-                            SegmentKey(b1, b2, InputDirection.Max) to
+                            SegmentKey(B1, B2, InputDirection.Max) to
                                 { _, _, _ ->
                                     segmentAtInput(0f, InputDirection.Min)
                                 }
@@ -240,13 +240,12 @@ class MotionSpecTest {
 
         assertThat(segmentAtInput).isNotEqualTo(onChangedResult)
         assertThat(onChangedResult.key)
-            .isEqualTo(SegmentKey(Breakpoint.minLimit.key, b1, InputDirection.Min))
+            .isEqualTo(SegmentKey(Breakpoint.minLimit.key, B1, InputDirection.Min))
     }
 
     companion object {
-        val b1 = BreakpointKey("one")
-        val b2 = BreakpointKey("two")
-        val b3 = BreakpointKey("three")
-        val spring = SpringParameters(stiffness = 100f, dampingRatio = 1f)
+        val B1 = BreakpointKey("one")
+        val B2 = BreakpointKey("two")
+        val Spring = SpringParameters(stiffness = 100f, dampingRatio = 1f)
     }
 }
