@@ -25,7 +25,7 @@ package com.android.mechanics.spec
  * The directions are labelled [Min] and [Max] to reflect descending and ascending input values
  * respectively, but it does not imply an spatial direction.
  */
-enum class InputDirection {
-    Min,
-    Max,
+enum class InputDirection(val sign: Int) {
+    Min(sign = -1),
+    Max(sign = +1),
 }

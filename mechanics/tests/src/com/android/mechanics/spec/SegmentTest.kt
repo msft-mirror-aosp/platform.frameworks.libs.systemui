@@ -26,11 +26,14 @@ import org.junit.runner.RunWith
 @RunWith(AndroidJUnit4::class)
 class SegmentTest {
 
+    private val fakeSpec = MotionSpec.Empty
+
     @Test
     fun segmentData_isValidForInput_betweenBreakpointsSameDirection_isTrue() {
         val breakpoint1 = Breakpoint(b1, position = 10f, spring, Guarantee.None)
         val breakpoint2 = Breakpoint(b2, position = 20f, spring, Guarantee.None)
-        val underTest = SegmentData(breakpoint1, breakpoint2, InputDirection.Max, Mapping.Identity)
+        val underTest =
+            SegmentData(fakeSpec, breakpoint1, breakpoint2, InputDirection.Max, Mapping.Identity)
 
         assertThat(underTest.isValidForInput(15f, InputDirection.Max)).isTrue()
     }
@@ -39,7 +42,8 @@ class SegmentTest {
     fun segmentData_isValidForInput_betweenBreakpointsOppositeDirection_isFalse() {
         val breakpoint1 = Breakpoint(b1, position = 10f, spring, Guarantee.None)
         val breakpoint2 = Breakpoint(b2, position = 20f, spring, Guarantee.None)
-        val underTest = SegmentData(breakpoint1, breakpoint2, InputDirection.Max, Mapping.Identity)
+        val underTest =
+            SegmentData(fakeSpec, breakpoint1, breakpoint2, InputDirection.Max, Mapping.Identity)
 
         assertThat(underTest.isValidForInput(15f, InputDirection.Min)).isFalse()
     }
@@ -48,7 +52,8 @@ class SegmentTest {
     fun segmentData_isValidForInput_inMaxDirection_sampledAtVariousPositions_matchesExpectation() {
         val breakpoint1 = Breakpoint(b1, position = 10f, spring, Guarantee.None)
         val breakpoint2 = Breakpoint(b2, position = 20f, spring, Guarantee.None)
-        val underTest = SegmentData(breakpoint1, breakpoint2, InputDirection.Max, Mapping.Identity)
+        val underTest =
+            SegmentData(fakeSpec, breakpoint1, breakpoint2, InputDirection.Max, Mapping.Identity)
 
         for ((samplePosition, expectedResult) in
             listOf(5f to true, 10f to true, 15f to true, 20f to false, 25f to false)) {
@@ -62,7 +67,8 @@ class SegmentTest {
     fun segmentData_isValidForInput_inMinDirection_sampledAtVariousPositions_matchesExpectation() {
         val breakpoint1 = Breakpoint(b1, position = 10f, spring, Guarantee.None)
         val breakpoint2 = Breakpoint(b2, position = 20f, spring, Guarantee.None)
-        val underTest = SegmentData(breakpoint1, breakpoint2, InputDirection.Min, Mapping.Identity)
+        val underTest =
+            SegmentData(fakeSpec, breakpoint1, breakpoint2, InputDirection.Min, Mapping.Identity)
 
         for ((samplePosition, expectedResult) in
             listOf(5f to false, 10f to false, 15f to true, 20f to true, 25f to true)) {
@@ -70,6 +76,26 @@ class SegmentTest {
                 .that(underTest.isValidForInput(samplePosition, InputDirection.Min))
                 .isEqualTo(expectedResult)
         }
+    }
+
+    @Test
+    fun segmentData_entryBreakpoint_maxDirection_returnsMinBreakpoint() {
+        val breakpoint1 = Breakpoint(b1, position = 10f, spring, Guarantee.None)
+        val breakpoint2 = Breakpoint(b2, position = 20f, spring, Guarantee.None)
+        val underTest =
+            SegmentData(fakeSpec, breakpoint1, breakpoint2, InputDirection.Max, Mapping.Identity)
+
+        assertThat(underTest.entryBreakpoint).isSameInstanceAs(breakpoint1)
+    }
+
+    @Test
+    fun segmentData_entryBreakpoint_minDirection_returnsMaxBreakpoint() {
+        val breakpoint1 = Breakpoint(b1, position = 10f, spring, Guarantee.None)
+        val breakpoint2 = Breakpoint(b2, position = 20f, spring, Guarantee.None)
+        val underTest =
+            SegmentData(fakeSpec, breakpoint1, breakpoint2, InputDirection.Min, Mapping.Identity)
+
+        assertThat(underTest.entryBreakpoint).isSameInstanceAs(breakpoint2)
     }
 
     companion object {

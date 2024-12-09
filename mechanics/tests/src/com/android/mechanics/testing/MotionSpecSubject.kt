@@ -136,6 +136,10 @@ internal constructor(failureMetadata: FailureMetadata, private val actual: Break
             Factory<BreakpointSubject, Breakpoint> { failureMetadata, subject ->
                 BreakpointSubject(failureMetadata, subject)
             }
+
+        /** Shortcut for `Truth.assertAbout(subjectFactory).that(breakpoint)`. */
+        fun assertThat(breakpoint: Breakpoint): BreakpointSubject =
+            Truth.assertAbout(subjectFactory).that(breakpoint)
     }
 }
 
@@ -191,5 +195,9 @@ internal constructor(failureMetadata: FailureMetadata, private val actual: Mappi
             Factory<MappingSubject, Mapping> { failureMetadata, subject ->
                 MappingSubject(failureMetadata, subject)
             }
+
+        /** Shortcut for `Truth.assertAbout(subjectFactory).that(mapping)`. */
+        fun assertThat(mapping: Mapping): MappingSubject =
+            Truth.assertAbout(subjectFactory).that(mapping)
     }
 }
