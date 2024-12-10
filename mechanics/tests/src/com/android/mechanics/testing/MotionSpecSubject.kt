@@ -39,14 +39,14 @@ internal constructor(failureMetadata: FailureMetadata, private val actual: Direc
     fun breakpoints(): BreakpointsSubject {
         isNotNull()
 
-        return check("breakpoints").about(BreakpointsSubject.subjectFactory).that(actual)
+        return check("breakpoints").about(BreakpointsSubject.SubjectFactory).that(actual)
     }
 
     /** Assert on the mappings. */
     fun mappings(): MappingsSubject {
         isNotNull()
 
-        return check("mappings").about(MappingsSubject.subjectFactory).that(actual)
+        return check("mappings").about(MappingsSubject.SubjectFactory).that(actual)
     }
 
     companion object {
@@ -76,20 +76,20 @@ class BreakpointsSubject(
 
     fun atPosition(position: Float): BreakpointSubject {
         return check("breakpoint @ $position")
-            .about(BreakpointSubject.subjectFactory)
+            .about(BreakpointSubject.SubjectFactory)
             .that(actual?.breakpoints?.find { it.position == position })
     }
 
     fun withKey(key: BreakpointKey): BreakpointSubject {
         return check("breakpoint with $key]")
-            .about(BreakpointSubject.subjectFactory)
+            .about(BreakpointSubject.SubjectFactory)
             .that(actual?.breakpoints?.find { it.key == key })
     }
 
     companion object {
 
         /** Returns a factory to be used with [Truth.assertAbout]. */
-        val subjectFactory =
+        val SubjectFactory =
             Factory<BreakpointsSubject, DirectionalMotionSpec> { failureMetadata, subject ->
                 BreakpointsSubject(failureMetadata, subject)
             }
@@ -132,10 +132,14 @@ internal constructor(failureMetadata: FailureMetadata, private val actual: Break
             Correspondence.transforming<Breakpoint, Float>({ it?.position }, "position")
 
         /** Returns a factory to be used with [Truth.assertAbout]. */
-        val subjectFactory =
+        val SubjectFactory =
             Factory<BreakpointSubject, Breakpoint> { failureMetadata, subject ->
                 BreakpointSubject(failureMetadata, subject)
             }
+
+        /** Shortcut for `Truth.assertAbout(subjectFactory).that(breakpoint)`. */
+        fun assertThat(breakpoint: Breakpoint): BreakpointSubject =
+            Truth.assertAbout(SubjectFactory).that(breakpoint)
     }
 }
 
@@ -148,13 +152,13 @@ class MappingsSubject(
     /** Assert on the mapping at or after the specified position. */
     fun atOrAfter(position: Float): MappingSubject {
         return check("mapping @ $position")
-            .about(MappingSubject.subjectFactory)
+            .about(MappingSubject.SubjectFactory)
             .that(actual?.run { mappings[findBreakpointIndex(position)] })
     }
 
     companion object {
         /** Returns a factory to be used with [Truth.assertAbout]. */
-        val subjectFactory =
+        val SubjectFactory =
             Factory<MappingsSubject, DirectionalMotionSpec> { failureMetadata, subject ->
                 MappingsSubject(failureMetadata, subject)
             }
@@ -187,9 +191,13 @@ internal constructor(failureMetadata: FailureMetadata, private val actual: Mappi
 
     companion object {
         /** Returns a factory to be used with [Truth.assertAbout]. */
-        val subjectFactory =
+        val SubjectFactory =
             Factory<MappingSubject, Mapping> { failureMetadata, subject ->
                 MappingSubject(failureMetadata, subject)
             }
+
+        /** Shortcut for `Truth.assertAbout(subjectFactory).that(mapping)`. */
+        fun assertThat(mapping: Mapping): MappingSubject =
+            Truth.assertAbout(SubjectFactory).that(mapping)
     }
 }

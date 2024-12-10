@@ -56,6 +56,63 @@ data class MotionSpec(
     val resetSpring: SpringParameters = DefaultResetSpring,
     val segmentHandlers: Map<SegmentKey, OnChangeSegmentHandler> = emptyMap(),
 ) {
+
+    /** The [DirectionalMotionSpec] for the specified [direction]. */
+    operator fun get(direction: InputDirection): DirectionalMotionSpec {
+        return when (direction) {
+            InputDirection.Min -> minDirection
+            InputDirection.Max -> maxDirection
+        }
+    }
+
+    /** Whether this spec contains a segment with the specified [segmentKey]. */
+    fun containsSegment(segmentKey: SegmentKey): Boolean {
+        return get(segmentKey.direction).findSegmentIndex(segmentKey) != -1
+    }
+
+    /**
+     * The [SegmentData] for an input with the specified [position] and [direction].
+     *
+     * The returned [SegmentData] will be cached while [SegmentData.isValidForInput] returns `true`.
+     */
+    fun segmentAtInput(position: Float, direction: InputDirection): SegmentData {
+        require(position.isFinite())
+
+        return with(get(direction)) {
+            var idx = findBreakpointIndex(position)
+            if (direction == InputDirection.Min && breakpoints[idx].position == position) {
+                // The segment starts at `position`. Since the breakpoints are sorted ascending, no
+                // matter the spec's direction, need to return the previous segment in the min
+                // direction.
+                idx--
+            }
+
+            SegmentData(
+                this@MotionSpec,
+                breakpoints[idx],
+                breakpoints[idx + 1],
+                direction,
+                mappings[idx],
+            )
+        }
+    }
+
+    /**
+     * Looks up the new [SegmentData] once the [currentSegment] is not valid for an input with
+     * [newPosition] and [newDirection].
+     *
+     * This will delegate to the [segmentHandlers], if registered for the [currentSegment]'s key.
+     */
+    internal fun onChangeSegment(
+        currentSegment: SegmentData,
+        newPosition: Float,
+        newDirection: InputDirection,
+    ): SegmentData {
+        val segmentChangeHandler = segmentHandlers[currentSegment.key]
+        return segmentChangeHandler?.invoke(this, currentSegment, newPosition, newDirection)
+            ?: segmentAtInput(newPosition, newDirection)
+    }
+
     companion object {
         /**
          * Default spring parameters for the reset spring. Matches the Fast Spatial spring of the
@@ -97,10 +154,11 @@ data class DirectionalMotionSpec(val breakpoints: List<Breakpoint>, val mappings
     /**
      * Returns the index of the closest breakpoint where `Breakpoint.position <= position`.
      *
-     * Guaranteed to be a valid index into [breakpoints], and guaranteed not to be the last element.
+     * Guaranteed to be a valid index into [breakpoints], and guaranteed to be neither the first nor
+     * the last element.
      *
      * @param position the position in the input domain.
-     * @return Index into [breakpoints], guaranteed to be in range `0..breakpoints.size - 2`
+     * @return Index into [breakpoints], guaranteed to be in range `1..breakpoints.size - 2`
      */
     fun findBreakpointIndex(position: Float): Int {
         require(position.isFinite())
@@ -115,6 +173,22 @@ data class DirectionalMotionSpec(val breakpoints: List<Breakpoint>, val mappings
 
         check(result >= 0)
         check(result < breakpoints.size - 1)
+
+        return result
+    }
+
+    /**
+     * The index of the breakpoint with the specified [breakpointKey], or `-1` if no such breakpoint
+     * exists.
+     */
+    fun findBreakpointIndex(breakpointKey: BreakpointKey): Int {
+        return breakpoints.indexOfFirst { it.key == breakpointKey }
+    }
+
+    /** Index into [mappings] for the specified [segmentKey], or `-1` if no such segment exists. */
+    fun findSegmentIndex(segmentKey: SegmentKey): Int {
+        val result = breakpoints.indexOfFirst { it.key == segmentKey.minBreakpoint }
+        if (result < 0 || breakpoints[result + 1].key != segmentKey.maxBreakpoint) return -1
 
         return result
     }
