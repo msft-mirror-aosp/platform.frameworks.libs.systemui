@@ -27,7 +27,7 @@ class FluentSpecBuilderTest {
 
     @Test
     fun directionalSpec_buildEmptySpec() {
-        val result = DirectionalMotionSpec.builder(spring).complete()
+        val result = DirectionalMotionSpec.builder(Spring).complete()
 
         assertThat(result).breakpoints().isEmpty()
         assertThat(result).mappings().containsExactly(Mapping.Identity)
@@ -35,7 +35,7 @@ class FluentSpecBuilderTest {
 
     @Test
     fun directionalSpec_buildEmptySpec_inReverse() {
-        val result = DirectionalMotionSpec.reverseBuilder(spring).complete()
+        val result = DirectionalMotionSpec.reverseBuilder(Spring).complete()
 
         assertThat(result).breakpoints().isEmpty()
         assertThat(result).mappings().containsExactly(Mapping.Identity)
@@ -44,15 +44,15 @@ class FluentSpecBuilderTest {
     @Test
     fun motionSpec_sameSpecInBothDirections() {
         val result =
-            MotionSpec.builder(spring, Mapping.Zero)
-                .toBreakpoint(0f, b1)
+            MotionSpec.builder(Spring, Mapping.Zero)
+                .toBreakpoint(0f, B1)
                 .continueWith(Mapping.One)
-                .toBreakpoint(10f, b2)
+                .toBreakpoint(10f, B2)
                 .completeWith(Mapping.Two)
 
         assertThat(result.maxDirection).isSameInstanceAs(result.minDirection)
 
-        assertThat(result.minDirection).breakpoints().keys().containsExactly(b1, b2).inOrder()
+        assertThat(result.minDirection).breakpoints().keys().containsExactly(B1, B2).inOrder()
         assertThat(result.minDirection)
             .mappings()
             .containsExactly(Mapping.Zero, Mapping.One, Mapping.Two)
@@ -62,15 +62,15 @@ class FluentSpecBuilderTest {
     @Test
     fun directionalSpec_addBreakpointsAndMappings() {
         val result =
-            DirectionalMotionSpec.builder(spring, Mapping.Zero)
-                .toBreakpoint(0f, b1)
+            DirectionalMotionSpec.builder(Spring, Mapping.Zero)
+                .toBreakpoint(0f, B1)
                 .continueWith(Mapping.One)
-                .toBreakpoint(10f, b2)
+                .toBreakpoint(10f, B2)
                 .completeWith(Mapping.Two)
 
-        assertThat(result).breakpoints().keys().containsExactly(b1, b2).inOrder()
-        assertThat(result).breakpoints().withKey(b1).isAt(0f)
-        assertThat(result).breakpoints().withKey(b2).isAt(10f)
+        assertThat(result).breakpoints().keys().containsExactly(B1, B2).inOrder()
+        assertThat(result).breakpoints().withKey(B1).isAt(0f)
+        assertThat(result).breakpoints().withKey(B2).isAt(10f)
         assertThat(result)
             .mappings()
             .containsExactly(Mapping.Zero, Mapping.One, Mapping.Two)
@@ -80,15 +80,15 @@ class FluentSpecBuilderTest {
     @Test
     fun directionalSpec_addBreakpointsAndMappings_inReverse() {
         val result =
-            DirectionalMotionSpec.reverseBuilder(spring, Mapping.Two)
-                .toBreakpoint(10f, b2)
+            DirectionalMotionSpec.reverseBuilder(Spring, Mapping.Two)
+                .toBreakpoint(10f, B2)
                 .continueWith(Mapping.One)
-                .toBreakpoint(0f, b1)
+                .toBreakpoint(0f, B1)
                 .completeWith(Mapping.Zero)
 
-        assertThat(result).breakpoints().keys().containsExactly(b1, b2).inOrder()
-        assertThat(result).breakpoints().withKey(b1).isAt(0f)
-        assertThat(result).breakpoints().withKey(b2).isAt(10f)
+        assertThat(result).breakpoints().keys().containsExactly(B1, B2).inOrder()
+        assertThat(result).breakpoints().withKey(B1).isAt(0f)
+        assertThat(result).breakpoints().withKey(B2).isAt(10f)
         assertThat(result)
             .mappings()
             .containsExactly(Mapping.Zero, Mapping.One, Mapping.Two)
@@ -98,20 +98,20 @@ class FluentSpecBuilderTest {
     @Test
     fun directionalSpec_mappingBuilder_setsDefaultSpring() {
         val result =
-            DirectionalMotionSpec.builder(spring)
+            DirectionalMotionSpec.builder(Spring)
                 .toBreakpoint(10f)
                 .jumpTo(20f)
                 .continueWithConstantValue()
                 .complete()
 
-        assertThat(result).breakpoints().atPosition(10f).spring().isEqualTo(spring)
+        assertThat(result).breakpoints().atPosition(10f).spring().isEqualTo(Spring)
     }
 
     @Test
     fun directionalSpec_mappingBuilder_canOverrideDefaultSpring() {
         val otherSpring = SpringParameters(stiffness = 10f, dampingRatio = 0.1f)
         val result =
-            DirectionalMotionSpec.builder(spring)
+            DirectionalMotionSpec.builder(Spring)
                 .toBreakpoint(10f)
                 .jumpTo(20f, spring = otherSpring)
                 .continueWithConstantValue()
@@ -123,7 +123,7 @@ class FluentSpecBuilderTest {
     @Test
     fun directionalSpec_mappingBuilder_defaultsToNoGuarantee() {
         val result =
-            DirectionalMotionSpec.builder(spring)
+            DirectionalMotionSpec.builder(Spring)
                 .toBreakpoint(10f)
                 .jumpTo(20f)
                 .continueWithConstantValue()
@@ -136,7 +136,7 @@ class FluentSpecBuilderTest {
     fun directionalSpec_mappingBuilder_canSetGuarantee() {
         val guarantee = Guarantee.InputDelta(10f)
         val result =
-            DirectionalMotionSpec.builder(spring)
+            DirectionalMotionSpec.builder(Spring)
                 .toBreakpoint(10f)
                 .jumpTo(20f, guarantee = guarantee)
                 .continueWithConstantValue()
@@ -148,7 +148,7 @@ class FluentSpecBuilderTest {
     @Test
     fun directionalSpec_mappingBuilder_jumpTo_setsAbsoluteValue() {
         val result =
-            DirectionalMotionSpec.builder(spring, Mapping.Fixed(99f))
+            DirectionalMotionSpec.builder(Spring, Mapping.Fixed(99f))
                 .toBreakpoint(10f)
                 .jumpTo(20f)
                 .continueWithConstantValue()
@@ -161,7 +161,7 @@ class FluentSpecBuilderTest {
     @Test
     fun directionalSpec_mappingBuilder_jumpBy_setsRelativeValue() {
         val result =
-            DirectionalMotionSpec.builder(spring, Mapping.Linear(factor = 0.5f))
+            DirectionalMotionSpec.builder(Spring, Mapping.Linear(factor = 0.5f))
                 .toBreakpoint(10f)
                 .jumpBy(30f)
                 .continueWithConstantValue()
@@ -174,7 +174,7 @@ class FluentSpecBuilderTest {
     @Test
     fun directionalSpec_mappingBuilder_continueWithConstantValue_usesSourceValue() {
         val result =
-            DirectionalMotionSpec.builder(spring, Mapping.Linear(factor = 0.5f))
+            DirectionalMotionSpec.builder(Spring, Mapping.Linear(factor = 0.5f))
                 .toBreakpoint(5f)
                 .jumpBy(0f)
                 .continueWithConstantValue()
@@ -186,7 +186,7 @@ class FluentSpecBuilderTest {
     @Test
     fun directionalSpec_mappingBuilder_continueWithFractionalInput_matchesLinearMapping() {
         val result =
-            DirectionalMotionSpec.builder(spring)
+            DirectionalMotionSpec.builder(Spring)
                 .toBreakpoint(5f)
                 .jumpTo(1f)
                 .continueWithFractionalInput(fraction = .1f)
@@ -201,7 +201,7 @@ class FluentSpecBuilderTest {
     @Test
     fun directionalSpec_mappingBuilder_reverse_continueWithFractionalInput_matchesLinearMapping() {
         val result =
-            DirectionalMotionSpec.reverseBuilder(spring)
+            DirectionalMotionSpec.reverseBuilder(Spring)
                 .toBreakpoint(15f)
                 .jumpTo(2f)
                 .continueWithFractionalInput(fraction = .1f)
@@ -216,7 +216,7 @@ class FluentSpecBuilderTest {
     @Test
     fun directionalSpec_mappingBuilder_continueWithTargetValue_matchesLinearMapping() {
         val result =
-            DirectionalMotionSpec.builder(spring)
+            DirectionalMotionSpec.builder(Spring)
                 .toBreakpoint(5f)
                 .jumpTo(1f)
                 .continueWithTargetValue(target = 20f)
@@ -232,7 +232,7 @@ class FluentSpecBuilderTest {
     @Test
     fun directionalSpec_mappingBuilder_reverse_continueWithTargetValue_matchesLinearMapping() {
         val result =
-            DirectionalMotionSpec.reverseBuilder(spring)
+            DirectionalMotionSpec.reverseBuilder(Spring)
                 .toBreakpoint(30f)
                 .jumpTo(20f)
                 .continueWithTargetValue(target = 1f)
@@ -246,9 +246,8 @@ class FluentSpecBuilderTest {
     }
 
     companion object {
-        val spring = SpringParameters(stiffness = 100f, dampingRatio = 1f)
-        val b1 = BreakpointKey("One")
-        val b2 = BreakpointKey("Two")
-        val b3 = BreakpointKey("Three")
+        val Spring = SpringParameters(stiffness = 100f, dampingRatio = 1f)
+        val B1 = BreakpointKey("One")
+        val B2 = BreakpointKey("Two")
     }
 }
