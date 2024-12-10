@@ -84,7 +84,7 @@ class ComposeAndMechanicsSpringCompatibilityTest {
         initialVelocity: Float,
         parameters: SpringParameters,
     ) = buildList {
-        Animatable(displacement, displacementThreshold).animateTo(
+        Animatable(displacement, DisplacementThreshold).animateTo(
             0f,
             parameters.asSpringSpec(),
             initialVelocity,
@@ -99,9 +99,9 @@ class ComposeAndMechanicsSpringCompatibilityTest {
         parameters: SpringParameters,
     ) = buildList {
         var state = SpringState(displacement, initialVelocity)
-        while (!state.isStable(parameters, displacementThreshold)) {
+        while (!state.isStable(parameters, DisplacementThreshold)) {
             add(state)
-            state = state.calculateUpdatedState(frameDelayNanos, parameters)
+            state = state.calculateUpdatedState(FrameDelayNanos, parameters)
         }
     }
 
@@ -131,7 +131,7 @@ class ComposeAndMechanicsSpringCompatibilityTest {
             val mechanics = byMechanics.elementAtOrNull(i) ?: SpringState.AtRest
             val compose = byCompose.elementAtOrNull(i) ?: SpringState.AtRest
             assertThat(mechanics.displacement)
-                .isWithin(displacementThreshold)
+                .isWithin(DisplacementThreshold)
                 .of(compose.displacement)
         }
     }
@@ -142,11 +142,11 @@ class ComposeAndMechanicsSpringCompatibilityTest {
 
     private fun runTestWithFrameClock(testBody: suspend () -> Unit) = runTest {
         val testScope: TestScope = this
-        withContext(TestMonotonicFrameClock(testScope, frameDelayNanos)) { testBody() }
+        withContext(TestMonotonicFrameClock(testScope, FrameDelayNanos)) { testBody() }
     }
 
     companion object {
-        private val frameDelayNanos: Long = 16_000_000L
-        private val displacementThreshold: Float = 0.01f
+        private val FrameDelayNanos: Long = 16_000_000L
+        private val DisplacementThreshold: Float = 0.01f
     }
 }
