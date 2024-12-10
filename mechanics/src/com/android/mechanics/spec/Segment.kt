@@ -40,6 +40,7 @@ data class SegmentKey(
  * respective breakpoint.
  */
 data class SegmentData(
+    val spec: MotionSpec,
     val minBreakpoint: Breakpoint,
     val maxBreakpoint: Breakpoint,
     val direction: InputDirection,
@@ -62,6 +63,18 @@ data class SegmentData(
             InputDirection.Min -> inputPosition > minBreakpoint.position
         }
     }
+
+    /**
+     * The breakpoint at the side of the segment's start.
+     *
+     * The [entryBreakpoint]'s [Guarantee] is the relevant guarantee for this segment.
+     */
+    val entryBreakpoint: Breakpoint
+        get() =
+            when (direction) {
+                InputDirection.Max -> minBreakpoint
+                InputDirection.Min -> maxBreakpoint
+            }
 }
 
 /**
