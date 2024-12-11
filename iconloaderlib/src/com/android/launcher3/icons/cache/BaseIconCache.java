@@ -49,7 +49,6 @@ import android.text.TextUtils;
 import android.util.Log;
 import android.util.SparseArray;
 
-import androidx.annotation.IntDef;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.annotation.VisibleForTesting;
@@ -65,8 +64,6 @@ import com.android.launcher3.util.ComponentKey;
 import com.android.launcher3.util.FlagOp;
 import com.android.launcher3.util.SQLiteCacheHelper;
 
-import java.lang.annotation.Retention;
-import java.lang.annotation.RetentionPolicy;
 import java.util.AbstractMap;
 import java.util.Arrays;
 import java.util.Collections;
@@ -87,37 +84,6 @@ public abstract class BaseIconCache {
 
     // Empty class name is used for storing package default entry.
     public static final String EMPTY_CLASS_NAME = ".";
-
-    @Retention(RetentionPolicy.SOURCE)
-    @IntDef(value = {
-            LookupFlag.DEFAULT,
-            LookupFlag.USE_LOW_RES,
-            LookupFlag.USE_PACKAGE_ICON,
-            LookupFlag.SKIP_ADD_TO_MEM_CACHE
-    }, flag = true)
-    /** Various options to control cache lookup */
-    public @interface LookupFlag {
-        /**
-         * Default behavior of cache lookup is to load high-res icon with no fallback
-         */
-        int DEFAULT = 0;
-
-        /**
-         * When specified, the cache tries to load the low res version of the entry unless a
-         * high-res is already in memory
-         */
-        int USE_LOW_RES = 1 << 0;
-        /**
-         * When specified, the cache tries to lookup the package entry for the item, if the object
-         * entry fails
-         */
-        int USE_PACKAGE_ICON = 1 << 1;
-        /**
-         * When specified, the entry will not be added to the memory cache if it was not already
-         * added by a previous lookup
-         */
-        int SKIP_ADD_TO_MEM_CACHE = 1 << 2;
-    }
 
     public static class CacheEntry {
 
@@ -404,7 +370,7 @@ public abstract class BaseIconCache {
     protected <T> CacheEntry cacheLocked(
             @NonNull final ComponentName componentName, @NonNull final UserHandle user,
             @NonNull final Supplier<T> infoProvider, @NonNull final CachingLogic<T> cachingLogic,
-            @LookupFlag int lookupFlags) {
+            @NonNull CacheLookupFlag lookupFlags) {
         return cacheLocked(
                 componentName,
                 user,
@@ -418,14 +384,13 @@ public abstract class BaseIconCache {
     protected <T> CacheEntry cacheLocked(
             @NonNull final ComponentName componentName, @NonNull final UserHandle user,
             @NonNull final Supplier<T> infoProvider, @NonNull final CachingLogic<T> cachingLogic,
-            @LookupFlag int lookupFlags, @Nullable final Cursor cursor) {
+            @NonNull CacheLookupFlag lookupFlags, @Nullable final Cursor cursor) {
         assertWorkerThread();
         ComponentKey cacheKey = new ComponentKey(componentName, user);
         CacheEntry entry = mCache.get(cacheKey);
-        final boolean useLowResIcon = (lookupFlags & LookupFlag.USE_LOW_RES) != 0;
+        final boolean useLowResIcon = lookupFlags.useLowRes();
         if (entry == null || (entry.bitmap.isLowRes() && !useLowResIcon)) {
-            boolean addToMemCache = entry != null
-                    || (lookupFlags & LookupFlag.SKIP_ADD_TO_MEM_CACHE) == 0;
+            boolean addToMemCache = entry != null || !lookupFlags.skipAddToMemCache();
             entry = new CacheEntry();
             if (addToMemCache) {
                 mCache.put(cacheKey, entry);
@@ -445,7 +410,7 @@ public abstract class BaseIconCache {
                         object,
                         entry,
                         cachingLogic,
-                        (lookupFlags & LookupFlag.USE_PACKAGE_ICON) != 0,
+                        lookupFlags.usePackageIcon(),
                         /* usePackageTitle= */ true,
                         componentName,
                         user);
