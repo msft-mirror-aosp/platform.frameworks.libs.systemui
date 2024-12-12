@@ -20,6 +20,9 @@ import android.annotation.SuppressLint
 import android.os.Trace
 import com.android.app.tracing.coroutines.traceCoroutine
 import java.util.concurrent.ThreadLocalRandom
+import kotlin.contracts.ExperimentalContracts
+import kotlin.contracts.InvocationKind
+import kotlin.contracts.contract
 
 /**
  * Writes a trace message to indicate that a given section of code has begun running __on the
@@ -88,7 +91,9 @@ internal fun endSlice() {
  * Run a block within a [Trace] section. Calls [Trace.beginSection] before and [Trace.endSection]
  * after the passed block.
  */
+@OptIn(ExperimentalContracts::class)
 public inline fun <T> traceSection(tag: String, block: () -> T): T {
+    contract { callsInPlace(block, InvocationKind.EXACTLY_ONCE) }
     val tracingEnabled = Trace.isEnabled()
     if (tracingEnabled) beginSlice(tag)
     return try {
@@ -104,7 +109,12 @@ public inline fun <T> traceSection(tag: String, block: () -> T): T {
  * Same as [traceSection], but the tag is provided as a lambda to help avoiding creating expensive
  * strings when not needed.
  */
+@OptIn(ExperimentalContracts::class)
 public inline fun <T> traceSection(tag: () -> String, block: () -> T): T {
+    contract {
+        callsInPlace(tag, InvocationKind.AT_MOST_ONCE)
+        callsInPlace(block, InvocationKind.EXACTLY_ONCE)
+    }
     val tracingEnabled = Trace.isEnabled()
     if (tracingEnabled) beginSlice(tag())
     return try {

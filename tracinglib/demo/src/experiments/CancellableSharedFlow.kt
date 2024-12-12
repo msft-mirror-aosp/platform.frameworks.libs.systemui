@@ -27,7 +27,7 @@ import kotlinx.coroutines.flow.shareIn
 @Singleton
 class CancellableSharedFlow
 @Inject
-constructor(@FixedThreadB private var dispatcherB: CoroutineDispatcher) : Experiment {
+constructor(@FixedThreadB private var dispatcherB: CoroutineDispatcher) : AsyncExperiment {
 
     override val description: String = "Create shared flows that can be cancelled by the parent"
 

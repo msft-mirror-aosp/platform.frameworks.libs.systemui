@@ -44,7 +44,7 @@ import org.junit.Test
 class MultiThreadedCoroutineTracingTest : TestBase() {
 
     override val extraCoroutineContext: CoroutineContext
-        get() = createCoroutineTracingContext("main", includeParentNames = true, strictMode = true)
+        get() = createCoroutineTracingContext("main", testMode = true)
 
     @Test
     fun unconfinedLaunch() = runTest {
@@ -57,10 +57,10 @@ class MultiThreadedCoroutineTracingTest : TestBase() {
         // Dispatchers.Unconfined
         expect("main:1^")
         launchTraced("unconfined-launch", Dispatchers.Unconfined) {
-                launchTraced("thread1-launch", thread1) {
-                    traceCoroutine("thread1-inner") {
-                        barrier1.await()
-                        expect("main:1^:1^unconfined-launch:1^thread1-launch", "thread1-inner")
+                launchTraced("thread2-launch", thread2) {
+                    traceCoroutine("thread2-inner") {
+                        barrier3.await()
+                        expect("main:1^:1^unconfined-launch:1^thread2-launch", "thread2-inner")
                         barrier2.complete(Unit)
                     }
                 }
@@ -75,10 +75,10 @@ class MultiThreadedCoroutineTracingTest : TestBase() {
                         barrier3.complete(Unit)
                     }
                 }
-                launchTraced("thread2-launch", thread2) {
-                    traceCoroutine("thread2-inner") {
-                        barrier3.await()
-                        expect("main:1^:1^unconfined-launch:3^thread2-launch", "thread2-inner")
+                launchTraced("thread1-launch", thread1) {
+                    traceCoroutine("thread1-inner") {
+                        barrier1.await()
+                        expect("main:1^:1^unconfined-launch:3^thread1-launch", "thread1-inner")
                         barrier2.complete(Unit)
                     }
                 }
