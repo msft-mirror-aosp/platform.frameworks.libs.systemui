@@ -14,18 +14,11 @@
  * limitations under the License.
  */
 
-package com.android.mechanics.spec
+package com.example.tracing.demo.ui.theme
 
-/**
- * The intrinsic direction of the input value.
- *
- * It reflects the user's intent, that is its meant to be derived from a gesture. If the input is
- * driven by an animation, the direction is expected to not change.
- *
- * The directions are labelled [Min] and [Max] to reflect descending and ascending input values
- * respectively, but it does not imply an spatial direction.
- */
-enum class InputDirection(val sign: Int) {
-    Min(sign = -1),
-    Max(sign = +1),
-}
+import androidx.compose.ui.graphics.Color
+
+val Navy = Color(0xFF073042)
+val Blue = Color(0xFF4285F4)
+val LightBlue = Color(0xFFD7EFFE)
+val Chartreuse = Color(0xFFEFF7CF)

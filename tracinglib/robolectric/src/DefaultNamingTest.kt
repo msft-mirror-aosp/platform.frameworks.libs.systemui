@@ -46,7 +46,7 @@ import org.junit.Test
 class DefaultNamingTest : TestBase() {
 
     override val extraCoroutineContext: CoroutineContext
-        get() = createCoroutineTracingContext("main", includeParentNames = true, strictMode = true)
+        get() = createCoroutineTracingContext("main", testMode = true)
 
     fun namedCollectFun() {}
 
