@@ -37,16 +37,16 @@ constructor(
     @Default private var defaultContext: CoroutineDispatcher,
     @IO private var ioContext: CoroutineDispatcher,
     @Unconfined private var unconfinedContext: CoroutineDispatcher,
-) : Experiment {
+) : AsyncExperiment {
     override val description: String = "launch{};launch{};launch{};launch{}"
 
     override suspend fun start(): Unit = coroutineScope {
-        launch("launch(threadA)", dispatcherA) { forceSuspend("A", 250) }
-        launch("launch(threadB)", dispatcherB) { forceSuspend("B", 250) }
-        launch("launch(threadC)", dispatcherC) { forceSuspend("C", 250) }
-        launch("launch(Dispatchers.Default)", defaultContext) { forceSuspend("D", 250) }
-        launch("launch(EmptyCoroutineContext)") { forceSuspend("E", 250) }
-        launch("launch(Dispatchers.IO)", ioContext) { forceSuspend("F", 250) }
-        launch("launch(Dispatchers.Unconfined)", unconfinedContext) { forceSuspend("G", 250) }
+        launch("launch(threadA)", dispatcherA) { forceSuspend("A", 25) }
+        launch("launch(threadB)", dispatcherB) { forceSuspend("B", 25) }
+        launch("launch(threadC)", dispatcherC) { forceSuspend("C", 25) }
+        launch("launch(Dispatchers.Default)", defaultContext) { forceSuspend("D", 25) }
+        launch("launch(EmptyCoroutineContext)") { forceSuspend("E", 25) }
+        launch("launch(Dispatchers.IO)", ioContext) { forceSuspend("F", 25) }
+        launch("launch(Dispatchers.Unconfined)", unconfinedContext) { forceSuspend("G", 25) }
     }
 }

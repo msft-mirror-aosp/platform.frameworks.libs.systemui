@@ -37,7 +37,7 @@ constructor(
     @FixedThreadA private var dispatcherA: CoroutineDispatcher,
     @FixedThreadB private var dispatcherB: CoroutineDispatcher,
     @FixedThreadC private val dispatcherC: CoroutineDispatcher,
-) : Experiment {
+) : AsyncExperiment {
     override val description: String = "Collect a cold flow with intermediate operators"
 
     private val coldFlow =
