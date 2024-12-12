@@ -135,14 +135,14 @@ private class ExampleRepositoryImpl(
 class CallbackFlowTracingTest : TestBase() {
 
     override val extraCoroutineContext: CoroutineContext
-        get() = createCoroutineTracingContext("main", includeParentNames = true, strictMode = true)
+        get() = createCoroutineTracingContext("main", testMode = true)
 
     @Test
     fun callbackFlow1() {
         val exampleTracker = ExampleStateTrackerImpl()
         val bgScope =
             CoroutineScope(
-                createCoroutineTracingContext("bg", includeParentNames = true, strictMode = true) +
+                createCoroutineTracingContext("bg", testMode = true) +
                     newSingleThreadContext("bg-thread")
             )
         val repository = ExampleRepositoryImpl(this, bgScope, exampleTracker)

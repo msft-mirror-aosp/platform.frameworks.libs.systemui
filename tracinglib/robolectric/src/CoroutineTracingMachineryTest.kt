@@ -50,7 +50,7 @@ class CoroutineTracingMachineryTest : TestBase() {
         val context1 = newSingleThreadContext("thread-#1")
         val context2 =
             newSingleThreadContext("thread-#2") +
-                createCoroutineTracingContext("main", includeParentNames = true, strictMode = true)
+                createCoroutineTracingContext("main", testMode = true)
 
         launchTraced("launch#1", context1) {
             expect()
@@ -128,8 +128,7 @@ class CoroutineTracingMachineryTest : TestBase() {
         val expectedTraceForThread1 = arrayOf("1:a", "2:b", "1:c", "2:d", "1:e", "2:f", "1:g")
 
         val traceContext =
-            createCoroutineTracingContext("main", includeParentNames = true, strictMode = true)
-                as TraceContextElement
+            createCoroutineTracingContext("main", testMode = true) as TraceContextElement
         thread1.execute {
             try {
                 slicesForThread1.forEachIndexed { index, sliceName ->
@@ -204,8 +203,7 @@ class CoroutineTracingMachineryTest : TestBase() {
     fun traceContextIsCopied() = runTest {
         expect()
         val traceContext =
-            createCoroutineTracingContext("main", includeParentNames = true, strictMode = true)
-                as TraceContextElement
+            createCoroutineTracingContext("main", testMode = true) as TraceContextElement
         withContext(traceContext) {
             // Not the same object because it should be copied into the current context
             assertNotSame(traceThreadLocal.get(), traceContext.contextTraceData)

@@ -15,12 +15,14 @@
  */
 package com.example.tracing.demo.experiments
 
-interface Experiment {
-    /** The track name for async traces */
-    val tag: String
-        get() = "Experiment:${this::class.simpleName}"
-
+sealed interface Experiment {
     val description: String
+}
 
+sealed interface BlockingExperiment : Experiment {
+    fun start()
+}
+
+sealed interface AsyncExperiment : Experiment {
     suspend fun start()
 }
