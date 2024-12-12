@@ -14,8 +14,11 @@
  * limitations under the License.
  */
 
+@file:OptIn(ExperimentalCoroutinesApi::class)
+
 package com.android.mechanics
 
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.android.mechanics.spec.BreakpointKey
@@ -34,6 +37,9 @@ import com.android.mechanics.testing.MotionValueToolkit.Companion.isStable
 import com.android.mechanics.testing.MotionValueToolkit.Companion.output
 import com.android.mechanics.testing.goldenTest
 import com.google.common.truth.Truth.assertThat
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.test.runTest
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -321,9 +327,53 @@ class MotionValueTest {
         }
     }
 
+    @Test
+    fun keepRunning_concurrentInvocationThrows() = runTest {
+        val underTest = MotionValue({ 1f }, FakeGestureContext)
+
+        rule.setContent {
+            LaunchedEffect(underTest) {
+                val firstJob = launch { underTest.keepRunning() }
+
+                val result = kotlin.runCatching { underTest.keepRunning() }
+
+                assertThat(result.isFailure).isTrue()
+                assertThat(result.exceptionOrNull()).isInstanceOf(IllegalStateException::class.java)
+
+                assertThat(firstJob.isActive).isTrue()
+                firstJob.cancel()
+            }
+        }
+    }
+
+    @Test
+    fun debugInspector_sameInstance_whileInUse() {
+        val underTest = MotionValue({ 1f }, FakeGestureContext)
+
+        val originalInspector = underTest.debugInspector()
+        assertThat(underTest.debugInspector()).isSameInstanceAs(originalInspector)
+    }
+
+    @Test
+    fun debugInspector_newInstance_afterUnused() {
+        val underTest = MotionValue({ 1f }, FakeGestureContext)
+
+        val originalInspector = underTest.debugInspector()
+        originalInspector.dispose()
+        assertThat(underTest.debugInspector()).isNotSameInstanceAs(originalInspector)
+    }
+
     companion object {
         val B1 = BreakpointKey("breakpoint1")
         val B2 = BreakpointKey("breakpoint2")
+        val FakeGestureContext =
+            object : GestureContext {
+                override val direction: InputDirection
+                    get() = InputDirection.Max
+
+                override val distance: Float
+                    get() = 0f
+            }
 
         fun specBuilder(firstSegment: Mapping = Mapping.Identity) =
             MotionSpec.builder(

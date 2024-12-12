@@ -26,10 +26,9 @@ import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.junit4.ComposeContentTestRule
 import com.android.mechanics.DistanceGestureContext
 import com.android.mechanics.MotionValue
+import com.android.mechanics.debug.FrameData
 import com.android.mechanics.spec.InputDirection
 import com.android.mechanics.spec.MotionSpec
-import com.android.mechanics.spring.SpringParameters
-import com.android.mechanics.spring.SpringState
 import kotlin.math.abs
 import kotlin.math.floor
 import kotlin.math.sign
@@ -45,7 +44,6 @@ import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import platform.test.motion.MotionTestRule
 import platform.test.motion.RecordedMotion.Companion.create
-import platform.test.motion.golden.DataPoint
 import platform.test.motion.golden.Feature
 import platform.test.motion.golden.FrameId
 import platform.test.motion.golden.TimeSeries
@@ -126,6 +124,8 @@ fun MotionTestRule<MotionValueToolkit>.goldenTest(
             )
         val underTest = testHarness.underTest
 
+        val debugInspector = underTest.debugInspector()
+
         var recompositionCount = 0
         var lastOutput = 0f
         var lastOutputTarget = 0f
@@ -149,25 +149,11 @@ fun MotionTestRule<MotionValueToolkit>.goldenTest(
         mainClock.autoAdvance = false
 
         val frameIds = mutableListOf<FrameId>()
-        val input = mutableListOf<DataPoint<Float>>()
-        val gesturePosition = mutableListOf<DataPoint<Float>>()
-        val gestureDirection = mutableListOf<DataPoint<String>>()
-        val output = mutableListOf<DataPoint<Float>>()
-        val outputTarget = mutableListOf<DataPoint<Float>>()
-        val outputSpring = mutableListOf<DataPoint<SpringParameters>>()
-        val isStable = mutableListOf<DataPoint<Boolean>>()
+        val frameData = mutableListOf<FrameData>()
 
         fun recordFrame(frameId: TimestampFrameId) {
             frameIds.add(frameId)
-
-            input.add(testHarness.input.asDataPoint())
-            gesturePosition.add(testHarness.gestureContext.distance.asDataPoint())
-            gestureDirection.add(testHarness.gestureContext.direction.name.asDataPoint())
-
-            output.add(lastOutput.asDataPoint())
-            outputTarget.add(lastOutputTarget.asDataPoint())
-            outputSpring.add(underTest.lastAnimation.springParameters.asDataPoint())
-            isStable.add(lastIsStable.asDataPoint())
+            frameData.add(debugInspector.frame)
         }
 
         val startFrameTime = mainClock.currentTime
@@ -183,14 +169,19 @@ fun MotionTestRule<MotionValueToolkit>.goldenTest(
             TimeSeries(
                 frameIds.toList(),
                 listOf(
-                    Feature("input", input),
-                    Feature("gestureDirection", gestureDirection),
-                    Feature("output", output),
-                    Feature("outputTarget", outputTarget),
-                    Feature("outputSpring", outputSpring),
-                    Feature("isStable", isStable),
+                    Feature("input", frameData.map { it.input.asDataPoint() }),
+                    Feature(
+                        "gestureDirection",
+                        frameData.map { it.gestureDirection.name.asDataPoint() },
+                    ),
+                    Feature("output", frameData.map { it.output.asDataPoint() }),
+                    Feature("outputTarget", frameData.map { it.outputTarget.asDataPoint() }),
+                    Feature("outputSpring", frameData.map { it.springParameters.asDataPoint() }),
+                    Feature("isStable", frameData.map { it.isStable.asDataPoint() }),
                 ),
             )
+
+        debugInspector.dispose()
 
         val recordedMotion = create(timeSeries, screenshots = null)
         verifyTimeSeries.invoke(recordedMotion.timeSeries)
@@ -231,11 +222,17 @@ private class MotionValueTestHarness(
         }
 
     override suspend fun awaitStable() {
-        onFrame
-            // Since this is a state-flow, the current frame is counted too.
-            .drop(1)
-            .takeWhile { underTest.lastSpringState != SpringState.AtRest }
-            .collect {}
+        val debugInspector = underTest.debugInspector()
+        try {
+
+            onFrame
+                // Since this is a state-flow, the current frame is counted too.
+                .drop(1)
+                .takeWhile { !debugInspector.frame.isStable }
+                .collect {}
+        } finally {
+            debugInspector.dispose()
+        }
     }
 
     override suspend fun awaitFrames(frames: Int) {

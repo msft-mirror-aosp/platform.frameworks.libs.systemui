@@ -29,6 +29,8 @@ import androidx.compose.ui.util.lerp
 import androidx.compose.ui.util.packFloats
 import androidx.compose.ui.util.unpackFloat1
 import androidx.compose.ui.util.unpackFloat2
+import com.android.mechanics.debug.DebugInspector
+import com.android.mechanics.debug.FrameData
 import com.android.mechanics.spec.Breakpoint
 import com.android.mechanics.spec.Guarantee
 import com.android.mechanics.spec.InputDirection
@@ -38,6 +40,7 @@ import com.android.mechanics.spec.SegmentData
 import com.android.mechanics.spring.SpringParameters
 import com.android.mechanics.spring.SpringState
 import com.android.mechanics.spring.calculateUpdatedState
+import java.util.concurrent.atomic.AtomicInteger
 import kotlin.math.max
 import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.coroutineScope
@@ -150,49 +153,71 @@ class MotionValue(
      * Internally, this method does suspend, unless there are animations ongoing.
      */
     suspend fun keepRunning(): Nothing = coroutineScope {
-        while (true) {
-            // TODO suspend unless there are input changes or an animation is finishing.
+        check(!isActive) { "keepRunning() invoked while already running" }
 
-            withFrameNanos { frameTimeNanos ->
-                // A new animation frame started. This does not animate anything just yet - if an
-                // animation is ongoing, it will be updated because of the `animationTimeNanos` that
-                // is updated here.
-                currentAnimationTimeNanos = frameTimeNanos
+        isActive = true
+        try {
+            while (true) {
+                // TODO suspend unless there are input changes or an animation is finishing.
+
+                withFrameNanos { frameTimeNanos ->
+                    // A new animation frame started. This does not animate anything just yet - if
+                    // an
+                    // animation is ongoing, it will be updated because of the `animationTimeNanos`
+                    // that
+                    // is updated here.
+                    currentAnimationTimeNanos = frameTimeNanos
+                }
+
+                // At this point, the complete frame is done (including layout, drawing and
+                // everything else). What follows next is similar what one would do in a
+                // `SideEffect`, were this composable code:
+                // If during the last frame, a new animation was started, or a new segment entered,
+                // this state is copied over. If nothing changed, the computed `current*` state will
+                // be the same, it won't have a side effect.
+
+                // Capturing the state here is required since crossing a breakpoint is an event -
+                // the code has to record that this happened.
+
+                // Important - capture all values first, and only afterwards update the state.
+                // Interleaving read and update might trigger immediate re-computations.
+                val newSegment = currentSegment
+                val newGuaranteeState = currentGuaranteeState
+                val newAnimation = currentAnimation
+                val newSpringState = currentSpringState
+
+                // Capture the last frames input.
+                lastFrameTimeNanos = currentAnimationTimeNanos
+                lastInput = currentInput()
+                lastGestureDistance = currentGestureDistance
+                // Not capturing currentDirection and spec explicitly, they are included in
+                // lastSegment
+
+                // Update the state to the computed `current*` values
+                lastSegment = newSegment
+                lastGuaranteeState = newGuaranteeState
+                lastAnimation = newAnimation
+                lastSpringState = newSpringState
+                debugInspector?.run {
+                    frame =
+                        FrameData(
+                            lastInput,
+                            currentDirection,
+                            lastGestureDistance,
+                            lastFrameTimeNanos,
+                            lastSpringState,
+                            lastSegment,
+                            lastAnimation,
+                        )
+                }
             }
 
-            // At this point, the complete frame is done (including layout, drawing and everything
-            // else). What follows next is similar what one would do in a `SideEffect`, were this
-            // composable code:
-            // If during the last frame, a new animation was started, or a new segment entered,
-            // this state is copied over. If nothing changed, the computed `current*` state will be
-            // the same, it won't have a side effect.
-
-            // Capturing the state here is required since crossing a breakpoint is an event - the
-            // code has to record that this happened.
-
-            // Important - capture all values first, and only afterwards update the state.
-            // Interleaving read and update might trigger immediate re-computations.
-            val newSegment = currentSegment
-            val newGuaranteeState = currentGuaranteeState
-            val newAnimation = currentAnimation
-            val newSpringState = currentSpringState
-
-            // Capture the last frames input.
-            lastFrameTimeNanos = currentAnimationTimeNanos
-            lastInput = currentInput()
-            lastGestureDistance = currentGestureDistance
-            // Not capturing currentDirection and spec explicitly, they are included in lastSegment
-
-            // Update the state to the computed `current*` values
-            lastSegment = newSegment
-            lastGuaranteeState = newGuaranteeState
-            lastAnimation = newAnimation
-            lastSpringState = newSpringState
+            // Keep the compiler happy - the while (true) {} above will not complete, yet the
+            // compiler wants a return value.
+            @Suppress("UNREACHABLE_CODE") awaitCancellation()
+        } finally {
+            isActive = false
         }
-
-        // Keep the compiler happy - the while (true) {} above will not complete, yet the
-        // compiler wants a return value.
-        @Suppress("UNREACHABLE_CODE") awaitCancellation()
     }
 
     companion object {
@@ -225,7 +250,7 @@ class MotionValue(
      * The segment in use, defined by the min/max [Breakpoint]s and the [Mapping] in between. This
      * implicitly also captures the [InputDirection] and [MotionSpec].
      */
-    internal var lastSegment: SegmentData by
+    private var lastSegment: SegmentData by
         mutableStateOf(
             spec.segmentAtInput(currentInput(), currentDirection),
             referentialEqualityPolicy(),
@@ -267,7 +292,7 @@ class MotionValue(
      * the [SegmentData.mapping]. It might accumulate the target value - it is not required to reset
      * when the animation ends.
      */
-    internal var lastAnimation: DiscontinuityAnimation by
+    private var lastAnimation: DiscontinuityAnimation by
         mutableStateOf(DiscontinuityAnimation.None, referentialEqualityPolicy())
 
     // ---- Last frame's input and output ----------------------------------------------------------
@@ -280,7 +305,7 @@ class MotionValue(
      * Last frame's spring state, based on initial origin values in [lastAnimation], carried-forward
      * to [lastFrameTimeNanos].
      */
-    internal inline var lastSpringState: SpringState
+    private inline var lastSpringState: SpringState
         get() = SpringState(_lastSpringStatePacked)
         set(value) {
             _lastSpringStatePacked = value.packedValue
@@ -728,6 +753,50 @@ class MotionValue(
 
     private val currentAnimatedDelta: Float
         get() = currentAnimation.targetValue + currentSpringState.displacement
+
+    // ---- Accessor to internals, for inspection and tests ----------------------------------------
+
+    /** Whether a [keepRunning] coroutine is active currently. */
+    private var isActive = false
+        set(value) {
+            field = value
+            debugInspector?.isActive = value
+        }
+
+    private var debugInspector: DebugInspector? = null
+    private var debugInspectorRefCount = AtomicInteger(0)
+
+    private fun onDisposeDebugInspector() {
+        if (debugInspectorRefCount.decrementAndGet() == 0) {
+            debugInspector = null
+        }
+    }
+
+    /**
+     * Provides access to internal state for debug tooling and tests.
+     *
+     * The returned [DebugInspector] must be [DebugInspector.dispose]d when no longer needed.
+     */
+    fun debugInspector(): DebugInspector {
+        if (debugInspectorRefCount.getAndIncrement() == 0) {
+            debugInspector =
+                DebugInspector(
+                    FrameData(
+                        lastInput,
+                        lastSegment.direction,
+                        lastGestureDistance,
+                        lastFrameTimeNanos,
+                        lastSpringState,
+                        lastSegment,
+                        lastAnimation,
+                    ),
+                    isActive,
+                    ::onDisposeDebugInspector,
+                )
+        }
+
+        return checkNotNull(debugInspector)
+    }
 }
 
 /**
