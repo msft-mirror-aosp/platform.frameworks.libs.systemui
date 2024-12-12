@@ -151,7 +151,7 @@ public class IconProvider {
         if (mCalendar != null && mCalendar.getPackageName().equals(packageName)) {
             icon = loadCalendarDrawable(iconDpi, td);
         } else if (mClock != null && mClock.getPackageName().equals(packageName)) {
-            icon = ClockDrawableWrapper.forPackage(mContext, mClock.getPackageName(), iconDpi, td);
+            icon = ClockDrawableWrapper.forPackage(mContext, mClock.getPackageName(), iconDpi);
         }
         if (icon == null) {
             icon = loadPackageIcon(info, appInfo, iconDpi);

@@ -22,7 +22,6 @@ import android.content.Context;
 import android.content.pm.ApplicationInfo;
 import android.content.pm.PackageManager;
 import android.content.res.Resources;
-import android.content.res.TypedArray;
 import android.graphics.Bitmap;
 import android.graphics.BlendMode;
 import android.graphics.BlendModeColorFilter;
@@ -39,11 +38,8 @@ import android.os.Build;
 import android.os.Bundle;
 import android.os.SystemClock;
 import android.util.Log;
-import android.util.TypedValue;
 
-import androidx.annotation.Nullable;
-
-import com.android.launcher3.icons.IconProvider.ThemeData;
+import com.android.launcher3.icons.mono.ThemedIconDrawable;
 
 import java.util.Calendar;
 import java.util.concurrent.TimeUnit;
@@ -53,7 +49,6 @@ import java.util.function.IntFunction;
  * Wrapper over {@link AdaptiveIconDrawable} to intercept icon flattening logic for dynamic
  * clock icons
  */
-@TargetApi(Build.VERSION_CODES.O)
 public class ClockDrawableWrapper extends AdaptiveIconDrawable implements BitmapInfo.Extender {
 
     public static boolean sRunningInTest = false;
@@ -94,34 +89,6 @@ public class ClockDrawableWrapper extends AdaptiveIconDrawable implements Bitmap
         super(base.getBackground(), base.getForeground());
     }
 
-    private void applyThemeData(ThemeData themeData) {
-        if (!IconProvider.ATLEAST_T || mThemeInfo != null) {
-            return;
-        }
-        try {
-            TypedArray ta = themeData.mResources.obtainTypedArray(themeData.mResID);
-            int count = ta.length();
-            Bundle extras = new Bundle();
-            for (int i = 0; i < count; i += 2) {
-                TypedValue v = ta.peekValue(i + 1);
-                extras.putInt(ta.getString(i), v.type >= TypedValue.TYPE_FIRST_INT
-                        && v.type <= TypedValue.TYPE_LAST_INT
-                        ? v.data : v.resourceId);
-            }
-            ta.recycle();
-            ClockDrawableWrapper drawable = ClockDrawableWrapper.forExtras(extras, resId -> {
-                Drawable bg = new ColorDrawable(Color.WHITE);
-                Drawable fg = themeData.mResources.getDrawable(resId).mutate();
-                return new AdaptiveIconDrawable(bg, fg);
-            });
-            if (drawable != null) {
-                mThemeInfo = drawable.mAnimationInfo;
-            }
-        } catch (Exception e) {
-            Log.e(TAG, "Error loading themed clock", e);
-        }
-    }
-
     @Override
     public Drawable getMonochrome() {
         if (mThemeInfo == null) {
@@ -140,26 +107,19 @@ public class ClockDrawableWrapper extends AdaptiveIconDrawable implements Bitmap
      * Loads and returns the wrapper from the provided package, or returns null
      * if it is unable to load.
      */
-    public static ClockDrawableWrapper forPackage(Context context, String pkg, int iconDpi,
-            @Nullable ThemeData themeData) {
+    public static ClockDrawableWrapper forPackage(Context context, String pkg, int iconDpi) {
         try {
             PackageManager pm = context.getPackageManager();
             ApplicationInfo appInfo =  pm.getApplicationInfo(pkg,
                     PackageManager.MATCH_UNINSTALLED_PACKAGES | PackageManager.GET_META_DATA);
             Resources res = pm.getResourcesForApplication(appInfo);
-            ClockDrawableWrapper wrapper = forExtras(appInfo.metaData,
-                    resId -> res.getDrawableForDensity(resId, iconDpi));
-            if (wrapper != null && themeData != null) {
-                wrapper.applyThemeData(themeData);
-            }
-            return wrapper;
+            return forExtras(appInfo.metaData, resId -> res.getDrawableForDensity(resId, iconDpi));
         } catch (Exception e) {
             Log.d(TAG, "Unable to load clock drawable info", e);
         }
         return null;
     }
 
-    @TargetApi(Build.VERSION_CODES.TIRAMISU)
     private static ClockDrawableWrapper forExtras(
             Bundle metadata, IntFunction<Drawable> drawableProvider) {
         if (metadata == null) {
@@ -220,7 +180,7 @@ public class ClockDrawableWrapper extends AdaptiveIconDrawable implements Bitmap
                 BaseIconFactory.MODE_HARDWARE_WITH_SHADOW);
 
         // Only pass theme info if mono-icon is enabled
-        AnimationInfo themeInfo = iconFactory.mMonoIconEnabled ? mThemeInfo : null;
+        AnimationInfo themeInfo = iconFactory.getThemeController() != null ? mThemeInfo : null;
         Bitmap themeBG = themeInfo == null ? null : iconFactory.getWhiteShadowLayer();
         return new ClockBitmapInfo(bitmap, color, normalizationScale,
                 mAnimationInfo, flattenBG, themeInfo, themeBG);
