@@ -35,19 +35,19 @@ constructor(
     @FixedThreadC private val dispatcherC: CoroutineDispatcher,
     @Default private var defaultContext: CoroutineDispatcher,
     @IO private var ioContext: CoroutineDispatcher,
-) : Experiment {
+) : AsyncExperiment {
     override val description: String = "launch{launch{launch{launch{}}}}"
 
     override suspend fun start(): Unit = coroutineScope {
         launch("launch(threadA)", dispatcherA) {
-            forceSuspend("A", 250)
+            forceSuspend("A", 25)
             launch("launch(threadB)", dispatcherB) {
-                forceSuspend("B", 250)
+                forceSuspend("B", 25)
                 launch("launch(threadC)", dispatcherC) {
-                    forceSuspend("C", 250)
+                    forceSuspend("C", 25)
                     launch("launch(Dispatchers.Default)", defaultContext) {
-                        forceSuspend("D", 250)
-                        launch("launch(Dispatchers.IO)", ioContext) { forceSuspend("E", 250) }
+                        forceSuspend("D", 25)
+                        launch("launch(Dispatchers.IO)", ioContext) { forceSuspend("E", 25) }
                     }
                 }
             }

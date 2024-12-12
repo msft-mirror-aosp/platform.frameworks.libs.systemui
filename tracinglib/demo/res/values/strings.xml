@@ -1,5 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
-<!--
+<?xml version="1.0" encoding="utf-8"?><!--
      Copyright (C) 2024 The Android Open Source Project
 
      Licensed under the Apache License, Version 2.0 (the "License");
@@ -16,5 +15,7 @@
 -->
 <resources>
     <string name="app_name">CoroutineTracingDemoApp</string>
-    <string name="run_experiment_button_text">%1$s\n%2$s</string>
+    <string name="run_experiment">Run experiment</string>
+    <string name="show_more">Show more</string>
+    <string name="show_less">Show less</string>
 </resources>

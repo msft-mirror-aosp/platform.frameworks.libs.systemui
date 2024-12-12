@@ -13,16 +13,12 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.example.tracing.demo.experiments
 
-sealed interface Experiment {
-    val description: String
-}
+package com.example.tracing.demo.ui.theme
 
-sealed interface BlockingExperiment : Experiment {
-    fun start()
-}
+import androidx.compose.ui.graphics.Color
 
-sealed interface AsyncExperiment : Experiment {
-    suspend fun start()
-}
+val Navy = Color(0xFF073042)
+val Blue = Color(0xFF4285F4)
+val LightBlue = Color(0xFFD7EFFE)
+val Chartreuse = Color(0xFFEFF7CF)

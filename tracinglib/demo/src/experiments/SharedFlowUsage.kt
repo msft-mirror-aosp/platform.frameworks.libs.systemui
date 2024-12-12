@@ -43,7 +43,7 @@ constructor(
     @FixedThreadB private var dispatcherB: CoroutineDispatcher,
     @FixedThreadC private var dispatcherC: CoroutineDispatcher,
     @FixedThreadD private var dispatcherD: CoroutineDispatcher,
-) : Experiment {
+) : AsyncExperiment {
 
     override val description: String = "Create a shared flow and collect from it"
 
