@@ -32,7 +32,8 @@ import kotlinx.coroutines.DisposableHandle
 class DebugInspector
 internal constructor(
     initialFrameData: FrameData,
-    isActive: Boolean,
+    initialIsActive: Boolean,
+    initialIsAnimating: Boolean,
     disposableHandle: DisposableHandle,
 ) : DisposableHandle by disposableHandle {
 
@@ -41,7 +42,14 @@ internal constructor(
         internal set
 
     /** Whether a [MotionValue.keepRunning] coroutine is active currently. */
-    var isActive: Boolean by mutableStateOf(isActive)
+    var isActive: Boolean by mutableStateOf(initialIsActive)
+        internal set
+
+    /**
+     * `false` whenever the [MotionValue.keepRunning] coroutine internally is suspended while no
+     * animation is running and the input is not changing.
+     */
+    var isAnimating: Boolean by mutableStateOf(initialIsAnimating)
         internal set
 }
 

@@ -111,7 +111,6 @@ fun MotionTestRule<MotionValueToolkit>.goldenTest(
 ) = runTest {
     with(toolkit.composeTestRule) {
         val frameEmitter = MutableStateFlow<Long>(0)
-        mainClock.autoAdvance = false
 
         val testHarness =
             MotionValueTestHarness(
@@ -123,27 +122,11 @@ fun MotionTestRule<MotionValueToolkit>.goldenTest(
                 frameEmitter.asStateFlow(),
             )
         val underTest = testHarness.underTest
+        val inspector = underTest.debugInspector()
 
-        val debugInspector = underTest.debugInspector()
-
-        var recompositionCount = 0
-        var lastOutput = 0f
-        var lastOutputTarget = 0f
-        var lastIsStable = false
-
-        setContent {
-            LaunchedEffect(Unit) { underTest.keepRunning() }
-            recompositionCount++
-            lastOutput = underTest.output
-            lastOutputTarget = underTest.outputTarget
-            lastIsStable = underTest.isStable
-        }
+        setContent { LaunchedEffect(Unit) { underTest.keepRunning() } }
 
         val recordingJob = launch { testInput.invoke(testHarness) }
-
-        // TODO = remove this block once we have automatic
-        waitForIdle()
-        mainClock.advanceTimeByFrame()
 
         waitForIdle()
         mainClock.autoAdvance = false
@@ -153,7 +136,7 @@ fun MotionTestRule<MotionValueToolkit>.goldenTest(
 
         fun recordFrame(frameId: TimestampFrameId) {
             frameIds.add(frameId)
-            frameData.add(debugInspector.frame)
+            frameData.add(inspector.frame)
         }
 
         val startFrameTime = mainClock.currentTime
@@ -181,7 +164,7 @@ fun MotionTestRule<MotionValueToolkit>.goldenTest(
                 ),
             )
 
-        debugInspector.dispose()
+        inspector.dispose()
 
         val recordedMotion = create(timeSeries, screenshots = null)
         verifyTimeSeries.invoke(recordedMotion.timeSeries)

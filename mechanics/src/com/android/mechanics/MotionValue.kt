@@ -24,6 +24,7 @@ import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.referentialEqualityPolicy
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.util.lerp
 import androidx.compose.ui.util.packFloats
@@ -43,7 +44,9 @@ import com.android.mechanics.spring.calculateUpdatedState
 import java.util.concurrent.atomic.AtomicInteger
 import kotlin.math.max
 import kotlinx.coroutines.awaitCancellation
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.launch
 
 /**
  * Computes an animated [output] value, by mapping the [currentInput] according to the [spec].
@@ -154,20 +157,50 @@ class MotionValue(
      */
     suspend fun keepRunning(): Nothing = coroutineScope {
         check(!isActive) { "keepRunning() invoked while already running" }
-
         isActive = true
         try {
-            while (true) {
-                // TODO suspend unless there are input changes or an animation is finishing.
+            // The purpose of this implementation is to run an animation frame (via withFrameNanos)
+            // whenever the input changes, or the spring is still settling, but otherwise just
+            // suspend.
 
-                withFrameNanos { frameTimeNanos ->
-                    // A new animation frame started. This does not animate anything just yet - if
-                    // an
-                    // animation is ongoing, it will be updated because of the `animationTimeNanos`
-                    // that
-                    // is updated here.
-                    currentAnimationTimeNanos = frameTimeNanos
+            // Used to suspend when no animations are running, and to wait for a wakeup signal.
+            val wakeupChannel = Channel<Unit>(capacity = Channel.CONFLATED)
+
+            // `true` while the spring is settling.
+            var runAnimationFrames = !isStable
+            launch {
+                // TODO(b/383979536) use a SnapshotStateObserver instead
+                snapshotFlow {
+                        // observe all input values
+                        var result = spec.hashCode()
+                        result = result * 31 + currentInput().hashCode()
+                        result = result * 31 + currentDirection.hashCode()
+                        result = result * 31 + currentGestureDistance.hashCode()
+
+                        // Track whether the spring needs animation frames to finish
+                        // In fact, whether the spring is settling is the only relevant bit to
+                        // export from here. For everything else, just cause the flow to emit a
+                        // different value (hence the hashing)
+                        (result shl 1) + if (isStable) 0 else 1
+                    }
+                    .collect { hashedState ->
+                        // while the 'runAnimationFrames' bit was set on the result
+                        runAnimationFrames = (hashedState and 1) != 0
+                        // nudge the animation runner in case its sleeping.
+                        wakeupChannel.send(Unit)
+                    }
+            }
+
+            while (true) {
+                if (!runAnimationFrames) {
+                    // While the spring does not need animation frames (its stable), wait until
+                    // woken up - this can be for a single frame after an input change.
+                    debugIsAnimating = false
+                    wakeupChannel.receive()
                 }
+
+                debugIsAnimating = true
+                withFrameNanos { frameTimeNanos -> currentAnimationTimeNanos = frameTimeNanos }
 
                 // At this point, the complete frame is done (including layout, drawing and
                 // everything else). What follows next is similar what one would do in a
@@ -763,6 +796,16 @@ class MotionValue(
             debugInspector?.isActive = value
         }
 
+    /**
+     * `false` whenever the [keepRunning] coroutine is suspended while no animation is running and
+     * the input is not changing.
+     */
+    private var debugIsAnimating = false
+        set(value) {
+            field = value
+            debugInspector?.isAnimating = value
+        }
+
     private var debugInspector: DebugInspector? = null
     private var debugInspectorRefCount = AtomicInteger(0)
 
@@ -791,6 +834,7 @@ class MotionValue(
                         lastAnimation,
                     ),
                     isActive,
+                    debugIsAnimating,
                     ::onDisposeDebugInspector,
                 )
         }

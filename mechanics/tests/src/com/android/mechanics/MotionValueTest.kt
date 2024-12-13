@@ -19,6 +19,10 @@
 package com.android.mechanics
 
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.snapshotFlow
+import androidx.compose.ui.test.ExperimentalTestApi
+import androidx.compose.ui.test.TestMonotonicFrameClock
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.android.mechanics.spec.BreakpointKey
@@ -37,9 +41,13 @@ import com.android.mechanics.testing.MotionValueToolkit.Companion.isStable
 import com.android.mechanics.testing.MotionValueToolkit.Companion.output
 import com.android.mechanics.testing.goldenTest
 import com.google.common.truth.Truth.assertThat
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.test.TestCoroutineScheduler
+import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.withContext
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -328,22 +336,115 @@ class MotionValueTest {
     }
 
     @Test
-    fun keepRunning_concurrentInvocationThrows() = runTest {
+    fun keepRunning_concurrentInvocationThrows() = runTestWithFrameClock { testScheduler, _ ->
         val underTest = MotionValue({ 1f }, FakeGestureContext)
+        val realJob = launch { underTest.keepRunning() }
+        testScheduler.runCurrent()
 
-        rule.setContent {
-            LaunchedEffect(underTest) {
-                val firstJob = launch { underTest.keepRunning() }
-
-                val result = kotlin.runCatching { underTest.keepRunning() }
-
-                assertThat(result.isFailure).isTrue()
-                assertThat(result.exceptionOrNull()).isInstanceOf(IllegalStateException::class.java)
-
-                assertThat(firstJob.isActive).isTrue()
-                firstJob.cancel()
-            }
+        assertThat(realJob.isActive).isTrue()
+        try {
+            underTest.keepRunning()
+            // keepRunning returns Nothing, will never get here
+        } catch (e: Throwable) {
+            assertThat(e).isInstanceOf(IllegalStateException::class.java)
+            assertThat(e).hasMessageThat().contains("keepRunning() invoked while already running")
         }
+        assertThat(realJob.isActive).isTrue()
+        realJob.cancel()
+    }
+
+    @Test
+    fun keepRunning_suspendsWithoutAnAnimation() = runTest {
+        val input = mutableFloatStateOf(0f)
+        val spec = specBuilder(Mapping.Zero).toBreakpoint(1f).completeWith(Mapping.One)
+        val underTest = MotionValue(input::value, FakeGestureContext, spec)
+        rule.setContent { LaunchedEffect(Unit) { underTest.keepRunning() } }
+
+        val inspector = underTest.debugInspector()
+        var framesCount = 0
+        backgroundScope.launch { snapshotFlow { inspector.frame }.collect { framesCount++ } }
+
+        rule.awaitIdle()
+        framesCount = 0
+        rule.mainClock.autoAdvance = false
+
+        assertThat(inspector.isActive).isTrue()
+        assertThat(inspector.isAnimating).isFalse()
+
+        // Update the value, but WITHOUT causing an animation
+        input.floatValue = 0.5f
+        rule.awaitIdle()
+
+        // Still on the old frame..
+        assertThat(framesCount).isEqualTo(0)
+        // ... [underTest] is now waiting for an animation frame
+        assertThat(inspector.isAnimating).isTrue()
+
+        rule.mainClock.advanceTimeByFrame()
+        rule.awaitIdle()
+
+        // Produces the frame..
+        assertThat(framesCount).isEqualTo(1)
+        // ... and is suspended again.
+        assertThat(inspector.isAnimating).isFalse()
+
+        rule.mainClock.autoAdvance = true
+        rule.awaitIdle()
+        // Ensure that no more frames are produced
+        assertThat(framesCount).isEqualTo(1)
+    }
+
+    @Test
+    fun keepRunning_remainsActiveWhileAnimating() = runTest {
+        val input = mutableFloatStateOf(0f)
+        val spec = specBuilder(Mapping.Zero).toBreakpoint(1f).completeWith(Mapping.One)
+        val underTest = MotionValue(input::value, FakeGestureContext, spec)
+        rule.setContent { LaunchedEffect(Unit) { underTest.keepRunning() } }
+
+        val inspector = underTest.debugInspector()
+        var framesCount = 0
+        backgroundScope.launch { snapshotFlow { inspector.frame }.collect { framesCount++ } }
+
+        rule.awaitIdle()
+        framesCount = 0
+        rule.mainClock.autoAdvance = false
+
+        assertThat(inspector.isActive).isTrue()
+        assertThat(inspector.isAnimating).isFalse()
+
+        // Update the value, WITH triggering an animation
+        input.floatValue = 1.5f
+        rule.awaitIdle()
+
+        // Still on the old frame..
+        assertThat(framesCount).isEqualTo(0)
+        // ... [underTest] is now waiting for an animation frame
+        assertThat(inspector.isAnimating).isTrue()
+
+        // A couple frames should be generated without pausing
+        repeat(5) {
+            rule.mainClock.advanceTimeByFrame()
+            rule.awaitIdle()
+
+            // The spring is still settling...
+            assertThat(inspector.frame.isStable).isFalse()
+            // ... animation keeps going ...
+            assertThat(inspector.isAnimating).isTrue()
+            // ... and frames are produces...
+            assertThat(framesCount).isEqualTo(it + 1)
+        }
+
+        // But this will stop as soon as the animation is finished. Skip forward.
+        rule.mainClock.autoAdvance = true
+        rule.awaitIdle()
+
+        // At which point the spring is stable again...
+        assertThat(inspector.frame.isStable).isTrue()
+        // ... and animations are suspended again.
+        assertThat(inspector.isAnimating).isFalse()
+        // Without too many assumptions about how long it took to settle the spring, should be
+        // more than  160ms
+        assertThat(framesCount).isGreaterThan(10)
     }
 
     @Test
@@ -363,6 +464,19 @@ class MotionValueTest {
         assertThat(underTest.debugInspector()).isNotSameInstanceAs(originalInspector)
     }
 
+    @OptIn(ExperimentalTestApi::class)
+    private fun runTestWithFrameClock(
+        testBody:
+            suspend CoroutineScope.(
+                testScheduler: TestCoroutineScheduler, backgroundScope: CoroutineScope,
+            ) -> Unit
+    ) = runTest {
+        val testScope: TestScope = this
+        withContext(TestMonotonicFrameClock(testScope, FrameDelayNanos)) {
+            testBody(testScope.testScheduler, testScope.backgroundScope)
+        }
+    }
+
     companion object {
         val B1 = BreakpointKey("breakpoint1")
         val B2 = BreakpointKey("breakpoint2")
@@ -374,6 +488,7 @@ class MotionValueTest {
                 override val distance: Float
                     get() = 0f
             }
+        private val FrameDelayNanos: Long = 16_000_000L
 
         fun specBuilder(firstSegment: Mapping = Mapping.Identity) =
             MotionSpec.builder(
