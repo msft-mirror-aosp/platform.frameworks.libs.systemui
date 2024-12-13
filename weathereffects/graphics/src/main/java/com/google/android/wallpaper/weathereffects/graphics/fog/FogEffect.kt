@@ -16,22 +16,28 @@
 
 package com.google.android.wallpaper.weathereffects.graphics.fog
 
+import android.graphics.Bitmap
 import android.graphics.BitmapShader
 import android.graphics.Canvas
 import android.graphics.Paint
 import android.graphics.Shader
 import android.util.SizeF
 import com.google.android.wallpaper.weathereffects.graphics.WeatherEffect
+import com.google.android.wallpaper.weathereffects.graphics.WeatherEffect.Companion.DEFAULT_INTENSITY
 import com.google.android.wallpaper.weathereffects.graphics.utils.GraphicsUtils
 import com.google.android.wallpaper.weathereffects.graphics.utils.ImageCrop
+import com.google.android.wallpaper.weathereffects.graphics.utils.TimeUtils
 import kotlin.math.sin
 import kotlin.random.Random
 
 /** Defines and generates the fog weather effect animation. */
 class FogEffect(
     private val fogConfig: FogEffectConfig,
+    private var foreground: Bitmap,
+    private var background: Bitmap,
+    private var intensity: Float = DEFAULT_INTENSITY,
     /** The initial size of the surface where the effect will be shown. */
-    surfaceSize: SizeF
+    private var surfaceSize: SizeF
 ) : WeatherEffect {
 
     private val fogPaint = Paint().also { it.shader = fogConfig.colorGradingShader }
@@ -41,15 +47,20 @@ class FogEffect(
         updateTextureUniforms()
         adjustCropping(surfaceSize)
         prepareColorGrading()
-        setIntensity(fogConfig.intensity)
+        updateFogGridSize(surfaceSize)
+        setIntensity(intensity)
     }
 
-    override fun resize(newSurfaceSize: SizeF) = adjustCropping(newSurfaceSize)
+    override fun resize(newSurfaceSize: SizeF) {
+        adjustCropping(newSurfaceSize)
+        updateFogGridSize(newSurfaceSize)
+        surfaceSize = newSurfaceSize
+    }
 
     override fun update(deltaMillis: Long, frameTimeNanos: Long) {
-        val deltaTime = deltaMillis * MILLIS_TO_SECONDS
+        val deltaTime = TimeUtils.millisToSeconds(deltaMillis)
 
-        val time = frameTimeNanos.toFloat() * NANOS_TO_SECONDS
+        val time = TimeUtils.nanosToSeconds(frameTimeNanos)
         // Variation range [0.4, 1]. We don't want the variation to be 0.
         val variation = sin(0.06f * time + sin(0.18f * time)) * 0.3f + 0.7f
         elapsedTime += variation * deltaTime
@@ -59,7 +70,7 @@ class FogEffect(
         val variationFgd0 = 0.256f * sin(scaledElapsedTime)
         val variationFgd1 = 0.156f * sin(scaledElapsedTime) * sin(scaledElapsedTime)
         val timeFgd0 = 0.4f * elapsedTime * 5f + variationFgd0
-        val timeFgd1 = 0.03f * elapsedTime * 5f + variationFgd1
+        val timeFgd1 = 0.1f * elapsedTime * 5f + variationFgd1
 
         val variationBgd0 = 0.156f * sin((scaledElapsedTime + Math.PI.toFloat() / 2.0f))
         val variationBgd1 =
@@ -92,13 +103,27 @@ class FogEffect(
         )
     }
 
+    override fun setBitmaps(foreground: Bitmap, background: Bitmap) {
+        this.foreground = foreground
+        this.background = background
+        fogConfig.shader.setInputBuffer(
+            "background",
+            BitmapShader(background, Shader.TileMode.MIRROR, Shader.TileMode.MIRROR)
+        )
+        fogConfig.shader.setInputBuffer(
+            "foreground",
+            BitmapShader(foreground, Shader.TileMode.MIRROR, Shader.TileMode.MIRROR)
+        )
+        adjustCropping(surfaceSize)
+    }
+
     private fun adjustCropping(surfaceSize: SizeF) {
         val imageCropFgd =
             ImageCrop.centerCoverCrop(
                 surfaceSize.width,
                 surfaceSize.height,
-                fogConfig.foreground.width.toFloat(),
-                fogConfig.foreground.height.toFloat()
+                foreground.width.toFloat(),
+                foreground.height.toFloat()
             )
         fogConfig.shader.setFloatUniform(
             "uvOffsetFgd",
@@ -114,8 +139,8 @@ class FogEffect(
             ImageCrop.centerCoverCrop(
                 surfaceSize.width,
                 surfaceSize.height,
-                fogConfig.background.width.toFloat(),
-                fogConfig.background.height.toFloat()
+                background.width.toFloat(),
+                background.height.toFloat()
             )
         fogConfig.shader.setFloatUniform(
             "uvOffsetBgd",
@@ -137,12 +162,12 @@ class FogEffect(
     private fun updateTextureUniforms() {
         fogConfig.shader.setInputBuffer(
             "foreground",
-            BitmapShader(fogConfig.foreground, Shader.TileMode.MIRROR, Shader.TileMode.MIRROR)
+            BitmapShader(foreground, Shader.TileMode.MIRROR, Shader.TileMode.MIRROR)
         )
 
         fogConfig.shader.setInputBuffer(
             "background",
-            BitmapShader(fogConfig.background, Shader.TileMode.MIRROR, Shader.TileMode.MIRROR)
+            BitmapShader(background, Shader.TileMode.MIRROR, Shader.TileMode.MIRROR)
         )
 
         fogConfig.shader.setInputBuffer(
@@ -150,21 +175,9 @@ class FogEffect(
             BitmapShader(fogConfig.cloudsTexture, Shader.TileMode.REPEAT, Shader.TileMode.REPEAT)
         )
 
-        fogConfig.shader.setFloatUniform(
-            "cloudsSize",
-            fogConfig.cloudsTexture.width.toFloat(),
-            fogConfig.cloudsTexture.height.toFloat()
-        )
-
         fogConfig.shader.setInputBuffer(
             "fog",
             BitmapShader(fogConfig.fogTexture, Shader.TileMode.REPEAT, Shader.TileMode.REPEAT)
-        )
-
-        fogConfig.shader.setFloatUniform(
-            "fogSize",
-            fogConfig.fogTexture.width.toFloat(),
-            fogConfig.fogTexture.height.toFloat()
         )
 
         fogConfig.shader.setFloatUniform("pixelDensity", fogConfig.pixelDensity)
@@ -181,9 +194,19 @@ class FogEffect(
         fogConfig.colorGradingShader.setFloatUniform("intensity", fogConfig.colorGradingIntensity)
     }
 
-    private companion object {
+    private fun updateFogGridSize(surfaceSize: SizeF) {
+        val widthScreenScale =
+            GraphicsUtils.computeDefaultGridSize(surfaceSize, fogConfig.pixelDensity)
+        fogConfig.shader.setFloatUniform(
+            "cloudsSize",
+            widthScreenScale * fogConfig.cloudsTexture.width.toFloat(),
+            widthScreenScale * fogConfig.cloudsTexture.height.toFloat()
+        )
 
-        private const val MILLIS_TO_SECONDS = 1 / 1000f
-        private const val NANOS_TO_SECONDS = 1 / 1_000_000_000f
+        fogConfig.shader.setFloatUniform(
+            "fogSize",
+            widthScreenScale * fogConfig.fogTexture.width.toFloat(),
+            widthScreenScale * fogConfig.fogTexture.height.toFloat()
+        )
     }
 }
