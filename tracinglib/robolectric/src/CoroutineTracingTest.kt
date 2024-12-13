@@ -33,7 +33,7 @@ import org.junit.Test
 class CoroutineTracingTest : TestBase() {
 
     override val extraCoroutineContext: CoroutineContext
-        get() = createCoroutineTracingContext("main", includeParentNames = true, strictMode = true)
+        get() = createCoroutineTracingContext("main", testMode = true)
 
     @Test
     fun simpleTraceSection() = runTest {

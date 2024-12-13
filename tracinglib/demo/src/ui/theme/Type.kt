@@ -14,18 +14,22 @@
  * limitations under the License.
  */
 
-package com.android.mechanics.spec
+package com.example.tracing.demo.ui.theme
 
-/**
- * The intrinsic direction of the input value.
- *
- * It reflects the user's intent, that is its meant to be derived from a gesture. If the input is
- * driven by an animation, the direction is expected to not change.
- *
- * The directions are labelled [Min] and [Max] to reflect descending and ascending input values
- * respectively, but it does not imply an spatial direction.
- */
-enum class InputDirection(val sign: Int) {
-    Min(sign = -1),
-    Max(sign = +1),
-}
+import androidx.compose.material3.Typography
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.sp
+
+val Typography =
+    Typography(
+        bodyLarge =
+            TextStyle(
+                fontFamily = FontFamily.Default,
+                fontWeight = FontWeight.Normal,
+                fontSize = 16.sp,
+                lineHeight = 24.sp,
+                letterSpacing = 0.5.sp,
+            )
+    )

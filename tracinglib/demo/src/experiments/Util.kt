@@ -16,8 +16,11 @@
 package com.example.tracing.demo.experiments
 
 import android.os.HandlerThread
+import android.os.Process
 import android.os.Trace
 import com.android.app.tracing.coroutines.traceCoroutine
+import com.android.app.tracing.traceSection
+import kotlin.coroutines.Continuation
 import kotlin.coroutines.resume
 import kotlin.random.Random
 import kotlinx.coroutines.delay
@@ -31,45 +34,54 @@ fun coldCounterFlow(name: String, maxCount: Int = Int.MAX_VALUE) = flow {
     }
 }
 
-private val delayHandler by lazy { startThreadWithLooper("Thread:forceSuspend").threadHandler }
+private val delayHandler by lazy { startThreadWithLooper("delay-thread").threadHandler }
+
+private class DelayedContinuationRunner(
+    private val continuation: Continuation<Unit>,
+    private val traceName: String,
+    private val cookie: Int,
+) : Runnable {
+    override fun run() {
+        Trace.asyncTraceForTrackEnd(Trace.TRACE_TAG_APP, TRACK_NAME, cookie)
+        Trace.traceBegin(Trace.TRACE_TAG_APP, "resume after $traceName")
+        try {
+            continuation.resume(Unit)
+        } finally {
+            Trace.traceEnd(Trace.TRACE_TAG_APP)
+        }
+    }
+}
 
 /** Like [delay], but naively implemented so that it always suspends. */
-suspend fun forceSuspend(traceName: String, timeMillis: Long) {
-    val traceMessage = "forceSuspend:$traceName"
-    return traceCoroutine(traceMessage) {
-        val cookie = Random.nextInt()
+suspend fun forceSuspend(traceName: String? = null, timeMillis: Long) {
+    val traceMessage = "delay($timeMillis)${traceName?.let { " [$it]" } ?: ""}"
+    val cookie = Random.nextInt()
+    Trace.asyncTraceForTrackBegin(Trace.TRACE_TAG_APP, TRACK_NAME, traceMessage, cookie)
+    traceCoroutine(traceMessage) {
         suspendCancellableCoroutine { continuation ->
-            Trace.asyncTraceForTrackBegin(Trace.TRACE_TAG_APP, TRACK_NAME, traceMessage, cookie)
-            Trace.instant(Trace.TRACE_TAG_APP, "will resume in ${timeMillis}ms")
-            continuation.invokeOnCancellation { cause ->
-                Trace.instant(
-                    Trace.TRACE_TAG_APP,
-                    "forceSuspend:$traceName, cancelled due to ${cause?.javaClass}",
-                )
-                Trace.asyncTraceForTrackEnd(Trace.TRACE_TAG_APP, TRACK_NAME, cookie)
-            }
-            delayHandler.postDelayed(
-                {
-                    Trace.asyncTraceForTrackEnd(Trace.TRACE_TAG_APP, TRACK_NAME, cookie)
-                    Trace.traceBegin(Trace.TRACE_TAG_APP, "resume")
-                    try {
-                        continuation.resume(Unit)
-                    } finally {
-                        Trace.traceEnd(Trace.TRACE_TAG_APP)
+            traceSection("scheduling DelayedContinuationRunner") {
+                val delayedRunnable = DelayedContinuationRunner(continuation, traceMessage, cookie)
+                if (delayHandler.postDelayed(delayedRunnable, timeMillis)) {
+                    continuation.invokeOnCancellation { cause ->
+                        Trace.instant(
+                            Trace.TRACE_TAG_APP,
+                            "$traceMessage, cancelled due to ${cause?.javaClass}",
+                        )
+                        delayHandler.removeCallbacks(delayedRunnable)
+                        Trace.asyncTraceForTrackEnd(Trace.TRACE_TAG_APP, TRACK_NAME, cookie)
                     }
-                },
-                timeMillis,
-            )
+                }
+            }
         }
     }
 }
 
 fun startThreadWithLooper(name: String): HandlerThread {
-    val thread = HandlerThread(name)
+    val thread = HandlerThread(name, Process.THREAD_PRIORITY_FOREGROUND)
     thread.start()
     val looper = thread.looper
     looper.setTraceTag(Trace.TRACE_TAG_APP)
     return thread
 }
 
-const val TRACK_NAME = "Async events"
+const val TRACK_NAME = "Demo app events"
