@@ -308,12 +308,12 @@ internal class MSDLRepositoryImpl : MSDLRepository {
                         HapticComposition(
                             listOf(
                                 HapticCompositionPrimitive(
-                                    VibrationEffect.Composition.PRIMITIVE_TICK,
-                                    scale = 0.7f,
+                                    VibrationEffect.Composition.PRIMITIVE_CLICK,
+                                    scale = 0.5f,
                                     delayMillis = 0,
                                 )
                             ),
-                            VibrationEffect.createPredefined(VibrationEffect.EFFECT_TICK),
+                            VibrationEffect.createPredefined(VibrationEffect.EFFECT_CLICK),
                         )
                     },
                 HapticToken.KEYPRESS_SPACEBAR to
