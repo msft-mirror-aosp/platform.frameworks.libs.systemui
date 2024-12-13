@@ -32,6 +32,7 @@ android_library {
     static_libs: [
         "androidx.compose.runtime_runtime",
         "androidx.compose.ui_ui-util",
+        "androidx.compose.foundation_foundation-layout",
     ],
     srcs: [
         ":mechanics-srcs",

@@ -34,6 +34,7 @@ android_test {
         // ":mechanics" dependencies
         "androidx.compose.runtime_runtime",
         "androidx.compose.ui_ui-util",
+        "androidx.compose.foundation_foundation-layout",
 
         // ":mechanics_tests" dependencies
         "androidx.compose.animation_animation-core",
