@@ -15,6 +15,8 @@
  */
 package com.android.launcher3.icons;
 
+import static com.android.launcher3.icons.cache.CacheLookupFlag.DEFAULT_LOOKUP_FLAG;
+
 import android.content.Context;
 import android.graphics.Bitmap;
 import android.graphics.Bitmap.Config;
@@ -25,6 +27,7 @@ import androidx.annotation.IntDef;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 
+import com.android.launcher3.icons.cache.CacheLookupFlag;
 import com.android.launcher3.util.FlagOp;
 
 public class BitmapInfo {
@@ -118,6 +121,13 @@ public class BitmapInfo {
 
     public final boolean isLowRes() {
         return LOW_RES_ICON == icon;
+    }
+
+    /**
+     * Returns the lookup flag to match this current state of this info
+     */
+    public CacheLookupFlag getMatchingLookupFlag() {
+        return DEFAULT_LOOKUP_FLAG.withUseLowRes(isLowRes());
     }
 
     /**
