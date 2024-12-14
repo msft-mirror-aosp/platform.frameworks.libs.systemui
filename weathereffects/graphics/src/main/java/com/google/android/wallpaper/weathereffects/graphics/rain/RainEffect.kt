@@ -92,8 +92,11 @@ class RainEffect(
         createOutlineBuffer()
     }
 
-    override fun setBitmaps(foreground: Bitmap?, background: Bitmap) {
-        super.setBitmaps(foreground, background)
+    override fun setBitmaps(foreground: Bitmap?, background: Bitmap): Boolean {
+        if (!super.setBitmaps(foreground, background)) {
+            return false
+        }
+        outlineBuffer.close()
         outlineBuffer =
             FrameBuffer(background.width, background.height).apply {
                 setRenderEffect(RenderEffect.createBlurEffect(2f, 2f, Shader.TileMode.CLAMP))
@@ -102,6 +105,7 @@ class RainEffect(
 
         // Need to recreate the outline buffer as the outlineBuffer has changed due to background
         createOutlineBuffer()
+        return true
     }
 
     override val shader: RuntimeShader
