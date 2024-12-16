@@ -31,7 +31,7 @@ import kotlin.math.sqrt
  * @see SpringState function to create this value.
  */
 @JvmInline
-value class SpringState(private val packedValue: Long) {
+value class SpringState(val packedValue: Long) {
     val displacement: Float
         get() = unpackFloat1(packedValue)
 
@@ -49,6 +49,10 @@ value class SpringState(private val packedValue: Long) {
         val currentEnergy = parameters.stiffness * displacement * displacement + velocity * velocity
         val maxStableEnergy = parameters.stiffness * stableThreshold * stableThreshold
         return currentEnergy <= maxStableEnergy
+    }
+
+    fun addDisplacement(displacementDelta: Float): SpringState {
+        return SpringState(displacement + displacementDelta, velocity)
     }
 
     override fun toString(): String {
