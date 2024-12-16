@@ -20,6 +20,7 @@ package {
 android_test {
     name: "mechanics_tests",
     manifest: "AndroidManifest.xml",
+    defaults: ["MotionTestDefaults"],
     test_suites: ["device-tests"],
 
     srcs: [
@@ -37,10 +38,12 @@ android_test {
         // ":mechanics_tests" dependencies
         "androidx.compose.animation_animation-core",
         "platform-test-annotations",
-        "PlatformMotionTesting",
+        "PlatformMotionTestingCompose",
         "androidx.compose.ui_ui-test-junit4",
+        "androidx.compose.ui_ui-test-manifest",
         "androidx.test.runner",
         "androidx.test.ext.junit",
+        "kotlin-test",
         "truth",
     ],
     asset_dirs: ["goldens"],

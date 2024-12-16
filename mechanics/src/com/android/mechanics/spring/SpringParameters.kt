@@ -31,7 +31,7 @@ import kotlin.math.pow
  * @see SpringParameters function to create this value.
  */
 @JvmInline
-value class SpringParameters(private val packedValue: Long) {
+value class SpringParameters(val packedValue: Long) {
     val stiffness: Float
         get() = unpackFloat1(packedValue)
 

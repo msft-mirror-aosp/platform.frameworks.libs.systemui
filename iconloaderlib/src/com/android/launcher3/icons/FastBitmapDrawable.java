@@ -73,7 +73,7 @@ public class FastBitmapDrawable extends Drawable implements Drawable.Callback {
     @VisibleForTesting protected boolean mIsPressed;
     @VisibleForTesting protected boolean mIsHovered;
     protected boolean mIsDisabled;
-    float mDisabledAlpha = 1f;
+    protected float mDisabledAlpha = 1f;
 
     @DrawableCreationFlags int mCreationFlags = 0;
 
@@ -414,7 +414,7 @@ public class FastBitmapDrawable extends Drawable implements Drawable.Callback {
         sFlagHoverEnabled = isFlagHoverEnabled;
     }
 
-    protected static class FastBitmapConstantState extends ConstantState {
+    public static class FastBitmapConstantState extends ConstantState {
         protected final Bitmap mBitmap;
         protected final int mIconColor;
 

@@ -15,10 +15,5 @@
   ~ limitations under the License.
   -->
 <resources>
-    <style name="ActivityTheme" parent="@android:style/Theme.DeviceDefault.NoActionBar">
-        <item name="android:windowLayoutInDisplayCutoutMode">
-            never
-        </item>
-    </style>
-    <style name="Title" parent="@android:style/TextAppearance.Material.Title" />
+    <style name="Theme.ActivityTheme" parent="android:Theme.Material.Light.NoActionBar" />
 </resources>
