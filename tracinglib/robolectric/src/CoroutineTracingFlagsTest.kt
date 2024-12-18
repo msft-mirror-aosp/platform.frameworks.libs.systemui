@@ -14,12 +14,16 @@
  * limitations under the License.
  */
 
-package com.android.app.tracing.coroutines
+package com.android.test.tracing.coroutines
 
 import android.platform.test.annotations.DisableFlags
 import android.platform.test.annotations.EnableFlags
-import com.android.app.tracing.coroutines.util.FakeTraceState
+import com.android.app.tracing.coroutines.TraceData
+import com.android.app.tracing.coroutines.createCoroutineTracingContext
+import com.android.app.tracing.coroutines.traceCoroutine
+import com.android.app.tracing.coroutines.traceThreadLocal
 import com.android.systemui.Flags.FLAG_COROUTINE_TRACING
+import com.android.test.tracing.coroutines.util.FakeTraceState
 import kotlinx.coroutines.withContext
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -36,7 +40,7 @@ class CoroutineTracingFlagsTest : TestBase() {
     fun tracingDisabledWhenFlagIsOff() = runTest {
         assertFalse(com.android.systemui.Flags.coroutineTracing())
         assertNull(traceThreadLocal.get())
-        withContext(createCoroutineTracingContext()) {
+        withContext(createCoroutineTracingContext(testMode = true)) {
             assertNull(traceThreadLocal.get())
             traceCoroutine("hello") { // should not crash
                 assertNull(traceThreadLocal.get())
@@ -52,10 +56,6 @@ class CoroutineTracingFlagsTest : TestBase() {
                 fail("Lazy string should not be called when FLAG_COROUTINE_TRACING is disabled")
                 "error"
             }) {
-                // This should edge-case should never happen because TraceContextElement is internal
-                // and can only be created through createCoroutineTracingContext(), which checks for
-                // Compile.IS_DEBUG=true. However, we want to be certain that even if a
-                // TraceContextElement is somehow used, it is unused when IS_DEBUG=false.
                 assertNull(traceThreadLocal.get())
             }
         }
@@ -69,22 +69,20 @@ class CoroutineTracingFlagsTest : TestBase() {
         withContext(createCoroutineTracingContext()) {
             assertNotNull(traceThreadLocal.get())
 
-            // When Compile.IS_DEBUG=true, it is expected that the lazy-String is called even when
-            // tracing is disabled, because otherwise the coroutine resumption points would be
-            // missing their names.
+            // It is expected that the lazy-String is called even when tracing is disabled because
+            // otherwise the coroutine resumption points would be missing names.
             var lazyStringCalled = false
             traceCoroutine({
                 lazyStringCalled = true
                 "hello"
             }) {
                 assertTrue(
-                    "Lazy string should have been called when Compile.IS_DEBUG=true, " +
+                    "Lazy string should be been called when FLAG_COROUTINE_TRACING is enabled, " +
                         "even when Trace.isEnabled()=false",
-                    lazyStringCalled
+                    lazyStringCalled,
                 )
-                val traceData = traceThreadLocal.get()
-                assertNotNull(traceData)
-                assertEquals(traceData?.slices?.size, 1)
+                val traceData = traceThreadLocal.get() as TraceData
+                assertEquals(traceData.slices?.size, 1)
             }
         }
     }

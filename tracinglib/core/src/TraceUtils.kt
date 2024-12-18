@@ -16,9 +16,13 @@
 
 package com.android.app.tracing
 
+import android.annotation.SuppressLint
 import android.os.Trace
 import com.android.app.tracing.coroutines.traceCoroutine
 import java.util.concurrent.ThreadLocalRandom
+import kotlin.contracts.ExperimentalContracts
+import kotlin.contracts.InvocationKind
+import kotlin.contracts.contract
 
 /**
  * Writes a trace message to indicate that a given section of code has begun running __on the
@@ -64,7 +68,9 @@ import java.util.concurrent.ThreadLocalRandom
  * @see endSlice
  * @see traceCoroutine
  */
-fun beginSlice(sliceName: String) {
+@SuppressLint("UnclosedTrace")
+@PublishedApi
+internal fun beginSlice(sliceName: String) {
     Trace.traceBegin(Trace.TRACE_TAG_APP, sliceName)
 }
 
@@ -76,7 +82,8 @@ fun beginSlice(sliceName: String) {
  * @see beginSlice
  * @see traceCoroutine
  */
-fun endSlice() {
+@PublishedApi
+internal fun endSlice() {
     Trace.traceEnd(Trace.TRACE_TAG_APP)
 }
 
@@ -84,7 +91,9 @@ fun endSlice() {
  * Run a block within a [Trace] section. Calls [Trace.beginSection] before and [Trace.endSection]
  * after the passed block.
  */
-inline fun <T> traceSection(tag: String, block: () -> T): T {
+@OptIn(ExperimentalContracts::class)
+public inline fun <T> traceSection(tag: String, block: () -> T): T {
+    contract { callsInPlace(block, InvocationKind.EXACTLY_ONCE) }
     val tracingEnabled = Trace.isEnabled()
     if (tracingEnabled) beginSlice(tag)
     return try {
@@ -100,7 +109,12 @@ inline fun <T> traceSection(tag: String, block: () -> T): T {
  * Same as [traceSection], but the tag is provided as a lambda to help avoiding creating expensive
  * strings when not needed.
  */
-inline fun <T> traceSection(tag: () -> String, block: () -> T): T {
+@OptIn(ExperimentalContracts::class)
+public inline fun <T> traceSection(tag: () -> String, block: () -> T): T {
+    contract {
+        callsInPlace(tag, InvocationKind.AT_MOST_ONCE)
+        callsInPlace(block, InvocationKind.EXACTLY_ONCE)
+    }
     val tracingEnabled = Trace.isEnabled()
     if (tracingEnabled) beginSlice(tag())
     return try {
@@ -110,29 +124,29 @@ inline fun <T> traceSection(tag: () -> String, block: () -> T): T {
     }
 }
 
-object TraceUtils {
-    const val TAG = "TraceUtils"
-    const val DEFAULT_TRACK_NAME = "AsyncTraces"
+public object TraceUtils {
+    public const val TAG: String = "TraceUtils"
+    public const val DEFAULT_TRACK_NAME: String = "AsyncTraces"
 
     @JvmStatic
-    inline fun <T> trace(tag: () -> String, block: () -> T): T {
+    public inline fun <T> trace(tag: () -> String, block: () -> T): T {
         return traceSection(tag) { block() }
     }
 
     @JvmStatic
-    inline fun <T> trace(tag: String, crossinline block: () -> T): T {
+    public inline fun <T> trace(tag: String, crossinline block: () -> T): T {
         return traceSection(tag) { block() }
     }
 
     @JvmStatic
-    inline fun traceRunnable(tag: String, crossinline block: () -> Unit): Runnable {
+    public inline fun traceRunnable(tag: String, crossinline block: () -> Unit): Runnable {
         return Runnable { traceSection(tag) { block() } }
     }
 
     @JvmStatic
-    inline fun traceRunnable(
+    public inline fun traceRunnable(
         crossinline tag: () -> String,
-        crossinline block: () -> Unit
+        crossinline block: () -> Unit,
     ): Runnable {
         return Runnable { traceSection(tag) { block() } }
     }
@@ -144,12 +158,12 @@ object TraceUtils {
      * under a single track.
      */
     @JvmStatic
-    inline fun <T> traceAsync(method: String, block: () -> T): T =
+    public inline fun <T> traceAsync(method: String, block: () -> T): T =
         traceAsync(DEFAULT_TRACK_NAME, method, block)
 
     /** Creates an async slice in the default track. */
     @JvmStatic
-    inline fun <T> traceAsync(tag: () -> String, block: () -> T): T {
+    public inline fun <T> traceAsync(tag: () -> String, block: () -> T): T {
         val tracingEnabled = Trace.isEnabled()
         return if (tracingEnabled) {
             traceAsync(DEFAULT_TRACK_NAME, tag(), block)
@@ -164,7 +178,7 @@ object TraceUtils {
      * The [tag] is computed only if tracing is enabled. See [traceAsync].
      */
     @JvmStatic
-    inline fun <T> traceAsync(trackName: String, tag: () -> String, block: () -> T): T {
+    public inline fun <T> traceAsync(trackName: String, tag: () -> String, block: () -> T): T {
         val tracingEnabled = Trace.isEnabled()
         return if (tracingEnabled) {
             traceAsync(trackName, tag(), block)
@@ -181,7 +195,7 @@ object TraceUtils {
      * process.
      */
     @JvmStatic
-    inline fun <T> traceAsync(trackName: String, method: String, block: () -> T): T {
+    public inline fun <T> traceAsync(trackName: String, method: String, block: () -> T): T {
         val cookie = ThreadLocalRandom.current().nextInt()
         Trace.asyncTraceForTrackBegin(Trace.TRACE_TAG_APP, trackName, method, cookie)
         try {
