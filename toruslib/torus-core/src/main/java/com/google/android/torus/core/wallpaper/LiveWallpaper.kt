@@ -28,7 +28,6 @@ import android.os.Bundle
 import android.service.wallpaper.WallpaperService
 import android.view.MotionEvent
 import android.view.SurfaceHolder
-import androidx.annotation.RequiresApi
 import com.google.android.torus.core.content.ConfigurationChangeListener
 import com.google.android.torus.core.engine.TorusEngine
 import com.google.android.torus.core.engine.listener.TorusTouchListener
@@ -217,6 +216,10 @@ abstract class LiveWallpaper : WallpaperService() {
             return WALLPAPER_FLAG_NOT_FOUND
         }
 
+        fun setOffsetNotificationsEnabled(enabled: Boolean) {
+            this.wallpaperServiceEngine?.setOffsetNotificationsEnabled(enabled)
+        }
+
         internal fun setServiceEngineReference(wallpaperServiceEngine: WallpaperService.Engine) {
             this.wallpaperServiceEngine = wallpaperServiceEngine
         }
@@ -398,10 +401,15 @@ abstract class LiveWallpaper : WallpaperService() {
             }
         }
 
+        override fun onWallpaperFlagsChanged(which: Int) {
+            super.onWallpaperFlagsChanged(which)
+            wallpaperEngine.onWallpaperFlagsChanged(which)
+        }
+
         /**
          * This is overriding a hidden API [WallpaperService.shouldZoomOutWallpaper].
          */
-        fun shouldZoomOutWallpaper(): Boolean {
+        override fun shouldZoomOutWallpaper(): Boolean {
             if (wallpaperEngine is LiveWallpaperEventListener) {
                 return (wallpaperEngine as LiveWallpaperEventListener).shouldZoomOutWallpaper()
             }

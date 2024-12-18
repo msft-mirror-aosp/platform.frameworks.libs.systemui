@@ -17,6 +17,7 @@
 uniform shader texture;
 uniform float time;
 uniform float screenAspectRatio;
+uniform float gridScale;
 uniform float2 screenSize;
 uniform half intensity;
 
@@ -26,15 +27,16 @@ uniform half intensity;
 #include "shaders/rain_constants.agsl"
 
 vec4 main(float2 fragCoord) {
-    float2 uv = fragCoord / screenSize;
+    // 0. Calculate UV and add a bit of noise so that the droplets are not perfect circles.
+    float2 uv = vec2(valueNoise(fragCoord) * 0.015 - 0.0025) + fragCoord / screenSize;
 
     // 1. Generate small glass rain.
     GlassRain smallDrippingRain = generateGlassRain(
          uv,
          screenAspectRatio,
-         time,
-         /* Grid size = */ vec2(4.0, 2.0),
-         intensity);
+         time * 0.7,
+         /* Grid size = */ vec2(5.0, 1.6) * gridScale,
+         intensity * 0.6);
     float dropMask = smallDrippingRain.dropMask;
     float droppletsMask = smallDrippingRain.droppletsMask;
     float trailMask = smallDrippingRain.trailMask;
@@ -45,9 +47,9 @@ vec4 main(float2 fragCoord) {
     GlassRain medDrippingRain = generateGlassRain(
           uv,
           screenAspectRatio,
-          time * 1.267,
-          /* Grid size = */ vec2(3.5, 1.5),
-          intensity);
+          time * 0.80,
+          /* Grid size = */ vec2(6., 0.945) * gridScale,
+          intensity * 0.6);
 
     // 3. Combine those two glass rains.
     dropMask = max(medDrippingRain.dropMask, dropMask);
@@ -58,7 +60,15 @@ vec4 main(float2 fragCoord) {
     droppletsUvMasked = mix(droppletsUvMasked,
         medDrippingRain.dropplets * medDrippingRain.droppletsMask, medDrippingRain.droppletsMask);
 
-    // 4. Distort uv for the rain drops and dropplets.
+    // 4. Add static rain droplets on the glass surface. (They stay in place and dissapate.)
+    vec2 gridSize = vec2(12., 12.) * gridScale;
+    // Aspect ratio impacts visible cells.
+    gridSize.y /= screenAspectRatio;
+    vec3 staticRain = generateStaticGlassRain(uv, time, intensity, gridSize);
+    dropMask = max(dropMask, staticRain.z);
+    dropUvMasked = mix(dropUvMasked, staticRain.xy * staticRain.z, staticRain.z);
+
+    // 5. Distort uv for the rain drops and dropplets.
     float distortionDrop = -0.1;
     vec2 uvDiffractionOffsets =
         distortionDrop * dropUvMasked;
@@ -70,20 +80,20 @@ vec4 main(float2 fragCoord) {
     vec3 sampledColor = texture.eval(fragCoord + uvDiffractionOffsets * s).rgb;
     color.rgb = mix(color.rgb, sampledColor, max(dropMask, droppletsMask));
 
-    // 5. Add color tint to the rain drops.
+    // 6. Add color tint to the rain drops.
     color.rgb = mix(
         color.rgb,
         dropTint,
         dropTintIntensity * smoothstep(0.7, 1., max(dropMask, droppletsMask)));
 
-    // 6. Add highlight to the drops.
+    // 7. Add highlight to the drops.
     color.rgb = mix(
         color.rgb,
         highlightColor,
         highlightIntensity
             * smoothstep(0.05, 0.08, max(dropUvMasked * 1.7, droppletsUvMasked * 2.6)).x);
 
-    // 7. Add shadows to the drops.
+    // 8. Add shadows to the drops.
     color.rgb = mix(
         color.rgb,
         contactShadowColor,

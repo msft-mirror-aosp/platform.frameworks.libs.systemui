@@ -16,7 +16,7 @@
 
 package com.google.android.wallpaper.weathereffects.graphics.rain
 
-import android.content.Context
+import android.content.res.AssetManager
 import android.graphics.Bitmap
 import android.graphics.RuntimeShader
 import androidx.annotation.FloatRange
@@ -30,39 +30,31 @@ data class RainEffectConfig(
     val glassRainShader: RuntimeShader,
     /** The final layer of the shader, which adds color grading. */
     val colorGradingShader: RuntimeShader,
+    /** Shader that evaluates the outline based on the alpha value. */
+    val outlineShader: RuntimeShader,
     /** The main lut (color grading) for the effect. */
     val lut: Bitmap?,
-    /** A bitmap containing the foreground of the image. */
-    val foreground: Bitmap,
-    /** A bitmap containing the background of the image. */
-    val background: Bitmap,
-    /** The amount of the rain. This contributes to the color grading as well. */
-    @FloatRange(from = 0.0, to = 1.0) val intensity: Float,
+    /** Pixel density of the display. Used for dithering. */
+    val pixelDensity: Float,
     /** The intensity of the color grading. 0: no color grading, 1: color grading in full effect. */
     @FloatRange(from = 0.0, to = 1.0) val colorGradingIntensity: Float,
 ) {
     /**
      * Constructor for [RainEffectConfig].
      *
-     * @param context the application context.
-     * @param foreground a bitmap containing the foreground of the image.
-     * @param background a bitmap containing the background of the image.
-     * @param intensity initial intensity that affects the amount of rain and color grading.
-     *   Expected range is [0, 1]. You can always change the intensity dynamically. Defaults to 1.
+     * @param assets asset manager,
+     * @param pixelDensity pixel density of the display.
      */
     constructor(
-        context: Context,
-        foreground: Bitmap,
-        background: Bitmap,
-        intensity: Float = DEFAULT_INTENSITY,
+        assets: AssetManager,
+        pixelDensity: Float,
     ) : this(
-        rainShowerShader = GraphicsUtils.loadShader(context.assets, RAIN_SHOWER_LAYER_SHADER_PATH),
-        glassRainShader = GraphicsUtils.loadShader(context.assets, GLASS_RAIN_LAYER_SHADER_PATH),
-        colorGradingShader = GraphicsUtils.loadShader(context.assets, COLOR_GRADING_SHADER_PATH),
-        lut = GraphicsUtils.loadTexture(context.assets, LOOKUP_TABLE_TEXTURE_PATH),
-        foreground,
-        background,
-        intensity,
+        rainShowerShader = GraphicsUtils.loadShader(assets, RAIN_SHOWER_LAYER_SHADER_PATH),
+        glassRainShader = GraphicsUtils.loadShader(assets, GLASS_RAIN_LAYER_SHADER_PATH),
+        colorGradingShader = GraphicsUtils.loadShader(assets, COLOR_GRADING_SHADER_PATH),
+        outlineShader = GraphicsUtils.loadShader(assets, OUTLINE_SHADER_PATH),
+        lut = GraphicsUtils.loadTexture(assets, LOOKUP_TABLE_TEXTURE_PATH),
+        pixelDensity,
         COLOR_GRADING_INTENSITY
     )
 
@@ -70,8 +62,8 @@ data class RainEffectConfig(
         private const val RAIN_SHOWER_LAYER_SHADER_PATH = "shaders/rain_shower_layer.agsl"
         private const val GLASS_RAIN_LAYER_SHADER_PATH = "shaders/rain_glass_layer.agsl"
         private const val COLOR_GRADING_SHADER_PATH = "shaders/color_grading_lut.agsl"
+        private const val OUTLINE_SHADER_PATH = "shaders/outline.agsl"
         private const val LOOKUP_TABLE_TEXTURE_PATH = "textures/lut_rain_and_fog.png"
-        private const val DEFAULT_INTENSITY = 1f
         private const val COLOR_GRADING_INTENSITY = 0.7f
     }
 }
