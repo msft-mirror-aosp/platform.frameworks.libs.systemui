@@ -28,8 +28,11 @@ import java.util.stream.Stream
 import kotlin.contracts.ExperimentalContracts
 import kotlin.contracts.InvocationKind
 import kotlin.contracts.contract
+import kotlin.coroutines.AbstractCoroutineContextKey
 import kotlin.coroutines.CoroutineContext
 import kotlin.coroutines.EmptyCoroutineContext
+import kotlin.coroutines.getPolymorphicElement
+import kotlin.coroutines.minusPolymorphicKey
 import kotlinx.coroutines.CopyableThreadContextElement
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.DelicateCoroutinesApi
@@ -160,7 +163,8 @@ public inline fun nameCoroutine(name: () -> String): CoroutineContext {
 /**
  * Common base class of [TraceContextElement] and [CoroutineTraceName]. For internal use only.
  *
- * [TraceContextElement] should be installed on the root, and [CoroutineTraceName] on the children.
+ * [TraceContextElement] should be installed on the root, and [CoroutineTraceName] should ONLY be
+ * used when launching children to give them names.
  *
  * @property name the name of the current coroutine
  */
@@ -170,14 +174,14 @@ public inline fun nameCoroutine(name: () -> String): CoroutineContext {
  * @property name the name to be used for the child under construction
  * @see nameCoroutine
  */
+@OptIn(DelicateCoroutinesApi::class, ExperimentalCoroutinesApi::class)
 @PublishedApi
-internal open class CoroutineTraceName(internal val name: String) : CoroutineContext.Element {
-    internal companion object Key : CoroutineContext.Key<CoroutineTraceName>
+internal open class CoroutineTraceName(internal val name: String) :
+    CopyableThreadContextElement<TraceData?>, CoroutineContext.Element {
+    companion object Key : CoroutineContext.Key<CoroutineTraceName>
 
-    public override val key: CoroutineContext.Key<*>
+    override val key: CoroutineContext.Key<*>
         get() = Key
-
-    protected val currentId: Int = ThreadLocalRandom.current().nextInt(1, Int.MAX_VALUE)
 
     @Deprecated(
         message =
@@ -191,9 +195,39 @@ internal open class CoroutineTraceName(internal val name: String) : CoroutineCon
         level = DeprecationLevel.ERROR,
     )
     public operator fun plus(other: CoroutineTraceName): CoroutineTraceName {
-        debug { "CTN#plus;c=$currentId other=${other.currentId}" }
+        debug { "CTN#plus;c=$name other=${other.name}" }
         return other
     }
+
+    @OptIn(ExperimentalStdlibApi::class)
+    override fun <E : CoroutineContext.Element> get(key: CoroutineContext.Key<E>): E? =
+        getPolymorphicElement(key)
+
+    @OptIn(ExperimentalStdlibApi::class)
+    override fun minusKey(key: CoroutineContext.Key<*>): CoroutineContext = minusPolymorphicKey(key)
+
+    override fun copyForChild(): CopyableThreadContextElement<TraceData?> {
+        // Reusing this object is okay because we aren't persisting to thread local store.
+        // This object only exists for the purpose of storing a String for future use
+        // by TraceContextElement.
+        return this
+    }
+
+    override fun mergeForChild(overwritingElement: CoroutineContext.Element): CoroutineContext {
+        return if (overwritingElement is TraceContextElement) {
+            overwritingElement.createChildContext(name)
+        } else if (overwritingElement is CoroutineTraceName) {
+            overwritingElement
+        } else {
+            EmptyCoroutineContext
+        }
+    }
+
+    override fun updateThreadContext(context: CoroutineContext): TraceData? {
+        return null
+    }
+
+    override fun restoreThreadContext(context: CoroutineContext, oldState: TraceData?) {}
 }
 
 /**
@@ -229,7 +263,16 @@ internal class TraceContextElement(
     parentId: Int?,
     inheritedTracePrefix: String?,
     coroutineDepth: Int,
-) : CopyableThreadContextElement<TraceData?>, CoroutineTraceName(name) {
+) : CoroutineTraceName(name) {
+
+    protected val currentId: Int = ThreadLocalRandom.current().nextInt(1, Int.MAX_VALUE)
+
+    @OptIn(ExperimentalStdlibApi::class)
+    companion object Key :
+        AbstractCoroutineContextKey<CoroutineTraceName, TraceContextElement>(
+            CoroutineTraceName,
+            { it as? TraceContextElement },
+        )
 
     init {
         val traceSection = "TCE#init name=$name"
@@ -351,12 +394,12 @@ internal class TraceContextElement(
     ): CoroutineContext {
         debug {
             (overwritingElement as? TraceContextElement)?.let {
-                Log.e(
-                    TAG,
+                val msg =
                     "${this::class.java.simpleName}@$currentId#mergeForChild(@${it.currentId}): " +
                         "current name=\"$name\", overwritingElement name=\"${it.name}\". " +
-                        UNEXPECTED_TRACE_DATA_ERROR_MESSAGE,
-                )
+                        UNEXPECTED_TRACE_DATA_ERROR_MESSAGE
+                Trace.instant(Trace.TRACE_TAG_APP, msg)
+                Log.e(TAG, msg)
             }
             return@debug mergeForChildTraceMessage
         }
@@ -369,7 +412,7 @@ internal class TraceContextElement(
         }
     }
 
-    private fun createChildContext(childName: String?): TraceContextElement {
+    internal fun createChildContext(childName: String?): TraceContextElement {
         return TraceContextElement(
             name =
                 childName
