@@ -15,26 +15,15 @@
  */
 package com.example.tracing.demo.experiments
 
-import android.os.HandlerThread
-import android.os.Process
 import android.os.Trace
 import com.android.app.tracing.coroutines.traceCoroutine
 import com.android.app.tracing.traceSection
+import com.example.tracing.demo.delayHandler
 import kotlin.coroutines.Continuation
 import kotlin.coroutines.resume
 import kotlin.random.Random
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.suspendCancellableCoroutine
-
-fun coldCounterFlow(name: String, maxCount: Int = Int.MAX_VALUE) = flow {
-    for (n in 0..maxCount) {
-        emit(n)
-        forceSuspend("coldCounterFlow:$name:$n", 25)
-    }
-}
-
-private val delayHandler by lazy { startThreadWithLooper("delay-thread").threadHandler }
 
 private class DelayedContinuationRunner(
     private val continuation: Continuation<Unit>,
@@ -59,7 +48,7 @@ suspend fun forceSuspend(traceName: String? = null, timeMillis: Long) {
     Trace.asyncTraceForTrackBegin(Trace.TRACE_TAG_APP, TRACK_NAME, traceMessage, cookie)
     traceCoroutine(traceMessage) {
         suspendCancellableCoroutine { continuation ->
-            traceSection("scheduling DelayedContinuationRunner") {
+            traceSection("scheduling DelayedContinuationRunner for $traceName") {
                 val delayedRunnable = DelayedContinuationRunner(continuation, traceMessage, cookie)
                 if (delayHandler.postDelayed(delayedRunnable, timeMillis)) {
                     continuation.invokeOnCancellation { cause ->
@@ -76,12 +65,4 @@ suspend fun forceSuspend(traceName: String? = null, timeMillis: Long) {
     }
 }
 
-fun startThreadWithLooper(name: String): HandlerThread {
-    val thread = HandlerThread(name, Process.THREAD_PRIORITY_FOREGROUND)
-    thread.start()
-    val looper = thread.looper
-    looper.setTraceTag(Trace.TRACE_TAG_APP)
-    return thread
-}
-
-const val TRACK_NAME = "Demo app events"
+const val TRACK_NAME = "async-trace-events"

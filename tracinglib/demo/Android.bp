@@ -24,9 +24,6 @@ android_app {
     certificate: "platform",
 
     srcs: ["src/**/*.kt"],
-    manifest: "app-manifest.xml",
-
-    resource_dirs: ["res"],
     use_resource_processor: true,
 
     static_libs: [

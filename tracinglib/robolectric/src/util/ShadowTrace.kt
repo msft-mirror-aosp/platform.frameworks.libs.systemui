@@ -34,28 +34,58 @@ object ShadowTrace {
 
     @Implementation
     @JvmStatic
+    fun isTagEnabled(traceTag: Long): Boolean {
+        return FakeTraceState.isTracingEnabled && traceTag == Trace.TRACE_TAG_APP
+    }
+
+    @Implementation
+    @JvmStatic
     fun traceBegin(traceTag: Long, methodName: String) {
-        debug { "traceBegin: name=$methodName" }
-        FakeTraceState.begin(methodName)
+        if (traceTag == Trace.TRACE_TAG_APP) {
+            if (isTagEnabled(traceTag)) {
+                debug("traceBegin: $methodName")
+                FakeTraceState.begin(methodName)
+            } else {
+                debug("IGNORE traceBegin: $methodName")
+            }
+        }
     }
 
     @Implementation
     @JvmStatic
     fun traceEnd(traceTag: Long) {
-        debug { "traceEnd" }
-        FakeTraceState.end()
+        if (traceTag == Trace.TRACE_TAG_APP) {
+            if (isTagEnabled(traceTag)) {
+                debug("traceEnd")
+                FakeTraceState.end()
+            } else {
+                debug("IGNORE traceEnd")
+            }
+        }
+    }
+
+    @Implementation
+    @JvmStatic
+    fun beginSection(sectionName: String) {
+        debug("IGNORE beginSection")
+    }
+
+    @Implementation
+    @JvmStatic
+    fun endSection() {
+        debug("IGNORE endSection()")
     }
 
     @Implementation
     @JvmStatic
     fun asyncTraceBegin(traceTag: Long, methodName: String, cookie: Int) {
-        debug { "asyncTraceBegin: name=$methodName cookie=${cookie.toHexString()}" }
+        debug("IGNORE asyncTraceBegin")
     }
 
     @Implementation
     @JvmStatic
     fun asyncTraceEnd(traceTag: Long, methodName: String, cookie: Int) {
-        debug { "asyncTraceEnd: name=$methodName cookie=${cookie.toHexString()}" }
+        debug("IGNORE asyncTraceEnd")
     }
 
     @Implementation
@@ -66,35 +96,37 @@ object ShadowTrace {
         methodName: String,
         cookie: Int,
     ) {
-        debug {
-            "asyncTraceForTrackBegin: track=$trackName name=$methodName cookie=${cookie.toHexString()}"
-        }
+        debug("IGNORE asyncTraceForTrackBegin")
     }
 
     @Implementation
     @JvmStatic
     fun asyncTraceForTrackEnd(traceTag: Long, trackName: String, methodName: String, cookie: Int) {
-        debug {
-            "asyncTraceForTrackEnd: track=$trackName name=$methodName cookie=${cookie.toHexString()}"
-        }
+        debug("IGNORE asyncTraceForTrackEnd")
     }
 
     @Implementation
     @JvmStatic
     fun instant(traceTag: Long, eventName: String) {
-        debug { "instant: name=$eventName" }
+        debug("IGNORE instant")
     }
 
     @Implementation
     @JvmStatic
     fun instantForTrack(traceTag: Long, trackName: String, eventName: String) {
-        debug { "instantForTrack: track=$trackName name=$eventName" }
+        debug("IGNORE instantForTrack")
     }
 }
 
 private const val DEBUG = false
 
 /** Log a message with a tag indicating the current thread ID */
-private fun debug(message: () -> String) {
-    if (DEBUG) Log.d("ShadowTrace", "Thread #${currentThreadId()}: $message")
+private fun debug(message: String, e: Throwable? = null) {
+    if (DEBUG) {
+        if (e != null) {
+            Log.d("ShadowTrace", "Thread #${currentThreadId()}: $message", e)
+        } else {
+            Log.d("ShadowTrace", "Thread #${currentThreadId()}: $message")
+        }
+    }
 }
