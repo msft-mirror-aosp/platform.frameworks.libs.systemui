@@ -63,6 +63,10 @@ public class BitmapInfo {
     private ThemedBitmap mThemedBitmap;
 
     public @BitmapInfoFlags int flags;
+
+    // b/377618519: These are saved to debug why work badges sometimes don't show up on work apps
+    public @DrawableCreationFlags int creationFlags;
+
     private BitmapInfo badgeInfo;
 
     public BitmapInfo(Bitmap icon, int color) {
@@ -152,6 +156,7 @@ public class BitmapInfo {
 
     protected void applyFlags(Context context, FastBitmapDrawable drawable,
             @DrawableCreationFlags int creationFlags) {
+        this.creationFlags = creationFlags;
         drawable.mDisabledAlpha = GraphicsUtils.getFloat(context, R.attr.disabledIconAlpha, 1f);
         drawable.mCreationFlags = creationFlags;
         if ((creationFlags & FLAG_NO_BADGE) == 0) {
