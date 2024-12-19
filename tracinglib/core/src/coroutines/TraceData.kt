@@ -38,13 +38,14 @@ private class TraceCountThreadLocal : ThreadLocal<Int>() {
  * Used for storing trace sections so that they can be added and removed from the currently running
  * thread when the coroutine is suspended and resumed.
  *
+ * @property currentId ID of associated TraceContextElement
  * @property strictMode Whether to add additional checks to the coroutine machinery, throwing a
  *   `ConcurrentModificationException` if TraceData is modified from the wrong thread. This should
  *   only be set for testing.
  * @see traceCoroutine
  */
 @PublishedApi
-internal class TraceData(private val strictMode: Boolean) {
+internal class TraceData(internal val currentId: Int, private val strictMode: Boolean) {
 
     internal var slices: ArrayDeque<TraceSection>? = null
 
