@@ -311,12 +311,8 @@ public abstract class ViewCapture {
             captureViewTree(mRoot, mViewPropertyRef);
             ViewPropertyRef captured = mViewPropertyRef.next;
             if (captured != null) {
+                captured.callback = mCaptureCallback;
                 captured.elapsedRealtimeNanos = SystemClock.elapsedRealtimeNanos();
-
-                // Main thread writes volatile field:
-                // guarantee that variable changes prior the field write are visible to bg thread
-                captured.volatileCallback = mCaptureCallback;
-
                 mBgExecutor.execute(captured);
             }
             mIsFirstFrame = false;
@@ -556,11 +552,9 @@ public abstract class ViewCapture {
 
         public ViewPropertyRef next;
 
+        public Consumer<ViewPropertyRef> callback = null;
         public long elapsedRealtimeNanos = 0;
 
-        // Volatile field to establish happens-before relationship between main and bg threads
-        // (see JSR-133: Java Memory Model and Thread Specification)
-        public volatile Consumer<ViewPropertyRef> volatileCallback = null;
 
         public void transferFrom(View in) {
             view = in;
@@ -657,10 +651,8 @@ public abstract class ViewCapture {
 
         @Override
         public void run() {
-            // Bg thread reads volatile field:
-            // guarantee that variable changes in main thread prior the field write are visible
-            Consumer<ViewPropertyRef> oldCallback = volatileCallback;
-            volatileCallback = null;
+            Consumer<ViewPropertyRef> oldCallback = callback;
+            callback = null;
             if (oldCallback != null) {
                 oldCallback.accept(this);
             }
