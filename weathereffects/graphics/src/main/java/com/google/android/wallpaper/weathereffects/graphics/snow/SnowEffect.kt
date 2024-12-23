@@ -97,9 +97,12 @@ class SnowEffect(
         generateAccumulatedSnow()
     }
 
-    override fun setBitmaps(foreground: Bitmap?, background: Bitmap) {
-        super.setBitmaps(foreground, background)
+    override fun setBitmaps(foreground: Bitmap?, background: Bitmap): Boolean {
+        if (!super.setBitmaps(foreground, background)) {
+            return false
+        }
         scale = getScale(parallaxMatrix)
+        frameBuffer.close()
         frameBuffer =
             FrameBuffer(background.width, background.height).apply {
                 setRenderEffect(
@@ -109,6 +112,7 @@ class SnowEffect(
         // GenerateAccumulatedSnow needs foreground for accumulatedSnowShader, and needs frameBuffer
         // which is also changed with background
         generateAccumulatedSnow()
+        return true
     }
 
     override val shader: RuntimeShader

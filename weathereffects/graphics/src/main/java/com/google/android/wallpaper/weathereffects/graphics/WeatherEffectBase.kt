@@ -93,9 +93,9 @@ abstract class WeatherEffectBase(
         colorGradingShader.setFloatUniform("intensity", colorGradingIntensity * intensity)
     }
 
-    override fun setBitmaps(foreground: Bitmap?, background: Bitmap) {
+    override fun setBitmaps(foreground: Bitmap?, background: Bitmap): Boolean {
         if (this.foreground == foreground && this.background == background) {
-            return
+            return false
         }
         // Only when background changes, we can infer the bitmap set changes
         if (this.background != background) {
@@ -120,6 +120,7 @@ abstract class WeatherEffectBase(
             BitmapShader(this.foreground, Shader.TileMode.MIRROR, Shader.TileMode.MIRROR),
         )
         adjustCropping(surfaceSize)
+        return true
     }
 
     open fun updateTextureUniforms() {

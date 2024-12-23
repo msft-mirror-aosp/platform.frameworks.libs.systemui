@@ -59,13 +59,15 @@ class NoEffect(
 
     override fun setIntensity(intensity: Float) {}
 
-    override fun setBitmaps(foreground: Bitmap?, background: Bitmap) {
+    override fun setBitmaps(foreground: Bitmap?, background: Bitmap): Boolean {
         // Only when background changes, we can infer the bitmap set changes
         if (this.background != background) {
             this.background.recycle()
             this.foreground.recycle()
+            return false
         }
         this.background = background
         this.foreground = foreground ?: background
+        return true
     }
 }
