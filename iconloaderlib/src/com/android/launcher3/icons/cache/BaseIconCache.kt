@@ -47,6 +47,7 @@ import com.android.launcher3.icons.BaseIconFactory.IconOptions
 import com.android.launcher3.icons.BitmapInfo
 import com.android.launcher3.icons.GraphicsUtils
 import com.android.launcher3.icons.IconProvider
+import com.android.launcher3.icons.cache.CacheLookupFlag.Companion.DEFAULT_LOOKUP_FLAG
 import com.android.launcher3.util.ComponentKey
 import com.android.launcher3.util.FlagOp
 import com.android.launcher3.util.SQLiteCacheHelper
@@ -266,15 +267,14 @@ constructor(
         assertWorkerThread()
         val cacheKey = ComponentKey(componentName, user)
         var entry = cache[cacheKey]
-        val useLowResIcon = lookupFlags.useLowRes()
-        if (entry == null || (entry.bitmap.isLowRes && !useLowResIcon)) {
+        if (entry == null || entry.bitmap.matchingLookupFlag.isVisuallyLessThan(lookupFlags)) {
             val addToMemCache = entry != null || !lookupFlags.skipAddToMemCache()
             entry = CacheEntry()
             if (addToMemCache) cache[cacheKey] = entry
             // Check the DB first.
             val cacheEntryUpdated =
-                if (cursor == null) getEntryFromDBLocked(cacheKey, entry, useLowResIcon)
-                else updateTitleAndIconLocked(cacheKey, entry, cursor, useLowResIcon)
+                if (cursor == null) getEntryFromDBLocked(cacheKey, entry, lookupFlags)
+                else updateTitleAndIconLocked(cacheKey, entry, cursor, lookupFlags)
 
             val obj: T? by lazy { infoProvider.get() }
             if (!cacheEntryUpdated) {
@@ -310,7 +310,7 @@ constructor(
             entry.bitmap = cachingLogic.loadIcon(context, this, obj)
         } else {
             if (usePackageIcon) {
-                val packageEntry = getEntryForPackageLocked(componentName.packageName, user, false)
+                val packageEntry = getEntryForPackageLocked(componentName.packageName, user)
                 if (DEBUG) {
                     Log.d(TAG, "using package default icon for " + componentName.toShortString())
                 }
@@ -398,18 +398,18 @@ constructor(
     protected fun getEntryForPackageLocked(
         packageName: String,
         user: UserHandle,
-        useLowResIcon: Boolean,
+        lookupFlags: CacheLookupFlag = DEFAULT_LOOKUP_FLAG,
     ): CacheEntry {
         assertWorkerThread()
         val cacheKey = getPackageKey(packageName, user)
         var entry = cache[cacheKey]
 
-        if (entry == null || (entry.bitmap.isLowRes && !useLowResIcon)) {
+        if (entry == null || entry.bitmap.matchingLookupFlag.isVisuallyLessThan(lookupFlags)) {
             entry = CacheEntry()
             var entryUpdated = true
 
             // Check the DB first.
-            if (!getEntryFromDBLocked(cacheKey, entry, useLowResIcon)) {
+            if (!getEntryFromDBLocked(cacheKey, entry, lookupFlags)) {
                 try {
                     val appInfo =
                         context
@@ -449,7 +449,8 @@ constructor(
                     entry.title = appInfo.loadLabel(packageManager)
                     entry.contentDescription = getUserBadgedLabel(entry.title, user)
                     entry.bitmap =
-                        if (useLowResIcon) BitmapInfo.of(BitmapInfo.LOW_RES_ICON, iconInfo.color)
+                        if (lookupFlags.useLowRes())
+                            BitmapInfo.of(BitmapInfo.LOW_RES_ICON, iconInfo.color)
                         else iconInfo
 
                     // Add the icon in the DB here, since these do not get written during
@@ -481,14 +482,14 @@ constructor(
     protected fun getEntryFromDBLocked(
         cacheKey: ComponentKey,
         entry: CacheEntry,
-        lowRes: Boolean,
+        lookupFlags: CacheLookupFlag,
     ): Boolean {
         var c: Cursor? = null
         Trace.beginSection("loadIconIndividually")
         try {
             c =
                 iconDb.query(
-                    if (lowRes) COLUMNS_LOW_RES else COLUMNS_HIGH_RES,
+                    lookupFlags.toLookupColumns(),
                     "$COLUMN_COMPONENT = ? AND $COLUMN_USER = ?",
                     arrayOf(
                         cacheKey.componentName.flattenToString(),
@@ -496,7 +497,7 @@ constructor(
                     ),
                 )
             if (c.moveToNext()) {
-                return updateTitleAndIconLocked(cacheKey, entry, c, lowRes)
+                return updateTitleAndIconLocked(cacheKey, entry, c, lookupFlags)
             }
         } catch (e: SQLiteException) {
             Log.d(TAG, "Error reading icon cache", e)
@@ -511,7 +512,7 @@ constructor(
         cacheKey: ComponentKey,
         entry: CacheEntry,
         c: Cursor,
-        lowRes: Boolean,
+        lookupFlags: CacheLookupFlag,
     ): Boolean {
         // Set the alpha to be 255, so that we never have a wrong color
         entry.bitmap =
@@ -529,7 +530,7 @@ constructor(
             }
         }
 
-        if (!lowRes) {
+        if (!lookupFlags.useLowRes()) {
             try {
                 val data: ByteArray = c.getBlob(INDEX_ICON) ?: return false
                 entry.bitmap =
@@ -669,5 +670,9 @@ constructor(
         @JvmField val INDEX_FLAGS = COLUMNS_HIGH_RES.indexOf(COLUMN_FLAGS)
         @JvmField val INDEX_ICON = COLUMNS_HIGH_RES.indexOf(COLUMN_ICON)
         @JvmField val INDEX_MONO_ICON = COLUMNS_HIGH_RES.indexOf(COLUMN_MONO_ICON)
+
+        @JvmStatic
+        fun CacheLookupFlag.toLookupColumns() =
+            if (useLowRes()) COLUMNS_LOW_RES else COLUMNS_HIGH_RES
     }
 }

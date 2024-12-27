@@ -50,6 +50,11 @@ data class CacheLookupFlag private constructor(@LookupFlag private val flag: Int
     private fun updateMask(@LookupFlag mask: Int, addMask: Boolean) =
         if (addMask) flagCache[flag.or(mask)] else flagCache[flag.and(mask.inv())]
 
+    /** Returns `true` if this flag has less UI information then [other] */
+    fun isVisuallyLessThan(other: CacheLookupFlag): Boolean {
+        return useLowRes() && !other.useLowRes()
+    }
+
     @Retention(SOURCE)
     @IntDef(value = [USE_LOW_RES, USE_PACKAGE_ICON, SKIP_ADD_TO_MEM_CACHE], flag = true)
     /** Various options to control cache lookup */
