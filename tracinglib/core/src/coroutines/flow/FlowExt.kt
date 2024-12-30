@@ -14,13 +14,17 @@
  * limitations under the License.
  */
 
+@file:OptIn(ExperimentalTypeInference::class)
+
 package com.android.app.tracing.coroutines.flow
 
 import com.android.app.tracing.coroutines.CoroutineTraceName
 import com.android.app.tracing.coroutines.traceCoroutine
+import com.android.app.tracing.coroutines.traceName
 import com.android.systemui.Flags
 import kotlin.experimental.ExperimentalTypeInference
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.FlowCollector
 import kotlinx.coroutines.flow.SharedFlow
@@ -32,6 +36,7 @@ import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.flow as safeFlow
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.mapLatest
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.shareIn
 import kotlinx.coroutines.flow.stateIn
@@ -77,7 +82,7 @@ internal inline fun <T, R> Flow<T>.unsafeTransform(
  */
 public fun <T> Flow<T>.flowName(name: String): Flow<T> {
     return if (Flags.coroutineTracing()) {
-        unsafeFlow(name) { collect { traceCoroutine("emit") { emit(it) } } }
+        unsafeTransform(name) { traceCoroutine("emit") { emit(it) } }
     } else {
         this
     }
@@ -87,9 +92,7 @@ public fun <T> Flow<T>.onEachTraced(name: String, action: suspend (T) -> Unit): 
     return if (Flags.coroutineTracing()) {
         unsafeTransform(name) { value ->
             traceCoroutine("onEach:action") { action(value) }
-            traceCoroutine("onEach:emit") {
-                return@unsafeTransform emit(value)
-            }
+            traceCoroutine("onEach:emit") { emit(value) }
         }
     } else {
         onEach(action)
@@ -120,6 +123,7 @@ public suspend fun <T> Flow<T>.collectTraced(name: String, collector: FlowCollec
     }
 }
 
+/** @see kotlinx.coroutines.flow.collect */
 public suspend fun <T> Flow<T>.collectTraced(name: String) {
     if (Flags.coroutineTracing()) {
         flowName(name).collect()
@@ -131,12 +135,34 @@ public suspend fun <T> Flow<T>.collectTraced(name: String) {
 /** @see kotlinx.coroutines.flow.collect */
 public suspend fun <T> Flow<T>.collectTraced(collector: FlowCollector<T>) {
     if (Flags.coroutineTracing()) {
-        collectTraced(
-            name = collector::class.java.name.substringAfterLast("."),
-            collector = collector,
-        )
+        collectTraced(name = collector.traceName, collector = collector)
     } else {
         collect(collector)
+    }
+}
+
+@ExperimentalCoroutinesApi
+public fun <T, R> Flow<T>.mapLatestTraced(
+    name: String,
+    @BuilderInference transform: suspend (value: T) -> R,
+): Flow<R> {
+    return if (Flags.coroutineTracing()) {
+        val collectName = "mapLatest:$name"
+        val actionName = "$collectName:transform"
+        traceCoroutine(collectName) { mapLatest { traceCoroutine(actionName) { transform(it) } } }
+    } else {
+        mapLatest(transform)
+    }
+}
+
+@ExperimentalCoroutinesApi
+public fun <T, R> Flow<T>.mapLatestTraced(
+    @BuilderInference transform: suspend (value: T) -> R
+): Flow<R> {
+    return if (Flags.coroutineTracing()) {
+        mapLatestTraced(transform.traceName, transform)
+    } else {
+        mapLatestTraced(transform)
     }
 }
 
@@ -159,7 +185,7 @@ internal suspend fun <T> Flow<T>.collectLatestTraced(
 /** @see kotlinx.coroutines.flow.collectLatest */
 public suspend fun <T> Flow<T>.collectLatestTraced(action: suspend (value: T) -> Unit) {
     if (Flags.coroutineTracing()) {
-        collectLatestTraced(action::class.java.name.substringAfterLast("."), action)
+        collectLatestTraced(action.traceName, action)
     } else {
         collectLatest(action)
     }
@@ -173,13 +199,7 @@ public inline fun <T, R> Flow<T>.transformTraced(
 ): Flow<R> {
     return if (Flags.coroutineTracing()) {
         // Safe flow must be used because collector is exposed to the caller
-        safeFlow {
-            collect { value ->
-                traceCoroutine("$name:transform") {
-                    return@collect transform(value)
-                }
-            }
-        }
+        safeFlow { collect { value -> traceCoroutine("$name:transform") { transform(value) } } }
     } else {
         transform(transform)
     }
@@ -193,9 +213,7 @@ public inline fun <T> Flow<T>.filterTraced(
     return if (Flags.coroutineTracing()) {
         unsafeTransform(name) { value ->
             if (traceCoroutine("filter:predicate") { predicate(value) }) {
-                traceCoroutine("filter:emit") {
-                    return@unsafeTransform emit(value)
-                }
+                traceCoroutine("filter:emit") { emit(value) }
             }
         }
     } else {
@@ -211,9 +229,7 @@ public inline fun <T, R> Flow<T>.mapTraced(
     return if (Flags.coroutineTracing()) {
         unsafeTransform(name) { value ->
             val transformedValue = traceCoroutine("map:transform") { transform(value) }
-            traceCoroutine("map:emit") {
-                return@unsafeTransform emit(transformedValue)
-            }
+            traceCoroutine("map:emit") { emit(transformedValue) }
         }
     } else {
         map(transform)
