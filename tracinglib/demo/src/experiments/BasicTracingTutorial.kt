@@ -18,42 +18,40 @@ package com.example.tracing.demo.experiments
 import com.android.app.tracing.TraceUtils.traceAsync
 import com.android.app.tracing.coroutines.createCoroutineTracingContext
 import com.android.app.tracing.coroutines.launchTraced
+import com.android.app.tracing.coroutines.nameCoroutine
+import com.example.tracing.demo.FixedThread1
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlin.contracts.ExperimentalContracts
 import kotlin.contracts.InvocationKind
 import kotlin.contracts.contract
 import kotlin.coroutines.EmptyCoroutineContext
+import kotlin.coroutines.coroutineContext
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.android.asCoroutineDispatcher
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.job
 import kotlinx.coroutines.launch
 
 @Singleton
-class BasicTracingTutorial @Inject constructor() : BlockingExperiment {
+class BasicTracingTutorial
+@Inject
+constructor(@FixedThread1 private var handlerDispatcher: CoroutineDispatcher) : Experiment() {
 
     override val description: String = "Basic tracing tutorial"
 
     @OptIn(ExperimentalContracts::class)
-    private inline fun runStep(stepNumber: Int = 0, block: () -> Unit) {
+    private suspend inline fun runStep(stepNumber: Int = 0, crossinline block: (Job) -> Unit) {
         contract { callsInPlace(block, InvocationKind.EXACTLY_ONCE) }
-        traceAsync(TRACK_NAME, "Step #$stepNumber") {
-            block()
-            // To space out events, and clarity when reading the Perfetto trace, add a sleep:
-            traceAsync(TRACK_NAME, "sleep") { Thread.sleep(10) }
-        }
-    }
-
-    private val handlerDispatcher: CoroutineDispatcher by lazy {
-        val thread = startThreadWithLooper("demo-main-thread")
-        thread.threadHandler.asCoroutineDispatcher()
+        traceAsync(TRACK_NAME, "Step #$stepNumber") { block(coroutineContext.job) }
+        traceAsync(TRACK_NAME, "cooldown") { delay(10) }
     }
 
     /** 1: Untraced coroutine on default dispatcher */
-    private fun step1UntracedCoroutineOnDefaultDispatcher() {
+    private fun step1UntracedCoroutineOnDefaultDispatcher(job: Job) {
         // First, we will start with a basic coroutine that has no tracing:
-        val scope = CoroutineScope(EmptyCoroutineContext)
+        val scope = CoroutineScope(job + EmptyCoroutineContext)
         scope.launch { delay(1) }
 
         /*
@@ -67,14 +65,14 @@ class BasicTracingTutorial @Inject constructor() : BlockingExperiment {
     }
 
     /** 2: Untraced coroutine on traced Looper thread */
-    private fun step2UntracedCoroutineOnTracedLooperThread() {
+    private fun step2UntracedCoroutineOnTracedLooperThread(job: Job) {
         /*
         Next, we will switch from the default dispatcher to a single-threaded dispatcher
         backed by an Android `Looper`. We will also set a trace tag for the `Looper` so
         that the `Runnable` class names appear in the trace:
         Next, we'll launch a coroutine with a delay:
         */
-        val scope = CoroutineScope(handlerDispatcher)
+        val scope = CoroutineScope(job + handlerDispatcher)
         scope.launch { delay(1) }
 
         /*
@@ -91,7 +89,7 @@ class BasicTracingTutorial @Inject constructor() : BlockingExperiment {
     }
 
     /** 3: Replacing `delay` with `forceSuspend` */
-    private fun step3ReplaceDelayWithForceSuspend() {
+    private fun step3ReplaceDelayWithForceSuspend(job: Job) {
         /*
         Next, for clarity, we will replace `delay()` with our own implementation called
         `forceSuspend`.
@@ -101,7 +99,7 @@ class BasicTracingTutorial @Inject constructor() : BlockingExperiment {
         demonstration purposes. We will also pass it a tag, "A", to make our call
         identifiable in the trace later.
         */
-        val scope = CoroutineScope(handlerDispatcher)
+        val scope = CoroutineScope(job + handlerDispatcher)
         scope.launch { forceSuspend("A", 1) }
 
         /*
@@ -118,9 +116,9 @@ class BasicTracingTutorial @Inject constructor() : BlockingExperiment {
     }
 
     /** 4: Coroutine with `TraceContextElement` installed */
-    private fun step4CoroutineWithTraceContextElement() {
+    private fun step4CoroutineWithTraceContextElement(job: Job) {
         // Next, we'll install a `TraceContextElement` to the top-level coroutine:
-        val scope = CoroutineScope(handlerDispatcher + createCoroutineTracingContext())
+        val scope = CoroutineScope(job + handlerDispatcher + createCoroutineTracingContext())
         scope.launch { forceSuspend("A", 1) }
 
         /*
@@ -163,11 +161,13 @@ class BasicTracingTutorial @Inject constructor() : BlockingExperiment {
     }
 
     /** 5: Enable `walkStackForDefaultNames` */
-    private fun step5EnableStackWalker() {
+    private fun step5EnableStackWalker(job: Job) {
         // Next, we'll enable `walkStackForDefaultNames`:
         val scope =
             CoroutineScope(
-                handlerDispatcher + createCoroutineTracingContext(walkStackForDefaultNames = true)
+                job +
+                    handlerDispatcher +
+                    createCoroutineTracingContext(walkStackForDefaultNames = true)
             )
         scope.launch { forceSuspend("A", 1) }
 
@@ -194,12 +194,14 @@ class BasicTracingTutorial @Inject constructor() : BlockingExperiment {
     }
 
     /** 6: Replace `launch` with `launchTraced` */
-    private fun step6UseLaunchedTraced() {
+    private fun step6UseLaunchedTraced(job: Job) {
         // Walking the stack is an expensive operation, so next we'll replace our call to
         // `launch` with `launchTraced`:
         val scope =
             CoroutineScope(
-                handlerDispatcher + createCoroutineTracingContext(walkStackForDefaultNames = true)
+                job +
+                    handlerDispatcher +
+                    createCoroutineTracingContext(walkStackForDefaultNames = true)
             )
         scope.launchTraced { forceSuspend("A", 1) }
         /*
@@ -216,12 +218,14 @@ class BasicTracingTutorial @Inject constructor() : BlockingExperiment {
     }
 
     /** 7: Call `launchTraced` with an explicit name */
-    private fun step7ExplicitLaunchName() {
+    private fun step7ExplicitLaunchName(job: Job) {
         // Finally, we'll pass an explicit name to `launchTraced` instead of using the
         // inline name:
         val scope =
             CoroutineScope(
-                handlerDispatcher + createCoroutineTracingContext(walkStackForDefaultNames = true)
+                job +
+                    handlerDispatcher +
+                    createCoroutineTracingContext(walkStackForDefaultNames = true)
             )
         scope.launchTraced("my-launch") { forceSuspend("A", 1) }
 
@@ -234,12 +238,13 @@ class BasicTracingTutorial @Inject constructor() : BlockingExperiment {
     }
 
     /** 8: Enable `countContinuations` */
-    private fun step8CountContinuations() {
+    private fun step8CountContinuations(job: Job) {
         // The config parameter `countContinuations` can be used to count how many times a
         // coroutine has run, in total, since its creation:
         val scope =
             CoroutineScope(
-                handlerDispatcher +
+                job +
+                    handlerDispatcher +
                     createCoroutineTracingContext(
                         walkStackForDefaultNames = true,
                         countContinuations = true,
@@ -260,7 +265,44 @@ class BasicTracingTutorial @Inject constructor() : BlockingExperiment {
          */
     }
 
-    override fun start() {
+    /** 9: Merging trace contexts */
+    private fun step9MergingTraceContexts(job: Job) {
+        // Next, we'll look at how the trace context installed on the root coroutine
+        // scope is copied and merged for its children:
+
+        // As a prerequisite, we'll create two parent scopes: one with a trace context,
+        // and the other without.
+        val emptyParent = CoroutineScope(job + handlerDispatcher)
+        val traceableParent =
+            CoroutineScope(
+                job +
+                    handlerDispatcher +
+                    createCoroutineTracingContext(
+                        name = "ParentScope",
+                        walkStackForDefaultNames = true,
+                        countContinuations = true,
+                    )
+            )
+
+        // We'll also create two children: one with a trace context, the other with
+        // a "name" context. The name context is like a lighter weight version of
+        // the trace context. It's only use is in copying a name into the trace
+        // context, if it exists.
+        val otherTraceContext = createCoroutineTracingContext(name = "other-context")
+        val nameContext = nameCoroutine("name-context")
+
+        traceableParent.launch(otherTraceContext) { forceSuspend("A1", 1) }
+        traceableParent.launch(nameContext) { forceSuspend("A2", 1) }
+
+        emptyParent.launch(otherTraceContext) { forceSuspend("B1", 1) }
+        emptyParent.launch(nameContext) { forceSuspend("A2", 1) }
+
+        /*
+        Expected trace output (image alt text):
+         */
+    }
+
+    override suspend fun runExperiment() {
         runStep(1, ::step1UntracedCoroutineOnDefaultDispatcher)
         runStep(2, ::step2UntracedCoroutineOnTracedLooperThread)
         runStep(3, ::step3ReplaceDelayWithForceSuspend)
@@ -269,5 +311,6 @@ class BasicTracingTutorial @Inject constructor() : BlockingExperiment {
         runStep(6, ::step6UseLaunchedTraced)
         runStep(7, ::step7ExplicitLaunchName)
         runStep(8, ::step8CountContinuations)
+        runStep(9, ::step9MergingTraceContexts)
     }
 }

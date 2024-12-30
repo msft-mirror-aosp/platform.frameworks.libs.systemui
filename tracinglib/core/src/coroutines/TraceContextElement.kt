@@ -117,7 +117,7 @@ public fun createCoroutineTracingContext(
     countDepth: Boolean = false,
     testMode: Boolean = false,
     walkStackForDefaultNames: Boolean = false,
-    shouldIgnoreClassName: (String) -> Boolean = { false },
+    shouldIgnoreClassName: ((String) -> Boolean)? = null,
 ): CoroutineContext {
     return if (Flags.coroutineTracing()) {
         TraceContextElement(
@@ -143,6 +143,7 @@ public fun createCoroutineTracingContext(
  *
  * [TraceContextElement] should be installed on the root, and [CoroutineTraceName] on the children.
  */
+@Deprecated("Use .launchInTraced, .launchTraced, .shareInTraced, etc.")
 public fun nameCoroutine(name: String): CoroutineContext = nameCoroutine { name }
 
 /**
@@ -155,33 +156,25 @@ public fun nameCoroutine(name: String): CoroutineContext = nameCoroutine { name 
  * @param name lazy string to only be called if feature is enabled
  */
 @OptIn(ExperimentalContracts::class)
+@Deprecated("Use .launchInTraced, .launchTraced, .shareInTraced, etc.")
 public inline fun nameCoroutine(name: () -> String): CoroutineContext {
     contract { callsInPlace(name, InvocationKind.AT_MOST_ONCE) }
     return if (Flags.coroutineTracing()) CoroutineTraceName(name()) else EmptyCoroutineContext
 }
 
-/**
- * Common base class of [TraceContextElement] and [CoroutineTraceName]. For internal use only.
- *
- * [TraceContextElement] should be installed on the root, and [CoroutineTraceName] should ONLY be
- * used when launching children to give them names.
- *
- * @property name the name of the current coroutine
- */
-/**
- * A coroutine context element that can be used for naming the child coroutine under construction.
- *
- * @property name the name to be used for the child under construction
- * @see nameCoroutine
- */
-@OptIn(DelicateCoroutinesApi::class, ExperimentalCoroutinesApi::class)
 @PublishedApi
-internal open class CoroutineTraceName(internal val name: String) :
-    CopyableThreadContextElement<TraceData?>, CoroutineContext.Element {
+internal open class CoroutineTraceName(internal val name: String?) : CoroutineContext.Element {
     companion object Key : CoroutineContext.Key<CoroutineTraceName>
 
     override val key: CoroutineContext.Key<*>
         get() = Key
+
+    @OptIn(ExperimentalStdlibApi::class)
+    override fun <E : CoroutineContext.Element> get(key: CoroutineContext.Key<E>): E? =
+        getPolymorphicElement(key)
+
+    @OptIn(ExperimentalStdlibApi::class)
+    override fun minusKey(key: CoroutineContext.Key<*>): CoroutineContext = minusPolymorphicKey(key)
 
     @Deprecated(
         message =
@@ -194,40 +187,24 @@ internal open class CoroutineTraceName(internal val name: String) :
         """,
         level = DeprecationLevel.ERROR,
     )
-    public operator fun plus(other: CoroutineTraceName): CoroutineTraceName {
-        debug { "CTN#plus;c=$name other=${other.name}" }
+    operator fun plus(other: CoroutineTraceName): CoroutineTraceName {
         return other
     }
 
-    @OptIn(ExperimentalStdlibApi::class)
-    override fun <E : CoroutineContext.Element> get(key: CoroutineContext.Key<E>): E? =
-        getPolymorphicElement(key)
-
-    @OptIn(ExperimentalStdlibApi::class)
-    override fun minusKey(key: CoroutineContext.Key<*>): CoroutineContext = minusPolymorphicKey(key)
-
-    override fun copyForChild(): CopyableThreadContextElement<TraceData?> {
-        // Reusing this object is okay because we aren't persisting to thread local store.
-        // This object only exists for the purpose of storing a String for future use
-        // by TraceContextElement.
-        return this
+    @Deprecated(
+        message =
+            """
+         Operator `+` on two BaseTraceElement objects is meaningless. If used, the context element
+         to the right of `+` would simply replace the element to the left. To properly use
+         `BaseTraceElement`, `TraceContextElement` should be used when creating a top-level
+         `CoroutineScope` and `CoroutineTraceName` should be passed to the child context that is
+         under construction.
+        """,
+        level = DeprecationLevel.ERROR,
+    )
+    operator fun plus(other: TraceContextElement): TraceContextElement {
+        return other
     }
-
-    override fun mergeForChild(overwritingElement: CoroutineContext.Element): CoroutineContext {
-        return if (overwritingElement is TraceContextElement) {
-            overwritingElement.createChildContext(name)
-        } else if (overwritingElement is CoroutineTraceName) {
-            overwritingElement
-        } else {
-            EmptyCoroutineContext
-        }
-    }
-
-    override fun updateThreadContext(context: CoroutineContext): TraceData? {
-        return null
-    }
-
-    override fun restoreThreadContext(context: CoroutineContext, oldState: TraceData?) {}
 }
 
 /**
@@ -259,14 +236,11 @@ internal class TraceContextElement(
     private val isRoot: Boolean,
     private val countContinuations: Boolean,
     private val walkStackForDefaultNames: Boolean,
-    private val shouldIgnoreClassName: (String) -> Boolean,
+    private val shouldIgnoreClassName: ((String) -> Boolean)?,
     parentId: Int?,
     inheritedTracePrefix: String?,
     coroutineDepth: Int,
-) : CoroutineTraceName(name) {
-
-    protected val currentId: Int = ThreadLocalRandom.current().nextInt(1, Int.MAX_VALUE)
-
+) : CopyableThreadContextElement<TraceData?>, CoroutineTraceName(name), CoroutineContext.Element {
     @OptIn(ExperimentalStdlibApi::class)
     companion object Key :
         AbstractCoroutineContextKey<CoroutineTraceName, TraceContextElement>(
@@ -274,8 +248,13 @@ internal class TraceContextElement(
             { it as? TraceContextElement },
         )
 
+    private val currentId: Int = ThreadLocalRandom.current().nextInt(1, Int.MAX_VALUE)
+
+    private val nameWithId =
+        "${if (isRoot) "ROOT-" else ""}$name;c=$currentId;p=${parentId ?: "none"}"
+
     init {
-        val traceSection = "TCE#init name=$name"
+        val traceSection = "TCE#init;$nameWithId"
         debug { traceSection }
         Trace.traceBegin(Trace.TRACE_TAG_APP, traceSection)
     }
@@ -285,9 +264,9 @@ internal class TraceContextElement(
     internal val contextTraceData: TraceData? =
         if (isRoot) null else TraceData(currentId, strictMode = inheritedTracePrefix != null)
 
-    private val coroutineTraceName =
+    private var coroutineTraceName: String =
         if (inheritedTracePrefix == null) {
-            "coroutine execution;$name;c=$currentId;p=${parentId ?: "none"}${if (coroutineDepth == -1) "" else ";d=$coroutineDepth"}"
+            "coroutine execution;$nameWithId${if (coroutineDepth == -1) "" else ";d=$coroutineDepth"}"
         } else {
             "$inheritedTracePrefix$name"
         }
@@ -295,10 +274,11 @@ internal class TraceContextElement(
     private var continuationCount = 0
     private val childDepth =
         if (inheritedTracePrefix != null || coroutineDepth == -1) -1 else coroutineDepth + 1
+
     private val childCoroutineCount = if (inheritedTracePrefix != null) AtomicInteger(0) else null
 
-    private val copyForChildTraceMessage = "TCE#copy;c=$currentId]"
-    private val mergeForChildTraceMessage = "TCE#merge;c=$currentId]"
+    private val copyForChildTraceMessage = "TCE#copy;$nameWithId"
+    private val mergeForChildTraceMessage = "TCE#merge;$nameWithId"
 
     init {
         Trace.traceEnd(Trace.TRACE_TAG_APP) // end: "TCE#init"
@@ -322,19 +302,22 @@ internal class TraceContextElement(
     @SuppressLint("UnclosedTrace")
     public override fun updateThreadContext(context: CoroutineContext): TraceData? {
         val oldState = traceThreadLocal.get()
-        debug { "TCE#update;c=$currentId oldState=${oldState?.currentId}" }
+        //        val coroutineName = context[CoroutineTraceName]?.name ?: ""
+        debug { "TCE#update;$nameWithId oldState=${oldState?.currentId}" }
         if (oldState !== contextTraceData) {
             traceThreadLocal.set(contextTraceData)
-            Trace.traceBegin(
-                Trace.TRACE_TAG_APP,
-                if (countContinuations) "$coroutineTraceName;n=${continuationCount++}"
-                else coroutineTraceName,
-            )
-            // Calls to `updateThreadContext` will not happen in parallel on the same context, and
-            // they cannot happen before the prior suspension point. Additionally,
-            // `restoreThreadContext` does not modify `traceData`, so it is safe to iterate over the
-            // collection here:
-            contextTraceData?.beginAllOnThread()
+            if (Trace.isTagEnabled(Trace.TRACE_TAG_APP)) {
+                Trace.traceBegin(
+                    Trace.TRACE_TAG_APP,
+                    if (countContinuations) "$coroutineTraceName;n=${continuationCount++}"
+                    else coroutineTraceName,
+                )
+                // Calls to `updateThreadContext` will not happen in parallel on the same context,
+                // and they cannot happen before the prior suspension point. Additionally,
+                // `restoreThreadContext` does not modify `traceData`, so it is safe to iterate over
+                // the collection here:
+                contextTraceData?.beginAllOnThread()
+            }
         }
         return oldState
     }
@@ -367,7 +350,7 @@ internal class TraceContextElement(
      * ```
      */
     public override fun restoreThreadContext(context: CoroutineContext, oldState: TraceData?) {
-        debug { "TCE#restore;c=$currentId restoring=${oldState?.currentId}" }
+        debug { "TCE#restore;$nameWithId restoring=${oldState?.currentId}" }
         // We not use the `TraceData` object here because it may have been modified on another
         // thread after the last suspension point. This is why we use a [TraceStateHolder]:
         // so we can end the correct number of trace sections, restoring the thread to its state
@@ -383,7 +366,9 @@ internal class TraceContextElement(
         debug { copyForChildTraceMessage }
         try {
             Trace.traceBegin(Trace.TRACE_TAG_APP, copyForChildTraceMessage)
-            return createChildContext(null)
+            // Root is a special case in which the name is copied to the child by default.
+            // Otherwise, everything launched on a coroutine would have an empty name by default
+            return createChildContext(if (isRoot) name else null)
         } finally {
             Trace.traceEnd(Trace.TRACE_TAG_APP) // end: copyForChildTraceMessage
         }
@@ -392,35 +377,21 @@ internal class TraceContextElement(
     public override fun mergeForChild(
         overwritingElement: CoroutineContext.Element
     ): CoroutineContext {
-        debug {
-            (overwritingElement as? TraceContextElement)?.let {
-                val msg =
-                    "${this::class.java.simpleName}@$currentId#mergeForChild(@${it.currentId}): " +
-                        "current name=\"$name\", overwritingElement name=\"${it.name}\". " +
-                        UNEXPECTED_TRACE_DATA_ERROR_MESSAGE
-                Trace.instant(Trace.TRACE_TAG_APP, msg)
-                Log.e(TAG, msg)
-            }
-            return@debug mergeForChildTraceMessage
-        }
+        debug { mergeForChildTraceMessage }
         try {
             Trace.traceBegin(Trace.TRACE_TAG_APP, mergeForChildTraceMessage)
-            val nameForChild = (overwritingElement as CoroutineTraceName).name
-            return createChildContext(nameForChild)
+            return createChildContext(overwritingElement[CoroutineTraceName]?.name)
         } finally {
             Trace.traceEnd(Trace.TRACE_TAG_APP) // end: mergeForChildTraceMessage
         }
     }
 
-    internal fun createChildContext(childName: String?): TraceContextElement {
+    private fun createChildContext(name: String?): TraceContextElement {
         return TraceContextElement(
             name =
-                childName
-                    ?: if (walkStackForDefaultNames) {
-                        walkStackForClassName(shouldIgnoreClassName)
-                    } else {
-                        ""
-                    },
+                if (name == null && walkStackForDefaultNames)
+                    walkStackForClassName(shouldIgnoreClassName)
+                else name ?: "",
             isRoot = false,
             countContinuations = countContinuations,
             walkStackForDefaultNames = walkStackForDefaultNames,
@@ -429,7 +400,7 @@ internal class TraceContextElement(
             inheritedTracePrefix =
                 if (childCoroutineCount != null) {
                     val childCount = childCoroutineCount.incrementAndGet()
-                    "$coroutineTraceName:$childCount^"
+                    "${if (isRoot) "" else "$coroutineTraceName:"}$childCount^"
                 } else null,
             coroutineDepth = childDepth,
         )
@@ -441,9 +412,7 @@ internal class TraceContextElement(
  *
  * @param additionalDropPredicate additional checks for whether class should be ignored
  */
-private fun walkStackForClassName(
-    additionalDropPredicate: (String) -> Boolean = { false }
-): String {
+private fun walkStackForClassName(additionalDropPredicate: ((String) -> Boolean)? = null): String {
     Trace.traceBegin(Trace.TRACE_TAG_APP, "walkStackForClassName")
     try {
         var frame = ""
@@ -452,7 +421,7 @@ private fun walkStackForClassName(
                     val className = f.className
                     className.startsWith("kotlin") ||
                         className.startsWith("com.android.app.tracing.") ||
-                        additionalDropPredicate(className)
+                        (additionalDropPredicate != null && additionalDropPredicate(className))
                 }
                 .findFirst()
                 .ifPresent { frame = it.className.substringAfterLast(".") + "." + it.methodName }

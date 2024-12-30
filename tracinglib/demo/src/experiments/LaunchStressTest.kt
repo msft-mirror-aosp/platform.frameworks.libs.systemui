@@ -15,37 +15,26 @@
  */
 package com.example.tracing.demo.experiments
 
-import com.android.app.tracing.coroutines.createCoroutineTracingContext
 import com.android.app.tracing.coroutines.launchTraced as launch
 import com.android.app.tracing.coroutines.traceCoroutine
 import com.example.tracing.demo.FixedPool
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlinx.coroutines.CoroutineDispatcher
-import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 
 @Singleton
 class LaunchStressTest
 @Inject
-constructor(@FixedPool private var fixedPoolDispatcher: CoroutineDispatcher) : BlockingExperiment {
+constructor(@FixedPool private var fixedPoolDispatcher: CoroutineDispatcher) : TracedExperiment() {
 
     override val description: String = "Simultaneous launch{} calls on different threads"
 
-    override fun start() {
-        val scope =
-            CoroutineScope(
-                fixedPoolDispatcher +
-                    createCoroutineTracingContext(
-                        name = "ParentScope",
-                        walkStackForDefaultNames = false,
-                    )
-            )
-
-        repeat(1000) { i ->
-            scope.launch("launch-A") { traceCoroutine("A:$i") { delay(1) } }
-            scope.launch("launch-B") { traceCoroutine("B:$i") { delay(1) } }
-            scope.launch("launch-C") { traceCoroutine("C:$i") { delay(1) } }
+    override suspend fun runExperiment(): Unit = coroutineScope {
+        repeat(1000) { i -> launch("launch(empty)") { traceCoroutine("delay:$i") { delay(1) } } }
+        launch("launch(pool)", fixedPoolDispatcher) {
+            repeat(1000) { i -> launch("launch") { traceCoroutine("delay:$i") { delay(1) } } }
         }
     }
 }

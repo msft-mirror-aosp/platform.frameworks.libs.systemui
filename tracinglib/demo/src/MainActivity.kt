@@ -25,6 +25,7 @@ import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.spring
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.lazy.LazyColumn
@@ -42,91 +43,88 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.unit.dp
-import com.android.app.tracing.coroutines.createCoroutineTracingContext
-import com.example.tracing.demo.experiments.AsyncExperiment
-import com.example.tracing.demo.experiments.BlockingExperiment
+import com.android.app.tracing.coroutines.launchTraced as launch
 import com.example.tracing.demo.experiments.Experiment
 import com.example.tracing.demo.experiments.TRACK_NAME
-import com.example.tracing.demo.experiments.startThreadWithLooper
 import com.example.tracing.demo.ui.theme.BasicsCodelabTheme
-import kotlin.coroutines.cancellation.CancellationException
 import kotlin.random.Random
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Job
-import kotlinx.coroutines.android.asCoroutineDispatcher
-import kotlinx.coroutines.launch
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.cancelChildren
+import kotlinx.coroutines.job
 
-private val demoMonitorThread by lazy { startThreadWithLooper("demo-monitor-thread") }
+val AllExperiments = compositionLocalOf<List<Experiment>> { error("No Experiments found!") }
 
-private val demoMonitorScope: CoroutineScope =
-    CoroutineScope(
-        demoMonitorThread.threadHandler.asCoroutineDispatcher() +
-            createCoroutineTracingContext(
-                "demo-monitor-scope",
-                walkStackForDefaultNames = true,
-                countContinuations = true,
-            )
-    )
+val Experiment = compositionLocalOf<Experiment> { error("No found!") }
 
-class MainActivity : ComponentActivity() {
+val ExperimentLaunchDispatcher =
+    compositionLocalOf<CoroutineDispatcher> {
+        error("No @ExperimentLauncher CoroutineDispatcher found!")
+    }
 
+class MainActivity(private val appComponent: ApplicationComponent) : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        val experimentByClass =
-            (applicationContext as MainApplication).appComponent.getAllExperiments()
         enableEdgeToEdge()
         setContent {
             BasicsCodelabTheme {
-                DemoApp(
-                    modifier = Modifier.safeDrawingPadding(),
-                    allExperiments = experimentByClass.values.stream().map { it.get() }.toList(),
-                )
+                CompositionLocalProvider(
+                    AllExperiments provides appComponent.getExperimentList(),
+                    ExperimentLaunchDispatcher provides
+                        appComponent.getExperimentDefaultCoroutineDispatcher(),
+                ) {
+                    DemoApp(modifier = Modifier.safeDrawingPadding())
+                }
             }
         }
     }
 }
 
 @Composable
-fun DemoApp(modifier: Modifier = Modifier, allExperiments: List<Experiment>) {
-    Surface(modifier) { ExperimentList(allExperiments = allExperiments) }
+fun DemoApp(modifier: Modifier = Modifier) {
+    Surface(modifier) { ExperimentList() }
 }
 
 @Composable
-private fun ExperimentList(modifier: Modifier = Modifier, allExperiments: List<Experiment>) {
+private fun ExperimentList(modifier: Modifier = Modifier) {
+    val allExperiments = AllExperiments.current
+
     LazyColumn(modifier = modifier.padding(vertical = 4.dp)) {
-        items(items = allExperiments) { experiment -> ExperimentCard(experiment = experiment) }
+        items(items = allExperiments.stream().toList()) { experiment ->
+            CompositionLocalProvider(Experiment provides experiment) { ExperimentCard() }
+        }
     }
 }
 
 @Composable
-private fun ExperimentCard(experiment: Experiment, modifier: Modifier = Modifier) {
+private fun ExperimentCard(modifier: Modifier = Modifier) {
     Card(
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primary),
         modifier = modifier.padding(vertical = 4.dp, horizontal = 8.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primary),
     ) {
-        ExperimentContent(experiment)
+        ExperimentContentRow()
     }
 }
 
 @Composable
-private fun ExperimentContent(experiment: Experiment) {
-    var expanded by remember { mutableStateOf(false) }
-    var currentlyRunning by remember { mutableStateOf(false) }
-    val statusMessages = remember { mutableStateListOf<String>() }
-    var currentJob by remember { mutableStateOf<Job?>(null) }
+private fun ExperimentContentRow(modifier: Modifier = Modifier) {
     Row(
         modifier =
-            Modifier.padding(12.dp)
+            modifier
+                .padding(12.dp)
                 .animateContentSize(
                     animationSpec =
                         spring(
@@ -135,78 +133,82 @@ private fun ExperimentContent(experiment: Experiment) {
                         )
                 )
     ) {
-        Column(modifier = Modifier.weight(1f).padding(12.dp)) {
+        ExperimentContent()
+    }
+}
+
+@Composable
+private fun RowScope.ExperimentContent(modifier: Modifier = Modifier) {
+    val experiment = Experiment.current
+    val launcherDispatcher = ExperimentLaunchDispatcher.current
+    val scope = rememberCoroutineScope { launcherDispatcher + experiment.context }
+
+    var isRunning by remember { mutableStateOf(false) }
+    var expanded by remember { mutableStateOf(false) }
+    val statusMessages = remember { mutableStateListOf<String>() }
+    val className = experiment.javaClass.simpleName
+
+    Column(modifier = modifier.weight(1f).padding(12.dp)) {
+        Text(text = experiment.javaClass.simpleName, style = MaterialTheme.typography.headlineSmall)
+        Text(
+            text = experiment.description,
+            style = MaterialTheme.typography.bodyMedium.copy(fontStyle = FontStyle.Italic),
+        )
+        if (expanded) {
             Text(
-                text = experiment.javaClass.simpleName,
-                style = MaterialTheme.typography.headlineSmall,
+                text = statusMessages.joinToString(separator = "\n") { it },
+                style = MaterialTheme.typography.bodyMedium.copy(fontFamily = FontFamily.Monospace),
             )
-            Text(
-                text = experiment.description,
-                style = MaterialTheme.typography.bodyMedium.copy(fontStyle = FontStyle.Italic),
-            )
-            if (expanded) {
-                Text(
-                    text = statusMessages.joinToString(separator = "\n") { it },
-                    style =
-                        MaterialTheme.typography.bodyMedium.copy(fontFamily = FontFamily.Monospace),
-                )
-            }
         }
-        IconButton(
-            onClick = {
-                currentlyRunning = !currentlyRunning
-                if (currentlyRunning) {
-                    val cookie = Random.nextInt()
-                    Trace.asyncTraceForTrackBegin(
-                        Trace.TRACE_TAG_APP,
-                        TRACK_NAME,
-                        "Running: ${experiment.javaClass.simpleName}",
-                        cookie,
-                    )
-                    statusMessages += "Started"
-                    currentJob =
-                        demoMonitorScope.launch {
-                            when (experiment) {
-                                is BlockingExperiment -> experiment.start()
-                                is AsyncExperiment -> experiment.start()
-                            }
-                        }
-                    currentJob!!.invokeOnCompletion { cause ->
-                        currentlyRunning = false
+    }
+
+    IconButton(
+        onClick = {
+            if (isRunning) {
+                scope.coroutineContext.job.cancelChildren()
+            } else {
+                val cookie = Random.nextInt()
+                Trace.asyncTraceForTrackBegin(
+                    Trace.TRACE_TAG_APP,
+                    TRACK_NAME,
+                    "Running: $className",
+                    cookie,
+                )
+                statusMessages += "Started"
+                expanded = true
+                isRunning = true
+                scope
+                    .launch("$className#runExperiment") { experiment.runExperiment() }
+                    .invokeOnCompletion { cause ->
                         Trace.asyncTraceForTrackEnd(Trace.TRACE_TAG_APP, TRACK_NAME, cookie)
+                        isRunning = false
                         statusMessages +=
                             when (cause) {
                                 null -> "completed normally"
-                                is CancellationException -> "cancelled normally"
+                                is CancellationException -> "cancelled normally: ${cause.message}"
                                 else -> "failed"
                             }
                     }
-                    expanded = true
-                } else {
-                    currentJob?.cancel()
-                    currentJob = null
-                }
             }
-        ) {
-            Icon(
-                imageVector = if (currentlyRunning) Filled.StopCircle else Filled.PlayCircleOutline,
-                contentDescription = stringResource(R.string.run_experiment),
-            )
         }
-        IconButton(
-            onClick = {
-                expanded = !expanded
-                if (!expanded) {
-                    statusMessages.clear()
-                }
-            }
-        ) {
-            Icon(
-                imageVector = if (expanded) Filled.ExpandLess else Filled.ExpandMore,
-                contentDescription =
-                    if (expanded) stringResource(R.string.show_less)
-                    else stringResource(R.string.show_more),
-            )
-        }
+    ) {
+        Icon(
+            imageVector = if (isRunning) Filled.StopCircle else Filled.PlayCircleOutline,
+            contentDescription = stringResource(R.string.run_experiment),
+        )
+    }
+    IconButton(
+        onClick = {
+            expanded = !expanded
+            if (!expanded) statusMessages.clear()
+        },
+        enabled = !expanded || !isRunning,
+    ) {
+        Icon(
+            imageVector = if (expanded) Filled.ExpandLess else Filled.ExpandMore,
+            contentDescription =
+                if (expanded) stringResource(R.string.show_less)
+                else stringResource(R.string.show_more),
+        )
     }
 }

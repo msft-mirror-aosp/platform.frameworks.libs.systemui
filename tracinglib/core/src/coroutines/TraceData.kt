@@ -16,6 +16,7 @@
 
 package com.android.app.tracing.coroutines
 
+import android.os.Trace
 import com.android.app.tracing.beginSlice
 import com.android.app.tracing.endSlice
 import java.util.ArrayDeque
@@ -61,18 +62,22 @@ internal class TraceData(internal val currentId: Int, private val strictMode: Bo
 
     /** Adds current trace slices back to the current thread. Called when coroutine is resumed. */
     internal fun beginAllOnThread() {
-        strictModeCheck()
-        slices?.descendingIterator()?.forEach { beginSlice(it) }
-        openSliceCount.set(slices?.size ?: 0)
+        if (Trace.isTagEnabled(Trace.TRACE_TAG_APP)) {
+            strictModeCheck()
+            slices?.descendingIterator()?.forEach { beginSlice(it) }
+            openSliceCount.set(slices?.size ?: 0)
+        }
     }
 
     /**
      * Removes all current trace slices from the current thread. Called when coroutine is suspended.
      */
     internal fun endAllOnThread() {
-        strictModeCheck()
-        repeat(openSliceCount.get() ?: 0) { endSlice() }
-        openSliceCount.set(0)
+        if (Trace.isTagEnabled(Trace.TRACE_TAG_APP)) {
+            strictModeCheck()
+            repeat(openSliceCount.get() ?: 0) { endSlice() }
+            openSliceCount.set(0)
+        }
     }
 
     /**

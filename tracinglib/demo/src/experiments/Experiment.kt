@@ -15,14 +15,23 @@
  */
 package com.example.tracing.demo.experiments
 
-sealed interface Experiment {
-    val description: String
+import com.android.app.tracing.coroutines.createCoroutineTracingContext
+import kotlin.coroutines.CoroutineContext
+import kotlin.coroutines.EmptyCoroutineContext
+
+sealed class Experiment {
+    abstract val description: String
+
+    open val context: CoroutineContext = EmptyCoroutineContext
+
+    abstract suspend fun runExperiment()
 }
 
-sealed interface BlockingExperiment : Experiment {
-    fun start()
-}
-
-sealed interface AsyncExperiment : Experiment {
-    suspend fun start()
+sealed class TracedExperiment : Experiment() {
+    override val context: CoroutineContext =
+        createCoroutineTracingContext(
+            this::class.simpleName!!,
+            walkStackForDefaultNames = true,
+            countContinuations = true,
+        )
 }
