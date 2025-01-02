@@ -32,13 +32,15 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.DelicateCoroutinesApi
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.newSingleThreadContext
-import kotlinx.coroutines.withContext
 import org.junit.Assert.assertArrayEquals
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNotSame
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertSame
+import org.junit.Assert.assertThrows
 import org.junit.Test
 
 @OptIn(ExperimentalCoroutinesApi::class, DelicateCoroutinesApi::class)
@@ -215,28 +217,41 @@ class CoroutineTracingMachineryTest : TestBase() {
         expect()
         val traceContext =
             createCoroutineTracingContext("main", testMode = true) as TraceContextElement
-        withContext(traceContext) {
-            // Not the same object because it should be copied into the current context
-            assertNotSame(traceThreadLocal.get(), traceContext.contextTraceData)
-            // slices is lazily created, so it should be null:
-            assertNull((traceThreadLocal.get() as TraceData).slices)
-            assertNull(traceContext.contextTraceData?.slices)
-            expect("1^main")
-            traceCoroutine("hello") {
+        // Root does not have slices:
+        assertNull(traceContext.contextTraceData)
+        launch(traceContext) {
+                // After copying during launch, root still does not have slices:
+                assertNull(traceContext.contextTraceData)
+                // However, the copied object has slices:
+                val currentTce = currentCoroutineContext()[TraceContextElement]
+                assertNotNull(currentTce)
+                assertNotNull(currentTce!!.contextTraceData)
+                // Not the same object because it should be copied into the current context
+                assertSame(traceThreadLocal.get(), currentTce.contextTraceData)
+                // slices is lazily created, so it should not be initialized yet:
+                assertThrows(UninitializedPropertyAccessException::class.java) {
+                    (traceThreadLocal.get() as TraceData).slices
+                }
+                assertThrows(UninitializedPropertyAccessException::class.java) {
+                    currentTce.contextTraceData!!.slices
+                }
+                expect("1^main")
+                traceCoroutine("hello") {
+                    assertNotSame(traceThreadLocal.get(), traceContext.contextTraceData)
+                    assertArrayEquals(
+                        arrayOf("hello"),
+                        (traceThreadLocal.get() as TraceData).slices.toArray(),
+                    )
+                    assertNull(traceContext.contextTraceData?.slices)
+                }
                 assertNotSame(traceThreadLocal.get(), traceContext.contextTraceData)
-                assertArrayEquals(
-                    arrayOf("hello"),
-                    (traceThreadLocal.get() as TraceData).slices?.toArray(),
-                )
+                // Because slices is lazily created, it will no longer be uninitialized after it was
+                // used to trace "hello", but this time it will be empty
+                assertArrayEquals(arrayOf(), (traceThreadLocal.get() as TraceData).slices.toArray())
                 assertNull(traceContext.contextTraceData?.slices)
+                expect("1^main")
             }
-            assertNotSame(traceThreadLocal.get(), traceContext.contextTraceData)
-            // Because slices is lazily created, it will no longer be null after it was used to
-            // trace "hello", but this time it will be empty
-            assertArrayEquals(arrayOf(), (traceThreadLocal.get() as TraceData).slices?.toArray())
-            assertNull(traceContext.contextTraceData?.slices)
-            expect("1^main")
-        }
+            .join()
         expect()
     }
 }

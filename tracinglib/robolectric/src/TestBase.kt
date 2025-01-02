@@ -16,6 +16,7 @@
 
 package com.android.test.tracing.coroutines
 
+import android.os.Looper
 import android.platform.test.flag.junit.SetFlagsRule
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.android.test.tracing.coroutines.util.FakeTraceState
@@ -23,6 +24,7 @@ import com.android.test.tracing.coroutines.util.FakeTraceState.getOpenTraceSecti
 import com.android.test.tracing.coroutines.util.ShadowTrace
 import java.io.PrintWriter
 import java.io.StringWriter
+import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineExceptionHandler
@@ -41,6 +43,7 @@ import org.junit.Before
 import org.junit.ClassRule
 import org.junit.Rule
 import org.junit.runner.RunWith
+import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
 
 class InvalidTraceStateException(message: String, cause: Throwable? = null) :
@@ -69,12 +72,14 @@ abstract class TestBase {
 
     @Before
     fun setup() {
+        FakeTraceState.clearAll()
         FakeTraceState.isTracingEnabled = true
     }
 
     @After
     fun tearDown() {
         FakeTraceState.isTracingEnabled = false
+        FakeTraceState.clearAll()
         val sw = StringWriter()
         val pw = PrintWriter(sw)
 
@@ -115,9 +120,12 @@ abstract class TestBase {
                 )
 
             runBlocking {
-                val timeoutMillis = 200
+                val timeoutMillis = 200L
                 try {
-                    withTimeout(1000) { job.join() }
+                    val shadowLooper = shadowOf(Looper.getMainLooper())
+                    job.start()
+                    repeat(200) { shadowLooper.idleFor(1, TimeUnit.MILLISECONDS) }
+                    withTimeout(timeoutMillis) { job.join() }
                 } catch (e: TimeoutCancellationException) {
                     fail(
                         "Timeout running test. Test should complete in less than $timeoutMillis ms"

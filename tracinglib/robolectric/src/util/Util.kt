@@ -16,4 +16,4 @@
 
 package com.android.test.tracing.coroutines.util
 
-internal fun currentThreadId(): Long = Thread.currentThread().id
+internal fun currentThreadId(): Long = Thread.currentThread().threadId()

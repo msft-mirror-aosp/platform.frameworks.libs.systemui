@@ -222,12 +222,11 @@ public inline fun <T, R> R.traceCoroutine(crossinline spanName: () -> String, bl
     // For coroutine tracing to work, trace spans must be added and removed even when
     // tracing is not active (i.e. when TRACE_TAG_APP is disabled). Otherwise, when the
     // coroutine resumes when tracing is active, we won't know its name.
-    val traceData = if (Flags.coroutineTracing()) traceThreadLocal.get() else null
-    traceData?.beginSpan(spanName())
     try {
+        if (Flags.coroutineTracing()) traceThreadLocal.get()?.beginSpan(spanName())
         return block()
     } finally {
-        traceData?.endSpan()
+        if (Flags.coroutineTracing()) traceThreadLocal.get()?.endSpan()
     }
 }
 
@@ -239,12 +238,11 @@ public inline fun <T> traceCoroutine(crossinline spanName: () -> String, block: 
     // For coroutine tracing to work, trace spans must be added and removed even when
     // tracing is not active (i.e. when TRACE_TAG_APP is disabled). Otherwise, when the
     // coroutine resumes when tracing is active, we won't know its name.
-    val traceData = if (Flags.coroutineTracing()) traceThreadLocal.get() else null
-    traceData?.beginSpan(spanName())
     try {
+        if (Flags.coroutineTracing()) traceThreadLocal.get()?.beginSpan(spanName())
         return block()
     } finally {
-        traceData?.endSpan()
+        if (Flags.coroutineTracing()) traceThreadLocal.get()?.endSpan()
     }
 }
 

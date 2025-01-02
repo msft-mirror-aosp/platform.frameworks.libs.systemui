@@ -29,11 +29,23 @@ import java.util.ArrayDeque
  */
 private typealias TraceSection = String
 
-private class TraceCountThreadLocal : ThreadLocal<Int>() {
-    override fun initialValue(): Int {
-        return 0
+private class MutableInt(var value: Int)
+
+private class ThreadLocalInt : ThreadLocal<MutableInt>() {
+    override fun initialValue(): MutableInt {
+        return MutableInt(0)
     }
 }
+
+/**
+ * ThreadLocal counter for how many open trace sections there are. This is needed because it is
+ * possible that on a multi-threaded dispatcher, one of the threads could be slow, and
+ * [TraceContextElement.restoreThreadContext] might be invoked _after_ the coroutine has already
+ * resumed and modified [TraceData] - either adding or removing trace sections and changing the
+ * count. If we did not store this thread-locally, then we would incorrectly end too many or too few
+ * trace sections.
+ */
+private val openSliceCount = ThreadLocalInt()
 
 /**
  * Used for storing trace sections so that they can be added and removed from the currently running
@@ -48,24 +60,16 @@ private class TraceCountThreadLocal : ThreadLocal<Int>() {
 @PublishedApi
 internal class TraceData(internal val currentId: Int, private val strictMode: Boolean) {
 
-    internal var slices: ArrayDeque<TraceSection>? = null
-
-    /**
-     * ThreadLocal counter for how many open trace sections there are. This is needed because it is
-     * possible that on a multi-threaded dispatcher, one of the threads could be slow, and
-     * `restoreThreadContext` might be invoked _after_ the coroutine has already resumed and
-     * modified TraceData - either adding or removing trace sections and changing the count. If we
-     * did not store this thread-locally, then we would incorrectly end too many or too few trace
-     * sections.
-     */
-    private val openSliceCount = TraceCountThreadLocal()
+    internal lateinit var slices: ArrayDeque<TraceSection>
 
     /** Adds current trace slices back to the current thread. Called when coroutine is resumed. */
     internal fun beginAllOnThread() {
         if (Trace.isTagEnabled(Trace.TRACE_TAG_APP)) {
             strictModeCheck()
-            slices?.descendingIterator()?.forEach { beginSlice(it) }
-            openSliceCount.set(slices?.size ?: 0)
+            if (::slices.isInitialized) {
+                slices.descendingIterator().forEach { sectionName -> beginSlice(sectionName) }
+                openSliceCount.get()!!.value = slices.size
+            }
         }
     }
 
@@ -75,8 +79,9 @@ internal class TraceData(internal val currentId: Int, private val strictMode: Bo
     internal fun endAllOnThread() {
         if (Trace.isTagEnabled(Trace.TRACE_TAG_APP)) {
             strictModeCheck()
-            repeat(openSliceCount.get() ?: 0) { endSlice() }
-            openSliceCount.set(0)
+            val sliceCount = openSliceCount.get()!!
+            repeat(sliceCount.value) { endSlice() }
+            sliceCount.value = 0
         }
     }
 
@@ -89,11 +94,11 @@ internal class TraceData(internal val currentId: Int, private val strictMode: Bo
     @PublishedApi
     internal fun beginSpan(name: String) {
         strictModeCheck()
-        if (slices == null) {
-            slices = ArrayDeque()
+        if (!::slices.isInitialized) {
+            slices = ArrayDeque<TraceSection>(4)
         }
-        slices!!.push(name)
-        openSliceCount.set(slices!!.size)
+        slices.push(name)
+        openSliceCount.get()!!.value = slices.size
         beginSlice(name)
     }
 
@@ -106,9 +111,9 @@ internal class TraceData(internal val currentId: Int, private val strictMode: Bo
     internal fun endSpan() {
         strictModeCheck()
         // Should never happen, but we should be defensive rather than crash the whole application
-        if (slices != null && slices!!.size > 0) {
-            slices!!.pop()
-            openSliceCount.set(slices!!.size)
+        if (::slices.isInitialized && slices.size > 0) {
+            slices.pop()
+            openSliceCount.get()!!.value = slices.size
             endSlice()
         } else if (strictMode) {
             throw IllegalStateException(INVALID_SPAN_END_CALL_ERROR_MESSAGE)
@@ -116,8 +121,13 @@ internal class TraceData(internal val currentId: Int, private val strictMode: Bo
     }
 
     public override fun toString(): String =
-        if (DEBUG) "{${slices?.joinToString(separator = "\", \"", prefix = "\"", postfix = "\"")}}"
-        else super.toString()
+        if (DEBUG) {
+            if (::slices.isInitialized) {
+                "{${slices.joinToString(separator = "\", \"", prefix = "\"", postfix = "\"")}}"
+            } else {
+                "{<uninitialized>}"
+            }
+        } else super.toString()
 
     private fun strictModeCheck() {
         if (strictMode && traceThreadLocal.get() !== this) {

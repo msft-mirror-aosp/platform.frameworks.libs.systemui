@@ -29,7 +29,7 @@ object ShadowTrace {
     @Implementation
     @JvmStatic
     fun isEnabled(): Boolean {
-        return FakeTraceState.isTracingEnabled
+        return isTagEnabled(Trace.TRACE_TAG_APP)
     }
 
     @Implementation
