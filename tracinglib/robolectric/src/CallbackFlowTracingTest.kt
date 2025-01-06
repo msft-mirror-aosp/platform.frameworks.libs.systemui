@@ -19,11 +19,10 @@ package com.android.test.tracing.coroutines
 import android.platform.test.annotations.EnableFlags
 import com.android.app.tracing.coroutines.createCoroutineTracingContext
 import com.android.app.tracing.coroutines.flow.collectTraced
-import com.android.app.tracing.coroutines.flow.flowName
+import com.android.app.tracing.coroutines.flow.stateInTraced
 import com.android.app.tracing.coroutines.launchTraced
 import com.android.systemui.Flags.FLAG_COROUTINE_TRACING
 import java.util.concurrent.Executor
-import kotlin.coroutines.CoroutineContext
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.DelicateCoroutinesApi
@@ -42,7 +41,7 @@ import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.onStart
-import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.job
 import kotlinx.coroutines.newSingleThreadContext
 import org.junit.Test
 
@@ -108,9 +107,13 @@ private class ExampleRepositoryImpl(
                 )
                 awaitClose { tracker.removeCallback(callback) }
             }
-            .onEach { testBase.expect("bg:1^currentInfo") }
-            .flowName("currentInfo")
-            .stateIn(bgScope, SharingStarted.Eagerly, initialValue = tracker.info)
+            .onEach { testBase.expect("1^currentInfo") }
+            .stateInTraced(
+                "currentInfo",
+                bgScope,
+                SharingStarted.Eagerly,
+                initialValue = tracker.info,
+            )
 
     override val otherState = MutableStateFlow(false)
 
@@ -120,10 +123,10 @@ private class ExampleRepositoryImpl(
             combine(currentInfo, otherState, ::Pair)
                 .map { it.first.b && it.second }
                 .distinctUntilChanged()
-                .onEach { testBase.expect("bg:2^combinedState:1^:2^") }
+                .onEach { testBase.expect("2^combinedState:1^:2^") }
                 .onStart { emit(false) }
-                .flowName("combinedState")
-                .stateIn(
+                .stateInTraced(
+                    "combinedState",
                     scope = bgScope,
                     started = SharingStarted.WhileSubscribed(),
                     initialValue = false,
@@ -134,33 +137,29 @@ private class ExampleRepositoryImpl(
 @EnableFlags(FLAG_COROUTINE_TRACING)
 class CallbackFlowTracingTest : TestBase() {
 
-    override val extraCoroutineContext: CoroutineContext
-        get() = createCoroutineTracingContext("main", includeParentNames = true, strictMode = true)
+    override val scope = CoroutineScope(createCoroutineTracingContext("main", testMode = true))
+
+    private val bgScope =
+        CoroutineScope(
+            createCoroutineTracingContext("bg", testMode = true) +
+                newSingleThreadContext("bg-thread") +
+                scope.coroutineContext.job
+        )
 
     @Test
     fun callbackFlow1() {
         val exampleTracker = ExampleStateTrackerImpl()
-        val bgScope =
-            CoroutineScope(
-                createCoroutineTracingContext("bg", includeParentNames = true, strictMode = true) +
-                    newSingleThreadContext("bg-thread")
-            )
         val repository = ExampleRepositoryImpl(this, bgScope, exampleTracker)
 
-        expect(1)
+        expect()
         runTest {
             launchTraced("collectCombined") {
                 repository.combinedState.collectTraced("combined-states") {
-                    expect(
-                        listOf(2, 4, 5, 6),
-                        "main:1^:1^collectCombined",
-                        "collect:combined-states",
-                        "collect:combined-states:emit",
-                    )
+                    expect("1^main:1^collectCombined", "collect:combined-states", "emit")
                 }
             }
             delay(10)
-            expect(3, "main:1^")
+            expect("1^main")
             delay(10)
             exampleTracker.forceUpdate(1, false, "A") // <-- no change
             delay(10)
@@ -176,7 +175,7 @@ class CallbackFlowTracingTest : TestBase() {
             delay(10)
             repository.otherState.value = true // <-- should update `combinedState`
             delay(10)
-            finish(7, "main:1^")
+            expect("1^main")
             cancel("Cancelled normally for test")
         }
         bgScope.cancel("Cancelled normally for test")

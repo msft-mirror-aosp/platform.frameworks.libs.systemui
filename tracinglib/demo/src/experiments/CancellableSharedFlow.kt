@@ -15,28 +15,32 @@
  */
 package com.example.tracing.demo.experiments
 
-import com.example.tracing.demo.FixedThreadB
+import com.example.tracing.demo.FixedThread1
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.shareIn
 
 @Singleton
 class CancellableSharedFlow
 @Inject
-constructor(@FixedThreadB private var dispatcherB: CoroutineDispatcher) : Experiment {
-
+constructor(@FixedThread1 private var dispatcher1: CoroutineDispatcher) : TracedExperiment() {
     override val description: String = "Create shared flows that can be cancelled by the parent"
 
-    override suspend fun start() {
+    override suspend fun runExperiment(): Unit = coroutineScope {
         // GOOD - launched into child scope, parent can cancel this
-        coroutineScope {
-            coldCounterFlow("good")
-                .flowOn(dispatcherB)
-                .shareIn(this, SharingStarted.Eagerly, replay = 10)
-        }
+        flow {
+                var n = 0
+                while (true) {
+                    emit(n++)
+                    forceSuspend(timeMillis = 5)
+                }
+            }
+            .flowOn(dispatcher1)
+            .shareIn(this, SharingStarted.Eagerly, replay = 10)
     }
 }

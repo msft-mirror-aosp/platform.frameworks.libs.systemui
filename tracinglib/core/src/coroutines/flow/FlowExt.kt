@@ -16,29 +16,36 @@
 
 package com.android.app.tracing.coroutines.flow
 
-import com.android.app.tracing.coroutines.nameCoroutine
+import com.android.app.tracing.coroutines.CoroutineTraceName
 import com.android.app.tracing.coroutines.traceCoroutine
 import com.android.systemui.Flags
 import kotlin.experimental.ExperimentalTypeInference
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.FlowCollector
 import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.flow as safeFlow
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.onEach
+import kotlinx.coroutines.flow.shareIn
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.transform
 
 /** @see kotlinx.coroutines.flow.internal.unsafeFlow */
 @PublishedApi
 internal inline fun <T> unsafeFlow(
-    crossinline block: suspend FlowCollector<T>.() -> Unit
+    name: String,
+    crossinline block: suspend FlowCollector<T>.() -> Unit,
 ): Flow<T> {
     return object : Flow<T> {
         override suspend fun collect(collector: FlowCollector<T>) {
-            collector.block()
+            traceCoroutine("collect:$name") { collector.block() }
         }
     }
 }
@@ -46,13 +53,12 @@ internal inline fun <T> unsafeFlow(
 /** @see kotlinx.coroutines.flow.unsafeTransform */
 @PublishedApi
 internal inline fun <T, R> Flow<T>.unsafeTransform(
-    crossinline transform: suspend FlowCollector<R>.(value: T) -> Unit
-): Flow<R> = unsafeFlow { collect { value -> transform(value) } }
+    name: String,
+    crossinline transform: suspend FlowCollector<R>.(value: T) -> Unit,
+): Flow<R> = unsafeFlow(name) { collect { value -> transform(value) } }
 
 /**
- * Helper for naming the coroutine a flow is collected in. This only has an effect if the flow
- * changes contexts (e.g. `flowOn()` is used to change the dispatcher), meaning a new coroutine is
- * created during collection.
+ * Helper for adding trace sections for when a trace is collected.
  *
  * For example, the following would `emit(1)` from a trace section named "a" and collect in section
  * named "b".
@@ -63,29 +69,32 @@ internal inline fun <T, R> Flow<T>.unsafeTransform(
  *       emit(1)
  *     }
  *     .flowName("a")
- *     .flowOn(Dispatchers.Default)
  *     .collect {
+ *       // The open trace sections here would be "collect:a" and "a:emit"
  *     }
  *   }
  * ```
  */
-public fun <T> Flow<T>.flowName(name: String): Flow<T> = flowOn(nameCoroutine(name))
+public fun <T> Flow<T>.flowName(name: String): Flow<T> {
+    return if (Flags.coroutineTracing()) {
+        unsafeFlow(name) { collect { traceCoroutine("emit") { emit(it) } } }
+    } else {
+        this
+    }
+}
 
-/**
- * Applying [flowName][Flow.flowName] to [SharedFlow] has no effect. See the [SharedFlow]
- * documentation on Operator Fusion.
- *
- * @see SharedFlow.flowOn
- */
-@Deprecated(
-    level = DeprecationLevel.ERROR,
-    message =
-        "Applying 'flowName' to SharedFlow has no effect. See the SharedFlow documentation on Operator Fusion.",
-    replaceWith = ReplaceWith("this"),
-)
-@Suppress("UnusedReceiverParameter")
-public fun <T> SharedFlow<T>.flowName(@Suppress("UNUSED_PARAMETER") name: String): Flow<T> =
-    throw UnsupportedOperationException("Not implemented, should not be called")
+public fun <T> Flow<T>.onEachTraced(name: String, action: suspend (T) -> Unit): Flow<T> {
+    return if (Flags.coroutineTracing()) {
+        unsafeTransform(name) { value ->
+            traceCoroutine("onEach:action") { action(value) }
+            traceCoroutine("onEach:emit") {
+                return@unsafeTransform emit(value)
+            }
+        }
+    } else {
+        onEach(action)
+    }
+}
 
 /**
  * NOTE: [Flow.collect] is a member function and takes precedence if this function is imported as
@@ -100,18 +109,26 @@ public fun <T> SharedFlow<T>.flowName(@Suppress("UNUSED_PARAMETER") name: String
  * flowOf(1).collect { ... } // this will call `Flow.collect`
  * flowOf(1).collect(null) { ... } // this will call `collectTraced`
  * ```
+ *
+ * @see kotlinx.coroutines.flow.collect
  */
 public suspend fun <T> Flow<T>.collectTraced(name: String, collector: FlowCollector<T>) {
     if (Flags.coroutineTracing()) {
-        val collectName = "collect:$name"
-        val emitName = "$collectName:emit"
-        traceCoroutine(collectName) { collect { traceCoroutine(emitName) { collector.emit(it) } } }
+        flowName(name).collect(collector)
     } else {
         collect(collector)
     }
 }
 
-/** @see Flow.collectTraced */
+public suspend fun <T> Flow<T>.collectTraced(name: String) {
+    if (Flags.coroutineTracing()) {
+        flowName(name).collect()
+    } else {
+        collect()
+    }
+}
+
+/** @see kotlinx.coroutines.flow.collect */
 public suspend fun <T> Flow<T>.collectTraced(collector: FlowCollector<T>) {
     if (Flags.coroutineTracing()) {
         collectTraced(
@@ -123,6 +140,7 @@ public suspend fun <T> Flow<T>.collectTraced(collector: FlowCollector<T>) {
     }
 }
 
+/** @see kotlinx.coroutines.flow.collectLatest */
 internal suspend fun <T> Flow<T>.collectLatestTraced(
     name: String,
     action: suspend (value: T) -> Unit,
@@ -138,6 +156,7 @@ internal suspend fun <T> Flow<T>.collectLatestTraced(
     }
 }
 
+/** @see kotlinx.coroutines.flow.collectLatest */
 public suspend fun <T> Flow<T>.collectLatestTraced(action: suspend (value: T) -> Unit) {
     if (Flags.coroutineTracing()) {
         collectLatestTraced(action::class.java.name.substringAfterLast("."), action)
@@ -151,47 +170,97 @@ public suspend fun <T> Flow<T>.collectLatestTraced(action: suspend (value: T) ->
 public inline fun <T, R> Flow<T>.transformTraced(
     name: String,
     @BuilderInference crossinline transform: suspend FlowCollector<R>.(value: T) -> Unit,
-): Flow<R> =
-    if (Flags.coroutineTracing()) {
-        val emitName = "$name:emit"
-        safeFlow { collect { value -> traceCoroutine(emitName) { transform(value) } } }
+): Flow<R> {
+    return if (Flags.coroutineTracing()) {
+        // Safe flow must be used because collector is exposed to the caller
+        safeFlow {
+            collect { value ->
+                traceCoroutine("$name:transform") {
+                    return@collect transform(value)
+                }
+            }
+        }
     } else {
         transform(transform)
     }
+}
 
+/** @see kotlinx.coroutines.flow.filter */
 public inline fun <T> Flow<T>.filterTraced(
     name: String,
     crossinline predicate: suspend (T) -> Boolean,
 ): Flow<T> {
-    if (Flags.coroutineTracing()) {
-        val predicateName = "filter:$name:predicate"
-        val emitName = "filter:$name:emit"
-        return unsafeTransform { value ->
-            if (traceCoroutine(predicateName) { predicate(value) }) {
-                traceCoroutine(emitName) {
+    return if (Flags.coroutineTracing()) {
+        unsafeTransform(name) { value ->
+            if (traceCoroutine("filter:predicate") { predicate(value) }) {
+                traceCoroutine("filter:emit") {
                     return@unsafeTransform emit(value)
                 }
             }
         }
     } else {
-        return filter(predicate)
+        filter(predicate)
     }
 }
 
+/** @see kotlinx.coroutines.flow.map */
 public inline fun <T, R> Flow<T>.mapTraced(
     name: String,
     crossinline transform: suspend (value: T) -> R,
 ): Flow<R> {
-    if (Flags.coroutineTracing()) {
-        val transformName = "map:$name:transform"
-        val emitName = "map:$name:emit"
-        return unsafeTransform { value ->
-            val transformedValue = traceCoroutine(transformName) { transform(value) }
-            traceCoroutine(emitName) {
+    return if (Flags.coroutineTracing()) {
+        unsafeTransform(name) { value ->
+            val transformedValue = traceCoroutine("map:transform") { transform(value) }
+            traceCoroutine("map:emit") {
                 return@unsafeTransform emit(transformedValue)
             }
         }
     } else {
-        return map(transform)
+        map(transform)
     }
+}
+
+/** @see kotlinx.coroutines.flow.shareIn */
+public fun <T> Flow<T>.shareInTraced(
+    name: String,
+    scope: CoroutineScope,
+    started: SharingStarted,
+    replay: Int = 0,
+): SharedFlow<T> {
+    // .shareIn calls this.launch(context), where this === scope, and the previous upstream flow's
+    // context is passed to launch
+    return if (Flags.coroutineTracing()) {
+            flowOn(CoroutineTraceName(name))
+        } else {
+            this
+        }
+        .shareIn(scope, started, replay)
+}
+
+/** @see kotlinx.coroutines.flow.stateIn */
+public fun <T> Flow<T>.stateInTraced(
+    name: String,
+    scope: CoroutineScope,
+    started: SharingStarted,
+    initialValue: T,
+): StateFlow<T> {
+    // .stateIn calls this.launch(context), where this === scope, and the previous upstream flow's
+    // context is passed to launch
+    return if (Flags.coroutineTracing()) {
+            flowOn(CoroutineTraceName(name))
+        } else {
+            this
+        }
+        .stateIn(scope, started, initialValue)
+}
+
+/** @see kotlinx.coroutines.flow.stateIn */
+public suspend fun <T> Flow<T>.stateInTraced(name: String, scope: CoroutineScope): StateFlow<T> {
+    // .stateIn calls this.launch(context), where this === scope, and the previous upstream flow's
+    return if (Flags.coroutineTracing()) {
+            flowOn(CoroutineTraceName(name))
+        } else {
+            this
+        }
+        .stateIn(scope)
 }

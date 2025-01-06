@@ -16,6 +16,7 @@
 
 package com.android.app.tracing.coroutines
 
+import android.os.Trace
 import com.android.app.tracing.beginSlice
 import com.android.app.tracing.endSlice
 import java.util.ArrayDeque
@@ -38,13 +39,14 @@ private class TraceCountThreadLocal : ThreadLocal<Int>() {
  * Used for storing trace sections so that they can be added and removed from the currently running
  * thread when the coroutine is suspended and resumed.
  *
+ * @property currentId ID of associated TraceContextElement
  * @property strictMode Whether to add additional checks to the coroutine machinery, throwing a
  *   `ConcurrentModificationException` if TraceData is modified from the wrong thread. This should
  *   only be set for testing.
  * @see traceCoroutine
  */
 @PublishedApi
-internal class TraceData(private val strictMode: Boolean) {
+internal class TraceData(internal val currentId: Int, private val strictMode: Boolean) {
 
     internal var slices: ArrayDeque<TraceSection>? = null
 
@@ -60,18 +62,22 @@ internal class TraceData(private val strictMode: Boolean) {
 
     /** Adds current trace slices back to the current thread. Called when coroutine is resumed. */
     internal fun beginAllOnThread() {
-        strictModeCheck()
-        slices?.descendingIterator()?.forEach { beginSlice(it) }
-        openSliceCount.set(slices?.size ?: 0)
+        if (Trace.isTagEnabled(Trace.TRACE_TAG_APP)) {
+            strictModeCheck()
+            slices?.descendingIterator()?.forEach { beginSlice(it) }
+            openSliceCount.set(slices?.size ?: 0)
+        }
     }
 
     /**
      * Removes all current trace slices from the current thread. Called when coroutine is suspended.
      */
     internal fun endAllOnThread() {
-        strictModeCheck()
-        repeat(openSliceCount.get() ?: 0) { endSlice() }
-        openSliceCount.set(0)
+        if (Trace.isTagEnabled(Trace.TRACE_TAG_APP)) {
+            strictModeCheck()
+            repeat(openSliceCount.get() ?: 0) { endSlice() }
+            openSliceCount.set(0)
+        }
     }
 
     /**

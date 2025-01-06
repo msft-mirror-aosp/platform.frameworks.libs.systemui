@@ -15,12 +15,23 @@
  */
 package com.example.tracing.demo.experiments
 
-interface Experiment {
-    /** The track name for async traces */
-    val tag: String
-        get() = "Experiment:${this::class.simpleName}"
+import com.android.app.tracing.coroutines.createCoroutineTracingContext
+import kotlin.coroutines.CoroutineContext
+import kotlin.coroutines.EmptyCoroutineContext
 
-    val description: String
+sealed class Experiment {
+    abstract val description: String
 
-    suspend fun start()
+    open val context: CoroutineContext = EmptyCoroutineContext
+
+    abstract suspend fun runExperiment()
+}
+
+sealed class TracedExperiment : Experiment() {
+    override val context: CoroutineContext =
+        createCoroutineTracingContext(
+            this::class.simpleName!!,
+            walkStackForDefaultNames = true,
+            countContinuations = true,
+        )
 }

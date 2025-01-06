@@ -68,8 +68,9 @@ interface WeatherEffect {
      * @param foreground A bitmap containing the foreground of the image, will be null when
      *   segmentation hasn't finished.
      * @param background A bitmap containing the background of the image
+     * @return True if the bitmaps have been updated. False otherwise.
      */
-    fun setBitmaps(foreground: Bitmap?, background: Bitmap)
+    fun setBitmaps(foreground: Bitmap?, background: Bitmap): Boolean
 
     /**
      * Apply matrix to transform coordinates in shaders. In Editor and preview, it's a center crop

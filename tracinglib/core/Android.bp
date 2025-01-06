@@ -31,9 +31,6 @@ java_library {
     ],
     kotlincflags: [
         "-Xjvm-default=all",
-        "-opt-in=kotlin.ExperimentalStdlibApi",
-        "-opt-in=kotlinx.coroutines.DelicateCoroutinesApi",
-        "-opt-in=kotlinx.coroutines.ExperimentalCoroutinesApi",
         "-Xexplicit-api=strict",
     ],
     srcs: [":tracinglib-core-srcs"],

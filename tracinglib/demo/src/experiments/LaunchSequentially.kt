@@ -16,12 +16,9 @@
 package com.example.tracing.demo.experiments
 
 import com.android.app.tracing.coroutines.launchTraced as launch
-import com.example.tracing.demo.Default
-import com.example.tracing.demo.FixedThreadA
-import com.example.tracing.demo.FixedThreadB
-import com.example.tracing.demo.FixedThreadC
-import com.example.tracing.demo.IO
-import com.example.tracing.demo.Unconfined
+import com.example.tracing.demo.FixedThread1
+import com.example.tracing.demo.FixedThread2
+import com.example.tracing.demo.FixedThread3
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlinx.coroutines.CoroutineDispatcher
@@ -31,22 +28,16 @@ import kotlinx.coroutines.coroutineScope
 class LaunchSequentially
 @Inject
 constructor(
-    @FixedThreadA private var dispatcherA: CoroutineDispatcher,
-    @FixedThreadB private var dispatcherB: CoroutineDispatcher,
-    @FixedThreadC private val dispatcherC: CoroutineDispatcher,
-    @Default private var defaultContext: CoroutineDispatcher,
-    @IO private var ioContext: CoroutineDispatcher,
-    @Unconfined private var unconfinedContext: CoroutineDispatcher,
-) : Experiment {
+    @FixedThread1 private var dispatcher1: CoroutineDispatcher,
+    @FixedThread2 private var dispatcher2: CoroutineDispatcher,
+    @FixedThread3 private val dispatcher3: CoroutineDispatcher,
+) : TracedExperiment() {
     override val description: String = "launch{};launch{};launch{};launch{}"
 
-    override suspend fun start(): Unit = coroutineScope {
-        launch("launch(threadA)", dispatcherA) { forceSuspend("A", 250) }
-        launch("launch(threadB)", dispatcherB) { forceSuspend("B", 250) }
-        launch("launch(threadC)", dispatcherC) { forceSuspend("C", 250) }
-        launch("launch(Dispatchers.Default)", defaultContext) { forceSuspend("D", 250) }
-        launch("launch(EmptyCoroutineContext)") { forceSuspend("E", 250) }
-        launch("launch(Dispatchers.IO)", ioContext) { forceSuspend("F", 250) }
-        launch("launch(Dispatchers.Unconfined)", unconfinedContext) { forceSuspend("G", 250) }
+    override suspend fun runExperiment(): Unit = coroutineScope {
+        launch("launch(empty)") { forceSuspend("000", 5) }
+        launch("launch(thread1)", dispatcher1) { forceSuspend("111", 5) }
+        launch("launch(thread2)", dispatcher2) { forceSuspend("222", 5) }
+        launch("launch(thread3)", dispatcher3) { forceSuspend("333", 5) }
     }
 }

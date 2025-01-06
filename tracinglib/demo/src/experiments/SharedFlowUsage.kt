@@ -21,17 +21,17 @@ import com.android.app.tracing.coroutines.flow.filterTraced as filter
 import com.android.app.tracing.coroutines.flow.flowName
 import com.android.app.tracing.coroutines.flow.mapTraced as map
 import com.android.app.tracing.coroutines.launchTraced as launch
-import com.android.app.tracing.coroutines.nameCoroutine
 import com.android.app.tracing.coroutines.traceCoroutine
-import com.example.tracing.demo.FixedThreadA
-import com.example.tracing.demo.FixedThreadB
-import com.example.tracing.demo.FixedThreadC
-import com.example.tracing.demo.FixedThreadD
+import com.example.tracing.demo.FixedThread1
+import com.example.tracing.demo.FixedThread2
+import com.example.tracing.demo.FixedThread3
+import com.example.tracing.demo.FixedThread4
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.stateIn
 
@@ -39,63 +39,61 @@ import kotlinx.coroutines.flow.stateIn
 class SharedFlowUsage
 @Inject
 constructor(
-    @FixedThreadA private var dispatcherA: CoroutineDispatcher,
-    @FixedThreadB private var dispatcherB: CoroutineDispatcher,
-    @FixedThreadC private var dispatcherC: CoroutineDispatcher,
-    @FixedThreadD private var dispatcherD: CoroutineDispatcher,
-) : Experiment {
+    @FixedThread1 private var dispatcher1: CoroutineDispatcher,
+    @FixedThread2 private var dispatcher2: CoroutineDispatcher,
+    @FixedThread3 private var dispatcher3: CoroutineDispatcher,
+    @FixedThread4 private var dispatcher4: CoroutineDispatcher,
+) : TracedExperiment() {
 
     override val description: String = "Create a shared flow and collect from it"
 
     private val coldFlow =
-        coldCounterFlow("shared", 10)
-            // this trace name is NOT used because the dispatcher did NOT change
-            .flowName("UNUSED_NAME")
+        flow {
+                var n = 0
+                while (n < 20) {
+                    emit(n++)
+                    forceSuspend(timeMillis = 5)
+                }
+            }
             .map("pow2") {
                 val rv = it * it
                 forceSuspend("map($it) -> $rv", 50)
                 rv
             }
             // this trace name is used here because the dispatcher changed
-            .flowOn(dispatcherC + nameCoroutine("NEW_COLD_FLOW_NAME"))
+            .flowOn(dispatcher3)
             .filter("mod4") {
                 val rv = it % 4 == 0
                 forceSuspend("filter($it) -> $rv", 50)
                 rv
             }
-            // this trace name is used, because the scope it is collected in has a
-            // CoroutineTracingContext
             .flowName("COLD_FLOW")
 
-    override suspend fun start() {
-        coroutineScope {
-            val stateFlow = coldFlow.stateIn(this, SharingStarted.Eagerly, 10)
-            launch("launchAAAA", dispatcherA) {
-                stateFlow.collect("collectAAAA") {
-                    traceCoroutine("AAAA collected: $it") { forceSuspend("AAAA", 15) }
-                }
+    override suspend fun runExperiment(): Unit = coroutineScope {
+        val stateFlow = coldFlow.stateIn(this, SharingStarted.Eagerly, 10)
+        launch("launchAAAA", dispatcher1) {
+            stateFlow.collect("collectAAAA") {
+                traceCoroutine("AAAA collected: $it") { forceSuspend("AAAA", 15) }
             }
-            launch("launchBBBB", dispatcherB) {
-                // Don't pass a string. Instead, rely on default behavior to walk the stack for the
-                // name. This results in trace sections like:
-                // `collect:SharedFlowUsage$start$1$2:emit`
-                // NOTE: `Flow.collect` is a member function and takes precedence, so we need
-                // to invoke `collectTraced` using its original name instead of its `collect` alias
-                stateFlow.collectTraced {
-                    traceCoroutine("BBBB collected: $it") { forceSuspend("BBBB", 30) }
-                }
+        }
+        launch("launchBBBB", dispatcher2) {
+            // Don't pass a string. Instead, rely on default behavior to walk the stack for the
+            // name. This results in trace sections like:
+            // `collect:SharedFlowUsage$start$1$2:emit`
+            // NOTE: `Flow.collect` is a member function and takes precedence, so we need
+            // to invoke `collectTraced` using its original name instead of its `collect` alias
+            stateFlow.collectTraced {
+                traceCoroutine("BBBB collected: $it") { forceSuspend("BBBB", 30) }
             }
-            launch("launchCCCC", dispatcherC) {
-                stateFlow.collect("collectCCCC") {
-                    traceCoroutine("CCCC collected: $it") { forceSuspend("CCCC", 60) }
-                }
+        }
+        launch("launchCCCC", dispatcher3) {
+            stateFlow.collect("collectCCCC") {
+                traceCoroutine("CCCC collected: $it") { forceSuspend("CCCC", 60) }
             }
-            launch("launchDDDD", dispatcherD) {
-                // Uses Flow.collect member function instead of collectTraced:
-                stateFlow.collect {
-                    traceCoroutine("DDDD collected: $it") { forceSuspend("DDDD", 90) }
-                }
-            }
+        }
+        launch("launchDDDD", dispatcher4) {
+            // Uses Flow.collect member function instead of collectTraced:
+            stateFlow.collect { traceCoroutine("DDDD collected: $it") { forceSuspend("DDDD", 90) } }
         }
     }
 }

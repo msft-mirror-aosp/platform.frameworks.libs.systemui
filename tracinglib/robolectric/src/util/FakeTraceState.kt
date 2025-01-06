@@ -16,42 +16,47 @@
 
 package com.android.test.tracing.coroutines.util
 
+import kotlin.concurrent.Volatile
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotNull
 
 object FakeTraceState {
 
-    var isTracingEnabled: Boolean = true
+    @Volatile var isTracingEnabled: Boolean = true
 
     private val allThreadStates = hashMapOf<Long, MutableList<String>>()
 
-    fun begin(sectionName: String) {
-        val threadId = currentThreadId()
-        synchronized(allThreadStates) {
-            if (allThreadStates.containsKey(threadId)) {
-                allThreadStates[threadId]!!.add(sectionName)
-            } else {
-                allThreadStates[threadId] = mutableListOf(sectionName)
+    private val threadLocalTraceState =
+        ThreadLocal.withInitial {
+            synchronized(allThreadStates) {
+                val threadId = currentThreadId()
+                allThreadStates[threadId] = mutableListOf()
             }
+            mutableListOf<String>()
         }
+
+    fun begin(sectionName: String) {
+        threadLocalTraceState.get()!!.add(sectionName)
     }
 
     fun end() {
         val threadId = currentThreadId()
-        synchronized(allThreadStates) {
-            assertFalse(
-                "Attempting to close trace section on thread=$threadId, " +
-                    "but there are no open sections",
-                allThreadStates[threadId].isNullOrEmpty(),
-            )
-            allThreadStates[threadId]!!.removeLast()
-        }
+        val traceSections = threadLocalTraceState.get()
+        assertNotNull(
+            "Attempting to close trace section on thread=$threadId, " +
+                "but tracing never started on this thread",
+            traceSections,
+        )
+        assertFalse(
+            "Attempting to close trace section on thread=$threadId, " +
+                "but there are no open sections",
+            traceSections!!.isEmpty(),
+        )
+        traceSections.removeLast()
     }
 
     fun getOpenTraceSectionsOnCurrentThread(): Array<String> {
-        val threadId = currentThreadId()
-        synchronized(allThreadStates) {
-            return allThreadStates[threadId]?.toTypedArray() ?: emptyArray()
-        }
+        return threadLocalTraceState.get()?.toTypedArray() ?: emptyArray()
     }
 
     /**

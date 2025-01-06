@@ -15,6 +15,8 @@
  */
 package com.android.launcher3.icons;
 
+import static com.android.launcher3.icons.cache.CacheLookupFlag.DEFAULT_LOOKUP_FLAG;
+
 import android.content.Context;
 import android.graphics.Bitmap;
 import android.graphics.Bitmap.Config;
@@ -25,6 +27,7 @@ import androidx.annotation.IntDef;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 
+import com.android.launcher3.icons.cache.CacheLookupFlag;
 import com.android.launcher3.util.FlagOp;
 
 public class BitmapInfo {
@@ -60,10 +63,13 @@ public class BitmapInfo {
     public final int color;
 
     @Nullable
-    protected Bitmap mMono;
-    protected Bitmap mWhiteShadowLayer;
+    private ThemedBitmap mThemedBitmap;
 
     public @BitmapInfoFlags int flags;
+
+    // b/377618519: These are saved to debug why work badges sometimes don't show up on work apps
+    public @DrawableCreationFlags int creationFlags;
+
     private BitmapInfo badgeInfo;
 
     public BitmapInfo(Bitmap icon, int color) {
@@ -90,8 +96,7 @@ public class BitmapInfo {
     }
 
     protected BitmapInfo copyInternalsTo(BitmapInfo target) {
-        target.mMono = mMono;
-        target.mWhiteShadowLayer = mWhiteShadowLayer;
+        target.mThemedBitmap = mThemedBitmap;
         target.flags = flags;
         target.badgeInfo = badgeInfo;
         return target;
@@ -102,9 +107,13 @@ public class BitmapInfo {
         return copyInternalsTo(new BitmapInfo(icon, color));
     }
 
-    public void setMonoIcon(Bitmap mono, BaseIconFactory iconFactory) {
-        mMono = mono;
-        mWhiteShadowLayer = iconFactory.getWhiteShadowLayer();
+    public void setThemedBitmap(@Nullable ThemedBitmap themedBitmap) {
+        mThemedBitmap = themedBitmap;
+    }
+
+    @Nullable
+    public ThemedBitmap getThemedBitmap() {
+        return mThemedBitmap;
     }
 
     /**
@@ -119,14 +128,17 @@ public class BitmapInfo {
     }
 
     /**
+     * Returns the lookup flag to match this current state of this info
+     */
+    public CacheLookupFlag getMatchingLookupFlag() {
+        return DEFAULT_LOOKUP_FLAG.withUseLowRes(isLowRes());
+    }
+
+    /**
      * BitmapInfo can be stored on disk or other persistent storage
      */
     public boolean canPersist() {
         return !isNullOrLowRes();
-    }
-
-    public Bitmap getMono() {
-        return mMono;
     }
 
     /**
@@ -143,8 +155,8 @@ public class BitmapInfo {
         FastBitmapDrawable drawable;
         if (isLowRes()) {
             drawable = new PlaceHolderIconDrawable(this, context);
-        } else  if ((creationFlags & FLAG_THEMED) != 0 && mMono != null) {
-            drawable = ThemedIconDrawable.newDrawable(this, context);
+        } else  if ((creationFlags & FLAG_THEMED) != 0 && mThemedBitmap != null) {
+            drawable = mThemedBitmap.newDrawable(this, context);
         } else {
             drawable = new FastBitmapDrawable(this);
         }
@@ -154,6 +166,7 @@ public class BitmapInfo {
 
     protected void applyFlags(Context context, FastBitmapDrawable drawable,
             @DrawableCreationFlags int creationFlags) {
+        this.creationFlags = creationFlags;
         drawable.mDisabledAlpha = GraphicsUtils.getFloat(context, R.attr.disabledIconAlpha, 1f);
         drawable.mCreationFlags = creationFlags;
         if ((creationFlags & FLAG_NO_BADGE) == 0) {

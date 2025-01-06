@@ -15,61 +15,54 @@
  */
 package com.example.tracing.demo.experiments
 
-import android.os.HandlerThread
 import android.os.Trace
 import com.android.app.tracing.coroutines.traceCoroutine
+import com.android.app.tracing.traceSection
+import com.example.tracing.demo.delayHandler
+import kotlin.coroutines.Continuation
 import kotlin.coroutines.resume
 import kotlin.random.Random
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.suspendCancellableCoroutine
 
-fun coldCounterFlow(name: String, maxCount: Int = Int.MAX_VALUE) = flow {
-    for (n in 0..maxCount) {
-        emit(n)
-        forceSuspend("coldCounterFlow:$name:$n", 25)
-    }
-}
-
-private val delayHandler by lazy { startThreadWithLooper("Thread:forceSuspend").threadHandler }
-
-/** Like [delay], but naively implemented so that it always suspends. */
-suspend fun forceSuspend(traceName: String, timeMillis: Long) {
-    val traceMessage = "forceSuspend:$traceName"
-    return traceCoroutine(traceMessage) {
-        val cookie = Random.nextInt()
-        suspendCancellableCoroutine { continuation ->
-            Trace.asyncTraceForTrackBegin(Trace.TRACE_TAG_APP, TRACK_NAME, traceMessage, cookie)
-            Trace.instant(Trace.TRACE_TAG_APP, "will resume in ${timeMillis}ms")
-            continuation.invokeOnCancellation { cause ->
-                Trace.instant(
-                    Trace.TRACE_TAG_APP,
-                    "forceSuspend:$traceName, cancelled due to ${cause?.javaClass}",
-                )
-                Trace.asyncTraceForTrackEnd(Trace.TRACE_TAG_APP, TRACK_NAME, cookie)
-            }
-            delayHandler.postDelayed(
-                {
-                    Trace.asyncTraceForTrackEnd(Trace.TRACE_TAG_APP, TRACK_NAME, cookie)
-                    Trace.traceBegin(Trace.TRACE_TAG_APP, "resume")
-                    try {
-                        continuation.resume(Unit)
-                    } finally {
-                        Trace.traceEnd(Trace.TRACE_TAG_APP)
-                    }
-                },
-                timeMillis,
-            )
+private class DelayedContinuationRunner(
+    private val continuation: Continuation<Unit>,
+    private val traceName: String,
+    private val cookie: Int,
+) : Runnable {
+    override fun run() {
+        Trace.asyncTraceForTrackEnd(Trace.TRACE_TAG_APP, TRACK_NAME, cookie)
+        Trace.traceBegin(Trace.TRACE_TAG_APP, "resume after $traceName")
+        try {
+            continuation.resume(Unit)
+        } finally {
+            Trace.traceEnd(Trace.TRACE_TAG_APP)
         }
     }
 }
 
-fun startThreadWithLooper(name: String): HandlerThread {
-    val thread = HandlerThread(name)
-    thread.start()
-    val looper = thread.looper
-    looper.setTraceTag(Trace.TRACE_TAG_APP)
-    return thread
+/** Like [delay], but naively implemented so that it always suspends. */
+suspend fun forceSuspend(traceName: String? = null, timeMillis: Long) {
+    val traceMessage = "delay($timeMillis)${traceName?.let { " [$it]" } ?: ""}"
+    val cookie = Random.nextInt()
+    Trace.asyncTraceForTrackBegin(Trace.TRACE_TAG_APP, TRACK_NAME, traceMessage, cookie)
+    traceCoroutine(traceMessage) {
+        suspendCancellableCoroutine { continuation ->
+            traceSection("scheduling DelayedContinuationRunner for $traceName") {
+                val delayedRunnable = DelayedContinuationRunner(continuation, traceMessage, cookie)
+                if (delayHandler.postDelayed(delayedRunnable, timeMillis)) {
+                    continuation.invokeOnCancellation { cause ->
+                        Trace.instant(
+                            Trace.TRACE_TAG_APP,
+                            "$traceMessage, cancelled due to ${cause?.javaClass}",
+                        )
+                        delayHandler.removeCallbacks(delayedRunnable)
+                        Trace.asyncTraceForTrackEnd(Trace.TRACE_TAG_APP, TRACK_NAME, cookie)
+                    }
+                }
+            }
+        }
+    }
 }
 
-const val TRACK_NAME = "Async events"
+const val TRACK_NAME = "async-trace-events"

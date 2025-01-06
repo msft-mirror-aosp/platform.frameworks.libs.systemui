@@ -28,6 +28,7 @@ import java.util.concurrent.CyclicBarrier
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
 import kotlin.coroutines.EmptyCoroutineContext
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.DelicateCoroutinesApi
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.channels.Channel
@@ -44,13 +45,15 @@ import org.junit.Test
 @EnableFlags(FLAG_COROUTINE_TRACING)
 class CoroutineTracingMachineryTest : TestBase() {
 
+    override val scope = CoroutineScope(EmptyCoroutineContext)
+
     @Test
     fun missingTraceContextObjects() = runTest {
         val channel = Channel<Int>()
         val context1 = newSingleThreadContext("thread-#1")
         val context2 =
             newSingleThreadContext("thread-#2") +
-                createCoroutineTracingContext("main", includeParentNames = true, strictMode = true)
+                createCoroutineTracingContext("main", testMode = true)
 
         launchTraced("launch#1", context1) {
             expect()
@@ -61,10 +64,10 @@ class CoroutineTracingMachineryTest : TestBase() {
                 // "launch#2" is not traced because TraceContextElement was installed too
                 // late; it is not part of the scope that was launched (i.e., the `this` in
                 // `this.launch {}`)
-                expect("main:1^")
+                expect("1^main")
                 channel.receive()
-                traceCoroutine("span-2") { expect("main:1^", "span-2") }
-                expect("main:1^")
+                traceCoroutine("span-2") { expect("1^main", "span-2") }
+                expect("1^main")
                 launch {
                     // ...it won't appear in the child scope either because in
                     // launchTraced("string"), it
@@ -72,7 +75,7 @@ class CoroutineTracingMachineryTest : TestBase() {
                     // it is important to only use `TraceContextElement` in the root scope. In this
                     // case, the `TraceContextElement`  overwrites the name, so the name is dropped.
                     // Tracing still works with a default, empty name, however.
-                    expect("main:1^:1^")
+                    expect("1^main:1^")
                 }
             }
             expect()
@@ -83,7 +86,7 @@ class CoroutineTracingMachineryTest : TestBase() {
         channel.send(2)
 
         launch(context1) { expect() }
-        launch(context2) { expect("main:2^") }
+        launch(context2) { expect("2^main") }
     }
 
     /**
@@ -124,17 +127,25 @@ class CoroutineTracingMachineryTest : TestBase() {
         val slicesForThread2 = listOf("b", "d", "f", "h")
         var failureOnThread1: Error? = null
         var failureOnThread2: Error? = null
-
-        val expectedTraceForThread1 = arrayOf("1:a", "2:b", "1:c", "2:d", "1:e", "2:f", "1:g")
+        val expectedTraceForThread1 =
+            arrayOf("main", "1:a", "2:b", "1:c", "2:d", "1:e", "2:f", "1:g")
 
         val traceContext =
-            createCoroutineTracingContext("main", includeParentNames = true, strictMode = true)
-                as TraceContextElement
+            TraceContextElement(
+                name = "main",
+                isRoot = false,
+                countContinuations = false,
+                walkStackForDefaultNames = false,
+                shouldIgnoreClassName = { false },
+                parentId = null,
+                inheritedTracePrefix = "",
+                coroutineDepth = -1,
+            )
         thread1.execute {
-            try {
-                slicesForThread1.forEachIndexed { index, sliceName ->
+            slicesForThread1.forEachIndexed { index, sliceName ->
+                try {
                     assertNull(traceThreadLocal.get())
-                    val oldTrace = traceContext.updateThreadContext(EmptyCoroutineContext)
+                    val oldTrace = traceContext.updateThreadContext(traceContext)
                     // await() AFTER updateThreadContext, thus thread #1 always resumes the
                     // coroutine before thread #2
                     assertSame(traceThreadLocal.get(), traceContext.contextTraceData)
@@ -148,8 +159,7 @@ class CoroutineTracingMachineryTest : TestBase() {
                     }
 
                     // simulate a slow thread, wait to call restoreThreadContext until after thread
-                    // A
-                    // has resumed
+                    // A has resumed
                     thread1SuspensionPoint.await(3, TimeUnit.SECONDS)
                     Thread.sleep(500)
                     // } coroutine body end
@@ -157,21 +167,21 @@ class CoroutineTracingMachineryTest : TestBase() {
                     traceContext.restoreThreadContext(EmptyCoroutineContext, oldTrace)
                     thread1ResumptionPoint.await(3, TimeUnit.SECONDS)
                     assertNull(traceThreadLocal.get())
+                } catch (e: Error) {
+                    failureOnThread1 = e
                 }
-            } catch (e: Error) {
-                failureOnThread1 = e
             }
         }
 
         val expectedTraceForThread2 =
-            arrayOf("1:a", "2:b", "1:c", "2:d", "1:e", "2:f", "1:g", "2:h")
+            arrayOf("main", "1:a", "2:b", "1:c", "2:d", "1:e", "2:f", "1:g", "2:h")
         thread2.execute {
-            try {
-                slicesForThread2.forEachIndexed { i, n ->
+            slicesForThread2.forEachIndexed { i, n ->
+                try {
                     assertNull(traceThreadLocal.get())
                     thread1SuspensionPoint.await(3, TimeUnit.SECONDS)
 
-                    val oldTrace = traceContext.updateThreadContext(EmptyCoroutineContext)
+                    val oldTrace = traceContext.updateThreadContext(traceContext)
 
                     // coroutine body start {
                     (traceThreadLocal.get() as TraceData).beginSpan("2:$n")
@@ -185,9 +195,9 @@ class CoroutineTracingMachineryTest : TestBase() {
                     traceContext.restoreThreadContext(EmptyCoroutineContext, oldTrace)
                     thread1ResumptionPoint.await(3, TimeUnit.SECONDS)
                     assertNull(traceThreadLocal.get())
+                } catch (e: Error) {
+                    failureOnThread2 = e
                 }
-            } catch (e: Error) {
-                failureOnThread2 = e
             }
         }
 
@@ -204,15 +214,14 @@ class CoroutineTracingMachineryTest : TestBase() {
     fun traceContextIsCopied() = runTest {
         expect()
         val traceContext =
-            createCoroutineTracingContext("main", includeParentNames = true, strictMode = true)
-                as TraceContextElement
+            createCoroutineTracingContext("main", testMode = true) as TraceContextElement
         withContext(traceContext) {
             // Not the same object because it should be copied into the current context
             assertNotSame(traceThreadLocal.get(), traceContext.contextTraceData)
             // slices is lazily created, so it should be null:
             assertNull((traceThreadLocal.get() as TraceData).slices)
             assertNull(traceContext.contextTraceData?.slices)
-            expect("main:1^")
+            expect("1^main")
             traceCoroutine("hello") {
                 assertNotSame(traceThreadLocal.get(), traceContext.contextTraceData)
                 assertArrayEquals(
@@ -226,7 +235,7 @@ class CoroutineTracingMachineryTest : TestBase() {
             // trace "hello", but this time it will be empty
             assertArrayEquals(arrayOf(), (traceThreadLocal.get() as TraceData).slices?.toArray())
             assertNull(traceContext.contextTraceData?.slices)
-            expect("main:1^")
+            expect("1^main")
         }
         expect()
     }

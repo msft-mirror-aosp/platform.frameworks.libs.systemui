@@ -16,24 +16,34 @@
 package com.android.launcher3.icons.cache
 
 import android.content.ComponentName
-import android.database.Cursor
+import android.content.pm.ApplicationInfo
 import android.database.sqlite.SQLiteException
+import android.os.Handler
 import android.os.SystemClock
 import android.os.UserHandle
 import android.util.ArrayMap
 import android.util.Log
-import android.util.SparseBooleanArray
-import androidx.annotation.VisibleForTesting
-import com.android.launcher3.icons.cache.BaseIconCache.IconDB
+import com.android.launcher3.util.ComponentKey
+import com.android.launcher3.util.SQLiteCacheHelper
 import java.util.ArrayDeque
 
 /** Utility class to handle updating the Icon cache */
-class IconCacheUpdateHandler(private val iconCache: BaseIconCache) {
+class IconCacheUpdateHandler(
+    private val iconCache: BaseIconCache,
+    private val cacheDb: SQLiteCacheHelper,
+    private val workerHandler: Handler,
+) {
 
     private val packagesToIgnore = ArrayMap<UserHandle, MutableSet<String>>()
-    private val itemsToDelete = SparseBooleanArray()
+    // Map of packageKey to ApplicationInfo, dynamically created based on all incoming data
+    private val packageAppInfoMap = HashMap<ComponentKey, ApplicationInfo?>()
 
-    private var filterMode = MODE_SET_INVALID_ITEMS
+    private val itemsToDelete = HashSet<UpdateRow>()
+
+    // During the first pass, we load all the items from DB and add all invalid items to
+    // mItemsToDelete. In follow up passes, we  go through the items in mItemsToDelete, and if the
+    // item is valid, removes it from the list, or leave it there.
+    private var firstPass = true
 
     /** Sets a package to ignore for processing */
     fun addPackagesToIgnore(userHandle: UserHandle, packageName: String) {
@@ -53,51 +63,95 @@ class IconCacheUpdateHandler(private val iconCache: BaseIconCache) {
     ) {
         // Filter the list per user
         val userComponentMap = HashMap<UserHandle, HashMap<ComponentName, T>>()
-        apps.forEach { app ->
+        for (app in apps) {
             val userHandle = cachingLogic.getUser(app)
-            var componentMap = userComponentMap.getOrPut(userHandle) { HashMap() }
-            componentMap[cachingLogic.getComponent(app)] = app
+            val cn = cachingLogic.getComponent(app)
+            userComponentMap.getOrPut(userHandle) { HashMap() }[cn] = app
+
+            // Populate application info map
+            val packageKey = BaseIconCache.getPackageKey(cn.packageName, userHandle)
+            packageAppInfoMap.getOrPut(packageKey) { cachingLogic.getApplicationInfo(app) }
         }
 
-        for ((key, value) in userComponentMap) {
-            updateIconsPerUser(key, value, cachingLogic, onUpdateCallback)
+        if (firstPass) {
+            userComponentMap.forEach { (user, componentMap) ->
+                updateIconsPerUserForFirstPass(user, componentMap, cachingLogic, onUpdateCallback)
+            }
+        } else {
+            userComponentMap.forEach { (user, componentMap) ->
+                updateIconsPerUserForSecondPass(user, componentMap, cachingLogic, onUpdateCallback)
+            }
         }
 
         // From now on, clear every valid item from the global valid map.
-        filterMode = MODE_CLEAR_VALID_ITEMS
+        firstPass = false
     }
 
     /**
-     * Updates the persistent DB, such that only entries corresponding to {@param apps} remain in
-     * the DB and are updated.
+     * During the first pass, all the items from the cache are verified one-by-one and any entry
+     * with no corresponding entry in {@code componentMap} is added to {@code itemsToDelete}
      *
-     * @return The set of packages for which icons have updated.
+     * Also starts a SerializedIconUpdateTask for all updated entries
      */
-    private fun <T : Any> updateIconsPerUser(
+    private fun <T : Any> updateIconsPerUserForFirstPass(
         user: UserHandle,
-        componentMap: HashMap<ComponentName, T>,
+        componentMap: MutableMap<ComponentName, T>,
         cachingLogic: CachingLogic<T>,
         onUpdateCallback: OnUpdateCallback,
     ) {
-        var ignorePackages: Set<String> = packagesToIgnore[user] ?: emptySet()
-        val userSerial = iconCache.getSerialNumberForUser(user)
         val appsToUpdate = ArrayDeque<T>()
 
+        val userSerial = iconCache.getSerialNumberForUser(user)
         try {
-            iconCache.mIconDb
+            cacheDb
                 .query(
                     arrayOf(
-                        IconDB.COLUMN_ROWID,
-                        IconDB.COLUMN_COMPONENT,
-                        IconDB.COLUMN_FRESHNESS_ID,
+                        BaseIconCache.COLUMN_ROWID,
+                        BaseIconCache.COLUMN_COMPONENT,
+                        BaseIconCache.COLUMN_FRESHNESS_ID,
                     ),
-                    IconDB.COLUMN_USER + " = ? ",
+                    "${BaseIconCache.COLUMN_USER} = ? ",
                     arrayOf(userSerial.toString()),
                 )
                 .use { c ->
+                    var ignorePackages = packagesToIgnore[user] ?: emptySet()
+
+                    val indexComponent = c.getColumnIndex(BaseIconCache.COLUMN_COMPONENT)
+                    val indexFreshnessId = c.getColumnIndex(BaseIconCache.COLUMN_FRESHNESS_ID)
+                    val rowIndex = c.getColumnIndex(BaseIconCache.COLUMN_ROWID)
+
                     while (c.moveToNext()) {
-                        updateOrDeleteIcon(c, componentMap, ignorePackages, user, cachingLogic)
-                            ?.let { appsToUpdate.add(it) }
+                        val rowId = c.getInt(rowIndex)
+                        val cn = c.getString(indexComponent)
+                        val freshnessId = c.getString(indexFreshnessId) ?: ""
+
+                        val component = ComponentName.unflattenFromString(cn)
+                        if (component == null) {
+                            // b/357725795
+                            Log.e(TAG, "Invalid component name while updating icon cache: $cn")
+                            itemsToDelete.add(
+                                UpdateRow(rowId, ComponentName("", ""), user, freshnessId)
+                            )
+                            continue
+                        }
+
+                        val app = componentMap.remove(component)
+                        if (app == null) {
+                            if (!ignorePackages.contains(component.packageName)) {
+                                iconCache.remove(component, user)
+                                itemsToDelete.add(UpdateRow(rowId, component, user, freshnessId))
+                            }
+                            continue
+                        }
+
+                        if (
+                            freshnessId ==
+                                cachingLogic.getFreshnessIdentifier(app, iconCache.iconProvider)
+                        ) {
+                            // Item is up-to-date
+                            continue
+                        }
+                        appsToUpdate.add(app)
                     }
                 }
         } catch (e: SQLiteException) {
@@ -106,7 +160,49 @@ class IconCacheUpdateHandler(private val iconCache: BaseIconCache) {
         }
 
         // Insert remaining apps.
-        if (componentMap.isNotEmpty() || !appsToUpdate.isEmpty()) {
+        if (componentMap.isNotEmpty() || appsToUpdate.isNotEmpty()) {
+            val appsToAdd = ArrayDeque(componentMap.values)
+            SerializedIconUpdateTask(
+                    userSerial,
+                    user,
+                    appsToAdd,
+                    appsToUpdate,
+                    cachingLogic,
+                    onUpdateCallback,
+                )
+                .scheduleNext()
+        }
+    }
+
+    /**
+     * During the second pass, we go through the items in {@code itemsToDelete}, and remove any item
+     * with corresponding entry in {@code componentMap}.
+     */
+    private fun <T : Any> updateIconsPerUserForSecondPass(
+        user: UserHandle,
+        componentMap: MutableMap<ComponentName, T>,
+        cachingLogic: CachingLogic<T>,
+        onUpdateCallback: OnUpdateCallback,
+    ) {
+        val userSerial = iconCache.getSerialNumberForUser(user)
+        val appsToUpdate = ArrayDeque<T>()
+
+        val itr = itemsToDelete.iterator()
+        while (itr.hasNext()) {
+            val row = itr.next()
+            if (user != row.user) continue
+            val app = componentMap.remove(row.componentName) ?: continue
+
+            itr.remove()
+            if (
+                row.freshnessId != cachingLogic.getFreshnessIdentifier(app, iconCache.iconProvider)
+            ) {
+                appsToUpdate.add(app)
+            }
+        }
+
+        // Insert remaining apps.
+        if (componentMap.isNotEmpty() || appsToUpdate.isNotEmpty()) {
             val appsToAdd = ArrayDeque<T>()
             appsToAdd.addAll(componentMap.values)
             SerializedIconUpdateTask(
@@ -122,79 +218,30 @@ class IconCacheUpdateHandler(private val iconCache: BaseIconCache) {
     }
 
     /**
-     * This method retrieves the component and either adds it to the list of apps to update or adds
-     * it to a list of apps to delete from cache later. Returns the individual app if it should be
-     * updated, or null if nothing should be updated.
-     */
-    @VisibleForTesting
-    fun <T : Any> updateOrDeleteIcon(
-        c: Cursor,
-        componentMap: MutableMap<ComponentName, out T>,
-        ignorePackages: Set<String>,
-        user: UserHandle,
-        cachingLogic: CachingLogic<T>,
-    ): T? {
-        val indexComponent = c.getColumnIndex(IconDB.COLUMN_COMPONENT)
-        val indexFreshnessId = c.getColumnIndex(IconDB.COLUMN_FRESHNESS_ID)
-        val rowIndex = c.getColumnIndex(IconDB.COLUMN_ROWID)
-
-        val rowId = c.getInt(rowIndex)
-        val cn = c.getString(indexComponent)
-        val component = ComponentName.unflattenFromString(cn)
-        if (component == null) {
-            // b/357725795
-            Log.e(TAG, "Invalid component name while updating icon cache: $cn")
-            itemsToDelete.put(rowId, true)
-            return null
-        }
-
-        val app = componentMap.remove(component)
-        if (app == null) {
-            if (!ignorePackages.contains(component.packageName)) {
-                if (filterMode == MODE_SET_INVALID_ITEMS) {
-                    iconCache.remove(component, user)
-                    itemsToDelete.put(rowId, true)
-                }
-            }
-            return null
-        }
-
-        val freshnessId = c.getString(indexFreshnessId)
-        if (freshnessId == cachingLogic.getFreshnessIdentifier(app, iconCache.iconProvider)) {
-            if (filterMode == MODE_CLEAR_VALID_ITEMS) {
-                itemsToDelete.put(rowId, false)
-            }
-            return null
-        }
-
-        return app
-    }
-
-    /**
      * Commits all updates as part of the update handler to disk. Not more calls should be made to
      * this class after this.
      */
     fun finish() {
-        // Commit all deletes
-        var deleteCount = 0
-        val queryBuilder = StringBuilder().append(IconDB.COLUMN_ROWID).append(" IN (")
-
-        val count = itemsToDelete.size()
-        for (i in 0 until count) {
-            if (itemsToDelete.valueAt(i)) {
-                if (deleteCount > 0) {
-                    queryBuilder.append(", ")
-                }
-                queryBuilder.append(itemsToDelete.keyAt(i))
-                deleteCount++
-            }
+        // Ignore any application info entries which are already correct
+        itemsToDelete.removeIf { row ->
+            val info = packageAppInfoMap[ComponentKey(row.componentName, row.user)]
+            info != null && row.freshnessId == iconCache.iconProvider.getStateForApp(info)
         }
-        queryBuilder.append(')')
 
-        if (deleteCount > 0) {
-            iconCache.mIconDb.delete(queryBuilder.toString(), null)
+        // Commit all deletes
+        if (itemsToDelete.isNotEmpty()) {
+            val r = itemsToDelete.joinToString { it.rowId.toString() }
+            cacheDb.delete("${BaseIconCache.COLUMN_ROWID} IN ($r)", null)
+            Log.d(TAG, "Deleting obsolete entries, count=" + itemsToDelete.size)
         }
     }
+
+    data class UpdateRow(
+        val rowId: Int,
+        val componentName: ComponentName,
+        val user: UserHandle,
+        val freshnessId: String,
+    )
 
     /**
      * A runnable that updates invalid icons and adds missing icons in the DB for the provided
@@ -235,7 +282,7 @@ class IconCacheUpdateHandler(private val iconCache: BaseIconCache) {
         }
 
         fun scheduleNext() {
-            iconCache.workerHandler.postAtTime(
+            workerHandler.postAtTime(
                 this,
                 iconCache.iconUpdateToken,
                 SystemClock.uptimeMillis() + 1,
@@ -243,23 +290,11 @@ class IconCacheUpdateHandler(private val iconCache: BaseIconCache) {
         }
     }
 
-    interface OnUpdateCallback {
+    fun interface OnUpdateCallback {
         fun onPackageIconsUpdated(updatedPackages: HashSet<String>, user: UserHandle)
     }
 
     companion object {
         private const val TAG = "IconCacheUpdateHandler"
-
-        /**
-         * In this mode, all invalid icons are marked as to-be-deleted in [.mItemsToDelete]. This
-         * mode is used for the first run.
-         */
-        private const val MODE_SET_INVALID_ITEMS = true
-
-        /**
-         * In this mode, any valid icon is removed from [.mItemsToDelete]. This is used for all
-         * subsequent runs, which essentially acts as set-union of all valid items.
-         */
-        private const val MODE_CLEAR_VALID_ITEMS = false
     }
 }
