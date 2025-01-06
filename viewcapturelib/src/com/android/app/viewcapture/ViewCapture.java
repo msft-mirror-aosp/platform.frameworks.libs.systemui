@@ -161,9 +161,12 @@ public abstract class ViewCapture {
     public void stopCapture(@NonNull View rootView) {
         mListeners.forEach(it -> {
             if (rootView == it.mRoot) {
-                runOnUiThread(() -> it.mRoot.getViewTreeObserver().removeOnDrawListener(it),
-                        it.mRoot);
-                it.mRoot = null;
+                runOnUiThread(() -> {
+                    if (it.mRoot != null) {
+                        it.mRoot.getViewTreeObserver().removeOnDrawListener(it);
+                        it.mRoot = null;
+                    }
+                }, it.mRoot);
             }
         });
     }
@@ -494,9 +497,11 @@ public abstract class ViewCapture {
         @AnyThread
         void detachFromRoot() {
             mIsActive = false;
-            if (mRoot != null) {
-                runOnUiThread(() -> mRoot.getViewTreeObserver().removeOnDrawListener(this), mRoot);
-            }
+            runOnUiThread(() -> {
+                if (mRoot != null) {
+                    mRoot.getViewTreeObserver().removeOnDrawListener(this);
+                }
+            }, mRoot);
         }
 
         @UiThread
