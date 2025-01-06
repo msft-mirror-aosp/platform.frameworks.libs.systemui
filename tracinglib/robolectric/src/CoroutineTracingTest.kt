@@ -26,6 +26,7 @@ import com.android.app.tracing.coroutines.nameCoroutine
 import com.android.app.tracing.coroutines.traceCoroutine
 import com.android.app.tracing.coroutines.withContextTraced
 import com.android.systemui.Flags.FLAG_COROUTINE_TRACING
+import kotlin.coroutines.EmptyCoroutineContext
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
@@ -151,7 +152,7 @@ class CoroutineTracingTest : TestBase() {
     fun withContext_correctUsage() =
         runTest(finalEvent = 4) {
             expect(1, "1^main")
-            withContextTraced("inside-withContext") {
+            withContextTraced("inside-withContext", EmptyCoroutineContext) {
                 assertTrue(coroutineContext[CoroutineTraceName] is TraceContextElement)
                 expect(2, "1^main", "inside-withContext")
                 delay(1)

@@ -19,14 +19,17 @@ package com.android.test.tracing.coroutines
 import android.platform.test.annotations.EnableFlags
 import com.android.app.tracing.coroutines.CoroutineTraceName
 import com.android.app.tracing.coroutines.createCoroutineTracingContext
+import com.android.app.tracing.coroutines.flow.collectLatestTraced
 import com.android.app.tracing.coroutines.flow.collectTraced
 import com.android.app.tracing.coroutines.flow.filterTraced
 import com.android.app.tracing.coroutines.flow.flowName
+import com.android.app.tracing.coroutines.flow.mapLatestTraced
 import com.android.app.tracing.coroutines.flow.mapTraced
 import com.android.app.tracing.coroutines.flow.shareInTraced
 import com.android.app.tracing.coroutines.flow.stateInTraced
 import com.android.app.tracing.coroutines.launchInTraced
 import com.android.app.tracing.coroutines.launchTraced
+import com.android.app.tracing.coroutines.traceCoroutine
 import com.android.systemui.Flags.FLAG_COROUTINE_TRACING
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
@@ -34,6 +37,7 @@ import kotlinx.coroutines.DelicateCoroutinesApi
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOf
@@ -335,22 +339,19 @@ class FlowTracingTest : TestBase() {
         val thread1 = newSingleThreadContext("thread-#1")
         val coldFlow =
             flow {
-                    expect("1^main:1^fused-name")
+                    expect("1^main:1^")
                     yield()
-                    expect()
+                    expect("1^main:1^")
                     emit(21)
-                    expect()
+                    expect("1^main:1^")
                     yield()
-                    expect()
+                    expect("1^main:1^")
                 }
-                // "UNUSED_MIDDLE_NAME" is overwritten during operator fusion because the thread
-                // of the flow did not change, meaning no new coroutine needed to be created.
-                .flowOn(CoroutineTraceName("UNUSED_MIDDLE_NAME") + thread1)
                 .map {
-                    expect("1^main:1^fused-name")
+                    expect("1^main:1^")
                     it * 2
                 }
-                .flowOn(CoroutineTraceName("fused-name") + thread1)
+                .flowOn(thread1)
 
         runTest(totalEvents = 9) {
             expect("1^main")
@@ -359,6 +360,39 @@ class FlowTracingTest : TestBase() {
                 expect("1^main", "collect:coldFlow", "emit")
                 yield()
                 expect("1^main", "collect:coldFlow", "emit")
+            }
+            expect("1^main")
+        }
+    }
+
+    @Test
+    fun collectTraced_collectWithTracedReceiver() {
+        val thread1 = newSingleThreadContext("thread-#1")
+        val coldFlow =
+            flow {
+                    expect("1^main:1^")
+                    yield()
+                    expect("1^main:1^")
+                    emit(21)
+                    expect("1^main:1^")
+                    yield()
+                    expect("1^main:1^")
+                }
+                .map {
+                    expect("1^main:1^")
+                    it * 2
+                }
+                .flowOn(thread1)
+
+        runTest(totalEvents = 9) {
+            expect("1^main")
+            coldFlow.traceCoroutine("AAA") {
+                collectTraced("coldFlow") {
+                    assertEquals(42, it)
+                    expect("1^main", "AAA", "collect:coldFlow", "emit")
+                    yield()
+                    expect("1^main", "AAA", "collect:coldFlow", "emit")
+                }
             }
             expect("1^main")
         }
@@ -555,6 +589,66 @@ class FlowTracingTest : TestBase() {
                 )
             }
             expect(7, "1^main")
+        }
+    }
+
+    @Test
+    fun collectFlow_mapLatest() {
+        val coldFlow = flowOf(1, 2, 3)
+        runTest(totalEvents = 6) {
+            expect("1^main")
+            coldFlow
+                .mapLatestTraced("AAA") {
+                    expectAny(
+                        arrayOf("1^main:1^", "1^main:1^:1^", "mapLatest:AAA:transform"),
+                        arrayOf("1^main:1^", "1^main:1^:2^", "mapLatest:AAA:transform"),
+                        arrayOf("1^main:1^", "1^main:1^:3^", "mapLatest:AAA:transform"),
+                    )
+                    delay(10)
+                    expect("1^main:1^:3^", "mapLatest:AAA:transform")
+                }
+                .collect()
+            expect("1^main")
+        }
+    }
+
+    @Test
+    fun collectFlow_collectLatest() {
+        val coldFlow = flowOf(1, 2, 3)
+        runTest(totalEvents = 6) {
+            expect("1^main")
+            coldFlow.collectLatestTraced("CCC") {
+                expectAny(
+                    arrayOf("1^main:1^", "1^main:1^:1^", "collectLatest:CCC:action"),
+                    arrayOf("1^main:1^", "1^main:1^:2^", "collectLatest:CCC:action"),
+                    arrayOf("1^main:1^", "1^main:1^:3^", "collectLatest:CCC:action"),
+                )
+                delay(10)
+                expect("1^main:1^:3^", "collectLatest:CCC:action")
+            }
+            expect("1^main")
+        }
+    }
+
+    @Test
+    fun collectFlow_mapLatest_collectLatest() {
+        val coldFlow = flowOf(1, 2, 3)
+        runTest(totalEvents = 7) {
+            expect("1^main")
+            coldFlow
+                .mapLatestTraced("AAA") {
+                    expectAny(
+                        arrayOf("1^main:1^:1^", "1^main:1^:1^:1^", "mapLatest:AAA:transform"),
+                        arrayOf("1^main:1^:1^", "1^main:1^:1^:2^", "mapLatest:AAA:transform"),
+                        arrayOf("1^main:1^:1^", "1^main:1^:1^:3^", "mapLatest:AAA:transform"),
+                    )
+                    delay(10)
+                    expect("1^main:1^:1^:3^", "mapLatest:AAA:transform")
+                }
+                .collectLatestTraced("CCC") {
+                    expect("1^main:1^", "1^main:1^:2^", "collectLatest:CCC:action")
+                }
+            expect("1^main")
         }
     }
 
