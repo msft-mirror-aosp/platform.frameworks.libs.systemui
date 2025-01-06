@@ -639,9 +639,8 @@ constructor(
         fun getPackageKey(packageName: String, user: UserHandle) =
             ComponentKey(ComponentName(packageName, packageName + EMPTY_CLASS_NAME), user)
 
-        // Ensures archived app icons are invalidated after flag is flipped.
-        // TODO: Remove conditional with FLAG_USE_NEW_ICON_FOR_ARCHIVED_APPS
-        @JvmField val RELEASE_VERSION = if (Flags.forceMonochromeAppIcons()) 3 else 2
+        // Ensures themed bitmaps in the icon cache are invalidated
+        @JvmField val RELEASE_VERSION = if (Flags.forceMonochromeAppIcons()) 4 else 3
 
         @JvmField val TABLE_NAME = "icons"
         @JvmField val COLUMN_ROWID = "rowid"
