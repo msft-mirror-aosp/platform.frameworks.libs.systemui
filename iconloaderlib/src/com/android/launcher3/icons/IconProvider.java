@@ -41,7 +41,6 @@ import android.graphics.drawable.InsetDrawable;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
-import android.os.PatternMatcher;
 import android.os.Process;
 import android.os.UserHandle;
 import android.os.UserManager;
@@ -62,7 +61,6 @@ import java.util.Objects;
  */
 public class IconProvider {
 
-    private final String ACTION_OVERLAY_CHANGED = "android.intent.action.OVERLAY_CHANGED";
     static final int CONFIG_ICON_MASK_RES_ID = Resources.getSystem().getIdentifier(
             "config_icon_mask", "string", "android");
 
@@ -79,7 +77,7 @@ public class IconProvider {
     private final ComponentName mClock;
 
     @NonNull
-    private String mSystemState = "";
+    protected String mSystemState = "";
 
     public IconProvider(Context context) {
         mContext = context;
@@ -291,14 +289,6 @@ public class IconProvider {
     }
 
     /**
-     * Returns a string representation of the current system icon state
-     */
-    public String getSystemIconState() {
-        return (CONFIG_ICON_MASK_RES_ID == ID_NULL
-                ? "" : mContext.getResources().getString(CONFIG_ICON_MASK_RES_ID));
-    }
-
-    /**
      * Registers a callback to listen for various system dependent icon changes.
      */
     public SafeCloseable registerIconChangeListener(IconChangeListener listener, Handler handler) {
@@ -330,18 +320,9 @@ public class IconProvider {
     private class IconChangeReceiver extends BroadcastReceiver implements SafeCloseable {
 
         private final IconChangeListener mCallback;
-        private String mIconState;
 
         IconChangeReceiver(IconChangeListener callback, Handler handler) {
             mCallback = callback;
-            mIconState = getSystemIconState();
-
-
-            IntentFilter packageFilter = new IntentFilter(ACTION_OVERLAY_CHANGED);
-            packageFilter.addDataScheme("package");
-            packageFilter.addDataSchemeSpecificPart("android", PatternMatcher.PATTERN_LITERAL);
-            mContext.registerReceiver(this, packageFilter, null, handler);
-
             if (mCalendar != null || mClock != null) {
                 final IntentFilter filter = new IntentFilter(ACTION_TIMEZONE_CHANGED);
                 if (mCalendar != null) {
@@ -369,20 +350,14 @@ public class IconProvider {
                         }
                     }
                     break;
-                case ACTION_OVERLAY_CHANGED: {
-                    String newState = getSystemIconState();
-                    if (!mIconState.equals(newState)) {
-                        mIconState = newState;
-                        mCallback.onSystemIconStateChanged(mIconState);
-                    }
-                    break;
-                }
             }
         }
 
         @Override
         public void close() {
-            mContext.unregisterReceiver(this);
+            try {
+                mContext.unregisterReceiver(this);
+            } catch (Exception ignored) { }
         }
     }
 
@@ -395,10 +370,5 @@ public class IconProvider {
          * Called when the icon for a particular app changes
          */
         void onAppIconChanged(String packageName, UserHandle user);
-
-        /**
-         * Called when the global icon state changed, which can typically affect all icons
-         */
-        void onSystemIconStateChanged(String iconState);
     }
 }
