@@ -1,5 +1,6 @@
 package com.android.launcher3.icons;
 
+import static android.graphics.Color.BLACK;
 import static android.graphics.Paint.ANTI_ALIAS_FLAG;
 import static android.graphics.Paint.DITHER_FLAG;
 import static android.graphics.Paint.FILTER_BITMAP_FLAG;
@@ -21,6 +22,7 @@ import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.Paint;
 import android.graphics.PaintFlagsDrawFilter;
+import android.graphics.Path;
 import android.graphics.Rect;
 import android.graphics.RectF;
 import android.graphics.drawable.AdaptiveIconDrawable;
@@ -38,6 +40,7 @@ import androidx.annotation.IntDef;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 
+import com.android.launcher3.Flags;
 import com.android.launcher3.icons.BitmapInfo.Extender;
 import com.android.launcher3.util.FlagOp;
 import com.android.launcher3.util.UserIconInfo;
@@ -240,7 +243,7 @@ public class BaseIconFactory implements AutoCloseable {
                 ? options.mExtractedColor : mColorExtractor.findDominantColorByHue(bitmap);
         BitmapInfo info = BitmapInfo.of(bitmap, color);
 
-        if (adaptiveIcon instanceof BitmapInfo.Extender extender) {
+        if (adaptiveIcon instanceof Extender extender) {
             info = extender.getExtendedInfo(bitmap, color, this, scale[0]);
         } else if (IconProvider.ATLEAST_T && mThemeController != null && adaptiveIcon != null) {
             info.setThemedBitmap(mThemeController.createThemedBitmap(adaptiveIcon, info, this));
@@ -284,6 +287,11 @@ public class BaseIconFactory implements AutoCloseable {
             mCachedUserInfo.put(key, info);
         }
         return info;
+    }
+
+    @NonNull
+    protected Path getShapePath(AdaptiveIconDrawable drawable, Rect iconBounds) {
+        return drawable.getIconMask();
     }
 
     @NonNull
@@ -401,31 +409,31 @@ public class BaseIconFactory implements AutoCloseable {
         return bitmap;
     }
 
-    private void drawIconBitmap(@NonNull Canvas canvas, @Nullable final Drawable icon,
+    private void drawIconBitmap(@NonNull Canvas canvas, @Nullable Drawable icon,
             final float scale, @BitmapGenerationMode int bitmapGenerationMode,
             @Nullable Bitmap targetBitmap) {
         final int size = mIconBitmapSize;
         mOldBounds.set(icon.getBounds());
-
-        if (icon instanceof AdaptiveIconDrawable) {
+        if (icon instanceof AdaptiveIconDrawable aid) {
             // We are ignoring KEY_SHADOW_DISTANCE because regular icons ignore this at the
             // moment b/298203449
             int offset = Math.max((int) Math.ceil(BLUR_FACTOR * size),
                     Math.round(size * (1 - scale) / 2));
             // b/211896569: AdaptiveIconDrawable do not work properly for non top-left bounds
-            icon.setBounds(0, 0, size - offset - offset, size - offset - offset);
+            int newBounds = size - offset * 2;
+            icon.setBounds(0, 0, newBounds, newBounds);
+            Path shapePath = getShapePath(aid, icon.getBounds());
             int count = canvas.save();
             canvas.translate(offset, offset);
             if (bitmapGenerationMode == MODE_WITH_SHADOW
                     || bitmapGenerationMode == MODE_HARDWARE_WITH_SHADOW) {
-                getShadowGenerator().addPathShadow(
-                        ((AdaptiveIconDrawable) icon).getIconMask(), canvas);
+                getShadowGenerator().addPathShadow(shapePath, canvas);
             }
 
-            if (icon instanceof BitmapInfo.Extender) {
+            if (icon instanceof Extender) {
                 ((Extender) icon).drawForPersistence(canvas);
             } else {
-                icon.draw(canvas);
+                drawAdaptiveIcon(canvas, aid, shapePath);
             }
             canvas.restoreToCount(count);
         } else {
@@ -471,6 +479,31 @@ public class BaseIconFactory implements AutoCloseable {
             }
         }
         icon.setBounds(mOldBounds);
+    }
+
+    /**
+     * Draws AdaptiveIconDrawable onto canvas.
+     * @param canvas canvas to draw on
+     * @param drawable AdaptiveIconDrawable to draw
+     * @param overridePath path to clip icon with for shapes
+     */
+    protected void drawAdaptiveIcon(
+            @NonNull Canvas canvas,
+            @NonNull AdaptiveIconDrawable drawable,
+            @NonNull Path overridePath
+    ) {
+        if (!Flags.enableLauncherIconShapes()) {
+            drawable.draw(canvas);
+            return;
+        }
+        canvas.clipPath(overridePath);
+        canvas.drawColor(BLACK);
+        if (drawable.getBackground() != null) {
+            drawable.getBackground().draw(canvas);
+        }
+        if (drawable.getForeground() != null) {
+            drawable.getForeground().draw(canvas);
+        }
     }
 
     @Override
