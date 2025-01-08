@@ -195,7 +195,7 @@ private class MotionValueTestHarness(
 
     override fun updateValue(position: Float) {
         input = position
-        gestureContext.distance = position
+        gestureContext.dragOffset = position
     }
 
     override var directionChangeSlop: Float

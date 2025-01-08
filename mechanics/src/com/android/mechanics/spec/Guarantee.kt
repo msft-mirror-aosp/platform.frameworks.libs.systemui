@@ -38,8 +38,8 @@ sealed class Guarantee {
     data class InputDelta(val delta: Float) : Guarantee()
 
     /**
-     * Guarantees to complete the animation before the gesture is [distance] away from the gesture
+     * Guarantees to complete the animation before the gesture is [delta] away from the gesture
      * position captured when the breakpoint was crossed.
      */
-    data class GestureDistance(val distance: Float) : Guarantee()
+    data class GestureDragDelta(val delta: Float) : Guarantee()
 }

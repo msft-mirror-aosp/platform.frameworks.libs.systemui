@@ -158,16 +158,16 @@ class MotionValueTest {
         }
 
     @Test
-    fun segmentChange_guaranteeGestureDistance_springCompletesWithinDistance() =
+    fun segmentChange_guaranteeGestureDragDelta_springCompletesWithinDistance() =
         motion.goldenTest(
             spec =
                 specBuilder(Mapping.Zero)
                     .toBreakpoint(1f)
-                    .completeWith(Mapping.One, guarantee = Guarantee.GestureDistance(3f))
+                    .completeWith(Mapping.One, guarantee = Guarantee.GestureDragDelta(3f))
         ) {
             animateValueTo(1f, changePerFrame = 0.5f)
             while (!underTest.isStable) {
-                gestureContext.distance += 0.5f
+                gestureContext.dragOffset += 0.5f
                 awaitFrames()
             }
         }
@@ -485,7 +485,7 @@ class MotionValueTest {
                 override val direction: InputDirection
                     get() = InputDirection.Max
 
-                override val distance: Float
+                override val dragOffset: Float
                     get() = 0f
             }
         private val FrameDelayNanos: Long = 16_000_000L
