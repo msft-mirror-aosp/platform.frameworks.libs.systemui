@@ -126,19 +126,22 @@ class MultiThreadedCoroutineTracingTest : TestBase() {
 
     /** @see nestedUpdateAndRestoreOnSingleThread_unconfinedDispatcher */
     @Test
-    fun nestedUpdateAndRestoreOnSingleThread_undispatchedLaunch() =
+    fun nestedUpdateAndRestoreOnSingleThread_undispatchedLaunch() {
+        val barrier = CompletableDeferred<Unit>()
         runTest(finalEvent = 3) {
             traceCoroutine("parent-span") {
                 launch(start = CoroutineStart.UNDISPATCHED) {
                     traceCoroutine("child-span") {
                         expect(1, "1^main", "parent-span", "1^main:1^", "child-span")
-                        delay(1) // <-- delay will give parent a chance to restore its context
+                        barrier.await() // <-- give parent a chance to restore its context
                         expect(3, "1^main:1^", "child-span")
                     }
                 }
             }
             expect(2, "1^main")
+            barrier.complete(Unit)
         }
+    }
 
     @Test
     fun launchOnSeparateThread_defaultDispatcher() =

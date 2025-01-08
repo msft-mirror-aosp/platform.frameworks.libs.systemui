@@ -338,9 +338,11 @@ internal class TraceContextElement(
      * OR
      *
      * ```
-     * Thread #1 |                                 [restoreThreadContext]
+     * Thread #1 |  [update].x..^  [   ...    restore    ...   ]               [update].x..^[restore]
      * --------------------------------------------------------------------------------------------
-     * Thread #2 |     [updateThreadContext]...x....x..^[restoreThreadContext]
+     * Thread #2 |                 [update]...x....x..^[restore]
+     * --------------------------------------------------------------------------------------------
+     * Thread #3 |                                     [ ... update ... ] ....^  [restore]
      * ```
      *
      * (`...` indicate coroutine body is running; whitespace indicates the thread is not scheduled;
@@ -355,9 +357,11 @@ internal class TraceContextElement(
         // so we can end the correct number of trace sections, restoring the thread to its state
         // prior to the last call to [updateThreadContext].
         if (oldState !== traceThreadLocal.get()) {
-            contextTraceData?.endAllOnThread()
+            if (Trace.isTagEnabled(Trace.TRACE_TAG_APP)) {
+                contextTraceData?.endAllOnThread()
+                Trace.traceEnd(Trace.TRACE_TAG_APP) // end: coroutineTraceName
+            }
             traceThreadLocal.set(oldState)
-            Trace.traceEnd(Trace.TRACE_TAG_APP) // end: coroutineTraceName
         }
     }
 
