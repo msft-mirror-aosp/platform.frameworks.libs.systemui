@@ -27,22 +27,20 @@ import java.util.concurrent.atomic.AtomicInteger
 import org.junit.After
 import org.junit.Assert
 import org.junit.Before
-import org.junit.ClassRule
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 
+@SmallTest
 @RunWith(AndroidJUnit4::class)
 @EnableFlags(Flags.FLAG_COROUTINE_TRACING)
 class ThreadLocalMicroBenchmark {
 
-    @get:Rule val perfStatusReporter = PerfStatusReporter()
-
     @get:Rule val setFlagsRule = SetFlagsRule()
 
-    companion object {
-        @JvmField @ClassRule(order = 1) var ensureDeviceSettingsRule = EnsureDeviceSettingsRule()
-    }
+    @get:Rule val ensureDeviceSettingsRule = EnsureDeviceSettingsRule()
+
+    @get:Rule val perfStatusReporter = PerfStatusReporter()
 
     @Before
     fun before() {
@@ -54,7 +52,6 @@ class ThreadLocalMicroBenchmark {
         Assert.assertTrue(Trace.isEnabled())
     }
 
-    @SmallTest
     @Test
     fun testIntegerIncrement() {
         val state = perfStatusReporter.benchmarkState
@@ -65,7 +62,6 @@ class ThreadLocalMicroBenchmark {
         }
     }
 
-    @SmallTest
     @Test
     fun testAtomicIntegerIncrement() {
         val state = perfStatusReporter.benchmarkState
@@ -76,7 +72,6 @@ class ThreadLocalMicroBenchmark {
         }
     }
 
-    @SmallTest
     @Test
     fun testIntArrayIncrement() {
         val state = perfStatusReporter.benchmarkState
@@ -88,7 +83,6 @@ class ThreadLocalMicroBenchmark {
         }
     }
 
-    @SmallTest
     @Test
     fun testMutableIntIncrement() {
         val state = perfStatusReporter.benchmarkState

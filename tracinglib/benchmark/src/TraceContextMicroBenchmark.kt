@@ -35,24 +35,20 @@ import kotlinx.coroutines.yield
 import org.junit.After
 import org.junit.Assert
 import org.junit.Before
-import org.junit.ClassRule
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 
-private val TAG: String = TraceContextMicroBenchmark::class.java.simpleName
-
+@SmallTest
 @RunWith(AndroidJUnit4::class)
 @EnableFlags(Flags.FLAG_COROUTINE_TRACING)
 class TraceContextMicroBenchmark {
 
-    @get:Rule val perfStatusReporter = PerfStatusReporter()
-
     @get:Rule val setFlagsRule = SetFlagsRule()
 
-    companion object {
-        @JvmField @ClassRule(order = 1) var ensureDeviceSettingsRule = EnsureDeviceSettingsRule()
-    }
+    @get:Rule val ensureDeviceSettingsRule = EnsureDeviceSettingsRule()
+
+    @get:Rule val perfStatusReporter = PerfStatusReporter()
 
     @Before
     fun before() {
@@ -70,7 +66,6 @@ class TraceContextMicroBenchmark {
         state.resumeTiming()
     }
 
-    @SmallTest
     @Test
     fun testSingleTraceSection() {
         val state = perfStatusReporter.benchmarkState
@@ -81,7 +76,6 @@ class TraceContextMicroBenchmark {
         }
     }
 
-    @SmallTest
     @Test
     fun testNestedContext() {
         val state = perfStatusReporter.benchmarkState
@@ -108,7 +102,6 @@ class TraceContextMicroBenchmark {
         }
     }
 
-    @SmallTest
     @Test
     fun testInterleavedLaunch() {
         val state = perfStatusReporter.benchmarkState
