@@ -107,6 +107,13 @@ fun interface Mapping {
         }
     }
 
+    data class Tanh(val scaling: Float, val tilt: Float, val offset: Float = 0f) : Mapping {
+
+        override fun map(input: Float): Float {
+            return scaling * kotlin.math.tanh((input + offset) / (scaling * tilt))
+        }
+    }
+
     companion object {
         val Zero = Fixed(0f)
         val One = Fixed(1f)

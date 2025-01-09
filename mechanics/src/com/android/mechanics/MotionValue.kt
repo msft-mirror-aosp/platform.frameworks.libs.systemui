@@ -175,7 +175,7 @@ class MotionValue(
                         var result = spec.hashCode()
                         result = result * 31 + currentInput().hashCode()
                         result = result * 31 + currentDirection.hashCode()
-                        result = result * 31 + currentGestureDistance.hashCode()
+                        result = result * 31 + currentGestureDragOffset.hashCode()
 
                         // Track whether the spring needs animation frames to finish
                         // In fact, whether the spring is settling is the only relevant bit to
@@ -222,7 +222,7 @@ class MotionValue(
                 // Capture the last frames input.
                 lastFrameTimeNanos = currentAnimationTimeNanos
                 lastInput = currentInput()
-                lastGestureDistance = currentGestureDistance
+                lastGestureDragOffset = currentGestureDragOffset
                 // Not capturing currentDirection and spec explicitly, they are included in
                 // lastSegment
 
@@ -236,7 +236,7 @@ class MotionValue(
                         FrameData(
                             lastInput,
                             currentDirection,
-                            lastGestureDistance,
+                            lastGestureDragOffset,
                             lastFrameTimeNanos,
                             lastSpringState,
                             lastSegment,
@@ -354,8 +354,8 @@ class MotionValue(
     /** The [currentInput] of the last frame */
     private var lastInput by mutableFloatStateOf(currentInput())
 
-    /** The [currentGestureDistance] input of the last frame. */
-    private var lastGestureDistance by mutableFloatStateOf(currentGestureDistance)
+    /** The [currentGestureDragOffset] input of the last frame. */
+    private var lastGestureDragOffset by mutableFloatStateOf(currentGestureDragOffset)
 
     // ---- Declarative Update ---------------------------------------------------------------------
 
@@ -373,9 +373,9 @@ class MotionValue(
     private inline val currentDirection: InputDirection
         get() = gestureContext.direction
 
-    /** [gestureContext]'s [GestureContext.distance], exists solely for consistent naming. */
-    private inline val currentGestureDistance: Float
-        get() = gestureContext.distance
+    /** [gestureContext]'s [GestureContext.dragOffset], exists solely for consistent naming. */
+    private inline val currentGestureDragOffset: Float
+        get() = gestureContext.dragOffset
 
     /**
      * The current segment, which defines the [Mapping] function used to transform the input to the
@@ -536,7 +536,7 @@ class MotionValue(
                     GuaranteeState.withStartValue(
                         when (entryBreakpoint.guarantee) {
                             is Guarantee.InputDelta -> currentInput()
-                            is Guarantee.GestureDistance -> gestureContext.distance
+                            is Guarantee.GestureDragDelta -> gestureContext.dragOffset
                             is Guarantee.None -> return@derivedStateOf GuaranteeState.Inactive
                         }
                     )
@@ -548,16 +548,16 @@ class MotionValue(
                     GuaranteeState.withStartValue(
                         when (entryBreakpoint.guarantee) {
                             is Guarantee.InputDelta -> entryBreakpoint.position
-                            is Guarantee.GestureDistance -> {
-                                // Guess the [GestureDistance] origin - since the gesture distance
+                            is Guarantee.GestureDragDelta -> {
+                                // Guess the GestureDragDelta origin - since the gesture dragOffset
                                 // is sampled, interpolate it according to when the breakpoint was
                                 // crossed in the last frame.
                                 val fractionalBreakpointPos =
                                     lastFrameFractionOfPosition(entryBreakpoint.position)
 
                                 lerp(
-                                    lastGestureDistance,
-                                    gestureContext.distance,
+                                    lastGestureDragOffset,
+                                    gestureContext.dragOffset,
                                     fractionalBreakpointPos,
                                 )
                             }
@@ -573,7 +573,7 @@ class MotionValue(
         guaranteeOriginState.withCurrentValue(
             when (entryBreakpoint.guarantee) {
                 is Guarantee.InputDelta -> currentInput()
-                is Guarantee.GestureDistance -> gestureContext.distance
+                is Guarantee.GestureDragDelta -> gestureContext.dragOffset
                 is Guarantee.None -> return@derivedStateOf GuaranteeState.Inactive
             },
             currentSegment.direction,
@@ -689,10 +689,10 @@ class MotionValue(
                             val guaranteeValueAtNextBreakpoint =
                                 when (lastBreakpoint.guarantee) {
                                     is Guarantee.InputDelta -> nextBreakpoint.position
-                                    is Guarantee.GestureDistance ->
+                                    is Guarantee.GestureDragDelta ->
                                         lerp(
-                                            lastGestureDistance,
-                                            gestureContext.distance,
+                                            lastGestureDragOffset,
+                                            gestureContext.dragOffset,
                                             nextBreakpointFrameFraction,
                                         )
 
@@ -734,11 +734,11 @@ class MotionValue(
                                 is Guarantee.InputDelta ->
                                     GuaranteeState.withStartValue(nextBreakpoint.position)
 
-                                is Guarantee.GestureDistance ->
+                                is Guarantee.GestureDragDelta ->
                                     GuaranteeState.withStartValue(
                                         lerp(
-                                            lastGestureDistance,
-                                            gestureContext.distance,
+                                            lastGestureDragOffset,
+                                            gestureContext.dragOffset,
                                             nextBreakpointFrameFraction,
                                         )
                                     )
@@ -827,7 +827,7 @@ class MotionValue(
                     FrameData(
                         lastInput,
                         lastSegment.direction,
-                        lastGestureDistance,
+                        lastGestureDragOffset,
                         lastFrameTimeNanos,
                         lastSpringState,
                         lastSegment,
@@ -898,7 +898,7 @@ internal value class GuaranteeState(val packedValue: Long) {
             when (val guarantee = breakpoint.guarantee) {
                 is Guarantee.None -> return breakpoint.spring
                 is Guarantee.InputDelta -> guarantee.delta
-                is Guarantee.GestureDistance -> guarantee.distance
+                is Guarantee.GestureDragDelta -> guarantee.delta
             }
 
         val springTighteningFraction = maxDelta / denominator
