@@ -17,27 +17,29 @@
 package com.android.test.tracing.coroutines.util
 
 import kotlin.concurrent.Volatile
-import kotlin.concurrent.getOrSet
 import org.junit.Assert.assertFalse
-import org.junit.Assert.assertNotNull
 
-private class ThreadTraceState : ThreadLocal<MutableList<String>>()
+private val ALL_THREAD_STATES = hashMapOf<Thread, MutableList<String>>()
 
-private val ALL_THREAD_STATES = hashMapOf<Long, MutableList<String>>()
-
-private val CURRENT_TRACE_STATE = ThreadTraceState()
-
-private fun currentThreadTraceState(): MutableList<String> {
-    return CURRENT_TRACE_STATE.getOrSet {
+private class ThreadTraceState : ThreadLocal<MutableList<String>>() {
+    override fun initialValue(): MutableList<String> {
         synchronized(ALL_THREAD_STATES) {
-            mutableListOf<String>().also { ALL_THREAD_STATES[currentThreadId()] = it }
+            val newValue = mutableListOf<String>()
+            ALL_THREAD_STATES[Thread.currentThread()] = newValue
+            return newValue
         }
     }
 }
 
+private val CURRENT_TRACE_STATE = ThreadTraceState()
+
+private fun currentThreadTraceState(): MutableList<String> {
+    return CURRENT_TRACE_STATE.get()!!
+}
+
 object FakeTraceState {
 
-    @Volatile var isTracingEnabled: Boolean = true
+    @Volatile @JvmStatic var isTracingEnabled: Boolean = true
 
     fun clearAll() {
         synchronized(ALL_THREAD_STATES) { ALL_THREAD_STATES.entries.forEach { it.value.clear() } }
@@ -48,15 +50,10 @@ object FakeTraceState {
     }
 
     fun end() {
-        val threadId = currentThreadId()
+        val threadId = Thread.currentThread().threadId()
         val traceSections = currentThreadTraceState()
-        assertNotNull(
-            "Attempting to close trace section on thread=$threadId, " +
-                "but tracing never started on this thread",
-            traceSections,
-        )
         assertFalse(
-            "Attempting to close trace section on thread=$threadId, " +
+            "Attempting to close trace section on thread #$threadId, " +
                 "but there are no open sections",
             traceSections.isEmpty(),
         )

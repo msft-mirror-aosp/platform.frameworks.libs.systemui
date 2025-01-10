@@ -22,20 +22,21 @@ import android.platform.test.annotations.EnableFlags
 import com.android.app.tracing.coroutines.CoroutineTraceName
 import com.android.app.tracing.coroutines.TraceContextElement
 import com.android.app.tracing.coroutines.coroutineScopeTraced
-import com.android.app.tracing.coroutines.createCoroutineTracingContext
 import com.android.app.tracing.coroutines.launchTraced
 import com.android.app.tracing.coroutines.nameCoroutine
 import com.android.app.tracing.coroutines.traceCoroutine
 import com.android.app.tracing.coroutines.withContextTraced
 import com.android.systemui.Flags.FLAG_COROUTINE_TRACING
 import kotlin.coroutines.EmptyCoroutineContext
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.DelicateCoroutinesApi
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.cancelChildren
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.plus
 import kotlinx.coroutines.withContext
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -43,8 +44,6 @@ import org.junit.Test
 
 @EnableFlags(FLAG_COROUTINE_TRACING)
 class CoroutineTracingTest : TestBase() {
-
-    override val scope = CoroutineScope(createCoroutineTracingContext("main", testMode = true))
 
     @Test
     fun simpleTraceSection() =
@@ -96,18 +95,28 @@ class CoroutineTracingTest : TestBase() {
         }
 
     @Test
-    fun simpleLaunch() =
-        runTest(finalEvent = 4) {
-            expectD(1, "1^main")
+    fun simpleLaunch() {
+        val barrier = CompletableDeferred<Unit>()
+        runTest(finalEvent = 7) {
+            expect(1, "1^main")
+            delay(1)
+            expect(2, "1^main")
             traceCoroutine("hello") {
-                expectD(2, "1^main", "hello")
+                expect(3, "1^main", "hello")
+                delay(1)
+                expect(4, "1^main", "hello")
                 launch {
+                    expect(5, "1^main:1^")
+                    delay(1)
                     // "hello" is not passed to child scope
-                    expect(4, "1^main:1^")
+                    expect(6, "1^main:1^")
+                    barrier.complete(Unit)
                 }
             }
-            expect(3, "1^main")
+            barrier.await()
+            expect(7, "1^main")
         }
+    }
 
     @Test
     fun launchWithSuspendingLambda() =
@@ -127,6 +136,36 @@ class CoroutineTracingTest : TestBase() {
             }
             expect(2, "1^main")
         }
+
+    @Test
+    fun stressTestContextSwitches() =
+        runTest(totalEvents = 800) {
+            repeat(200) {
+                listOf(bgThread1, bgThread2, bgThread3, bgThread4).forEach {
+                    launch(it) {
+                        traceCoroutine("a") {
+                            delay(1)
+                            expectEndsWith("a")
+                        }
+                    }
+                }
+            }
+        }
+
+    @Test
+    fun stressTestContextSwitches_depth() {
+        fun CoroutineScope.recursivelyLaunch(n: Int) {
+            if (n == 0) return
+            launchTraced("launch#$n", start = CoroutineStart.UNDISPATCHED) {
+                traceCoroutine("a") {
+                    recursivelyLaunch(n - 1)
+                    delay(1)
+                    expectEndsWith("a")
+                }
+            }
+        }
+        runTest(totalEvents = 400) { recursivelyLaunch(400) }
+    }
 
     @Test
     fun withContext_incorrectUsage() =
@@ -290,5 +329,62 @@ class CoroutineTracingTest : TestBase() {
                 delay(20)
                 expect(11, "1^main:2^my-coroutine")
             }
+        }
+
+    @Test
+    fun undispatchedLaunch() =
+        runTest(totalEvents = 4) {
+            launchTraced("AAA", start = CoroutineStart.UNDISPATCHED) {
+                expect("1^main", "1^main:1^AAA")
+                launchTraced("BBB", start = CoroutineStart.UNDISPATCHED) {
+                    traceCoroutine("delay-5") {
+                        expect("1^main", "1^main:1^AAA", "1^main:1^AAA:1^BBB", "delay-5")
+                        delay(5)
+                        expect("1^main:1^AAA:1^BBB", "delay-5")
+                    }
+                }
+            }
+            expect("1^main")
+        }
+
+    @Test
+    fun undispatchedLaunch_cancelled() =
+        runTest(totalEvents = 11) {
+            traceCoroutine("hello") { expect("1^main", "hello") }
+            val job =
+                launchTraced("AAA", start = CoroutineStart.UNDISPATCHED) {
+                    expect("1^main", "1^main:1^AAA")
+                    traceCoroutine("delay-50") {
+                        expect("1^main", "1^main:1^AAA", "delay-50")
+                        launchTraced("BBB", start = CoroutineStart.UNDISPATCHED) {
+                                traceCoroutine("BBB:delay-25") {
+                                    expect(
+                                        "1^main",
+                                        "1^main:1^AAA",
+                                        "delay-50",
+                                        "1^main:1^AAA:1^BBB",
+                                        "BBB:delay-25",
+                                    )
+                                    delay(25)
+                                    expect("1^main:1^AAA:1^BBB", "BBB:delay-25")
+                                }
+                            }
+                            .join()
+                        expect("1^main:1^AAA", "delay-50")
+                        delay(25)
+                    }
+                }
+            launchTraced("CCC") {
+                traceCoroutine("delay-35") {
+                    expect("1^main:2^CCC", "delay-35")
+                    delay(35)
+                    expect("1^main:2^CCC", "delay-35")
+                }
+                job.cancelChildren()
+                expect("1^main:2^CCC")
+                job.join()
+                expect("1^main:2^CCC")
+            }
+            expect("1^main")
         }
 }

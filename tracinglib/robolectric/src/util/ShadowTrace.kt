@@ -41,26 +41,22 @@ object ShadowTrace {
     @Implementation
     @JvmStatic
     fun traceBegin(traceTag: Long, methodName: String) {
-        if (traceTag == Trace.TRACE_TAG_APP) {
-            if (isTagEnabled(traceTag)) {
-                debug("traceBegin: $methodName")
-                FakeTraceState.begin(methodName)
-            } else {
-                debug("IGNORE traceBegin: $methodName")
-            }
+        if (traceTag == Trace.TRACE_TAG_APP && isTagEnabled(traceTag)) {
+            debug("traceBegin: $methodName")
+            FakeTraceState.begin(methodName)
+        } else {
+            debug("IGNORE traceBegin: $methodName")
         }
     }
 
     @Implementation
     @JvmStatic
     fun traceEnd(traceTag: Long) {
-        if (traceTag == Trace.TRACE_TAG_APP) {
-            if (isTagEnabled(traceTag)) {
-                debug("traceEnd")
-                FakeTraceState.end()
-            } else {
-                debug("IGNORE traceEnd")
-            }
+        if (traceTag == Trace.TRACE_TAG_APP && isTagEnabled(traceTag)) {
+            debug("traceEnd")
+            FakeTraceState.end()
+        } else {
+            debug("IGNORE traceEnd")
         }
     }
 
@@ -124,9 +120,9 @@ private const val DEBUG = false
 private fun debug(message: String, e: Throwable? = null) {
     if (DEBUG) {
         if (e != null) {
-            Log.d("ShadowTrace", "Thread #${currentThreadId()}: $message", e)
+            Log.d("ShadowTrace", "Thread #${Thread.currentThread().threadId()}: $message", e)
         } else {
-            Log.d("ShadowTrace", "Thread #${currentThreadId()}: $message")
+            Log.d("ShadowTrace", "Thread #${Thread.currentThread().threadId()}: $message")
         }
     }
 }

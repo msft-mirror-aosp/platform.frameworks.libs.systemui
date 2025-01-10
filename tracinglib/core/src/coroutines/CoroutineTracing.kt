@@ -223,10 +223,10 @@ public inline fun <T, R> R.traceCoroutine(crossinline spanName: () -> String, bl
     // tracing is not active (i.e. when TRACE_TAG_APP is disabled). Otherwise, when the
     // coroutine resumes when tracing is active, we won't know its name.
     try {
-        if (Flags.coroutineTracing()) traceThreadLocal.get()?.beginSpan(spanName())
+        if (Flags.coroutineTracing()) traceThreadLocal.get()?.beginCoroutineTrace(spanName())
         return block()
     } finally {
-        if (Flags.coroutineTracing()) traceThreadLocal.get()?.endSpan()
+        if (Flags.coroutineTracing()) traceThreadLocal.get()?.endCoroutineTrace()
     }
 }
 
@@ -239,10 +239,10 @@ public inline fun <T> traceCoroutine(crossinline spanName: () -> String, block: 
     // tracing is not active (i.e. when TRACE_TAG_APP is disabled). Otherwise, when the
     // coroutine resumes when tracing is active, we won't know its name.
     try {
-        if (Flags.coroutineTracing()) traceThreadLocal.get()?.beginSpan(spanName())
+        if (Flags.coroutineTracing()) traceThreadLocal.get()?.beginCoroutineTrace(spanName())
         return block()
     } finally {
-        if (Flags.coroutineTracing()) traceThreadLocal.get()?.endSpan()
+        if (Flags.coroutineTracing()) traceThreadLocal.get()?.endCoroutineTrace()
     }
 }
 

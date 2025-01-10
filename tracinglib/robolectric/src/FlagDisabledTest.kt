@@ -17,34 +17,27 @@
 package com.android.test.tracing.coroutines
 
 import android.platform.test.annotations.DisableFlags
-import android.platform.test.annotations.EnableFlags
-import com.android.app.tracing.coroutines.TraceContextElement
-import com.android.app.tracing.coroutines.TraceData
 import com.android.app.tracing.coroutines.createCoroutineTracingContext
 import com.android.app.tracing.coroutines.traceCoroutine
 import com.android.app.tracing.coroutines.traceThreadLocal
 import com.android.systemui.Flags.FLAG_COROUTINE_TRACING
+import com.android.systemui.Flags.coroutineTracing
 import com.android.test.tracing.coroutines.util.FakeTraceState
+import kotlin.coroutines.CoroutineContext
 import kotlin.coroutines.EmptyCoroutineContext
-import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.withContext
-import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
-import org.junit.Assert.assertNotNull
-import org.junit.Assert.assertNotSame
 import org.junit.Assert.assertNull
-import org.junit.Assert.assertTrue
 import org.junit.Assert.fail
 import org.junit.Test
 
-class CoroutineTracingFlagsTest : TestBase() {
+@DisableFlags(FLAG_COROUTINE_TRACING)
+class FlagDisabledTest : TestBase() {
+    override val extraContext: CoroutineContext by lazy { EmptyCoroutineContext }
 
-    override val scope: CoroutineScope = CoroutineScope(EmptyCoroutineContext)
-
-    @DisableFlags(FLAG_COROUTINE_TRACING)
     @Test
     fun tracingDisabledWhenFlagIsOff() = runTest {
-        assertFalse(com.android.systemui.Flags.coroutineTracing())
+        assertFalse(coroutineTracing())
         assertNull(traceThreadLocal.get())
         withContext(createCoroutineTracingContext(testMode = true)) {
             assertNull(traceThreadLocal.get())
@@ -63,38 +56,6 @@ class CoroutineTracingFlagsTest : TestBase() {
                 "error"
             }) {
                 assertNull(traceThreadLocal.get())
-            }
-        }
-    }
-
-    @EnableFlags(FLAG_COROUTINE_TRACING)
-    @Test
-    fun lazyStringIsAlwaysCalledOnDebugBuilds() = runTest {
-        FakeTraceState.isTracingEnabled = false
-        assertNull(traceThreadLocal.get())
-        val originalTraceContext = createCoroutineTracingContext(testMode = true)
-        withContext(originalTraceContext) {
-            assertNotSame(
-                "withContext() should copy the passed TraceContextElement",
-                originalTraceContext,
-                coroutineContext[TraceContextElement],
-            )
-            assertNotNull(traceThreadLocal.get())
-
-            // It is expected that the lazy-String is called even when tracing is disabled because
-            // otherwise the coroutine resumption points would be missing names.
-            var lazyStringCalled = false
-            traceCoroutine({
-                lazyStringCalled = true
-                "hello"
-            }) {
-                assertTrue(
-                    "Lazy string should be been called when FLAG_COROUTINE_TRACING is enabled, " +
-                        "even when Trace.isEnabled()=false",
-                    lazyStringCalled,
-                )
-                val traceData = traceThreadLocal.get() as TraceData
-                assertEquals(traceData.slices?.size, 1)
             }
         }
     }
