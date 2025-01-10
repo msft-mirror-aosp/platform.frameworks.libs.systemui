@@ -20,6 +20,7 @@ import com.android.app.tracing.coroutines.flow.collectTraced
 import com.android.app.tracing.coroutines.flow.filterTraced as filter
 import com.android.app.tracing.coroutines.flow.flowName
 import com.android.app.tracing.coroutines.flow.mapTraced as map
+import com.android.app.tracing.coroutines.flow.stateInTraced
 import com.android.app.tracing.coroutines.launchTraced as launch
 import com.android.app.tracing.coroutines.traceCoroutine
 import com.example.tracing.demo.FixedThread1
@@ -33,7 +34,6 @@ import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOn
-import kotlinx.coroutines.flow.stateIn
 
 @Singleton
 class SharedFlowUsage
@@ -70,7 +70,7 @@ constructor(
             .flowName("COLD_FLOW")
 
     override suspend fun runExperiment(): Unit = coroutineScope {
-        val stateFlow = coldFlow.stateIn(this, SharingStarted.Eagerly, 10)
+        val stateFlow = coldFlow.stateInTraced("My-StateFlow", this, SharingStarted.Eagerly, 10)
         launch("launchAAAA", dispatcher1) {
             stateFlow.collect("collectAAAA") {
                 traceCoroutine("AAAA collected: $it") { forceSuspend("AAAA", 15) }

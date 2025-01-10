@@ -140,6 +140,10 @@ interface ApplicationComponent {
 
 class MainAppComponentFactory : AppComponentFactory() {
 
+    init {
+        Trace.registerWithPerfetto()
+    }
+
     private val appComponent: ApplicationComponent = DaggerApplicationComponent.create()
 
     override fun instantiateActivityCompat(
