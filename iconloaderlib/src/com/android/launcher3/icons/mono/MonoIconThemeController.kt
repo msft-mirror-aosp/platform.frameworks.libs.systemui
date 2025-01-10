@@ -51,12 +51,7 @@ class MonoIconThemeController : IconThemeController {
         val mono = getMonochromeDrawable(icon, info)
         if (mono != null) {
             val scale =
-                factory.normalizer.getScale(
-                    AdaptiveIconDrawable(ColorDrawable(Color.BLACK), null),
-                    null,
-                    null,
-                    null,
-                )
+                factory.normalizer.getScale(AdaptiveIconDrawable(ColorDrawable(Color.BLACK), null))
             return MonoThemedBitmap(
                 factory.createIconBitmap(mono, scale, BaseIconFactory.MODE_ALPHA),
                 factory.whiteShadowLayer,
