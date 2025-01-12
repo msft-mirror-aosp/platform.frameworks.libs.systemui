@@ -41,6 +41,5 @@ android_robolectric_test {
         "androidx.test.ext.junit",
     ],
     instrumentation_for: "tracinglib-test-app",
-    upstream: true,
     strict_mode: false,
 }
