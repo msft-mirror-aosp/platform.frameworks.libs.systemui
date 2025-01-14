@@ -18,7 +18,6 @@ package com.example.tracing.demo.experiments
 import com.android.app.tracing.TraceUtils.traceAsync
 import com.android.app.tracing.coroutines.createCoroutineTracingContext
 import com.android.app.tracing.coroutines.launchTraced
-import com.android.app.tracing.coroutines.nameCoroutine
 import com.example.tracing.demo.FixedThread1
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -265,43 +264,6 @@ constructor(@FixedThread1 private var handlerDispatcher: CoroutineDispatcher) : 
          */
     }
 
-    /** 9: Merging trace contexts */
-    private fun step9MergingTraceContexts(job: Job) {
-        // Next, we'll look at how the trace context installed on the root coroutine
-        // scope is copied and merged for its children:
-
-        // As a prerequisite, we'll create two parent scopes: one with a trace context,
-        // and the other without.
-        val emptyParent = CoroutineScope(job + handlerDispatcher)
-        val traceableParent =
-            CoroutineScope(
-                job +
-                    handlerDispatcher +
-                    createCoroutineTracingContext(
-                        name = "ParentScope",
-                        walkStackForDefaultNames = true,
-                        countContinuations = true,
-                    )
-            )
-
-        // We'll also create two children: one with a trace context, the other with
-        // a "name" context. The name context is like a lighter weight version of
-        // the trace context. It's only use is in copying a name into the trace
-        // context, if it exists.
-        val otherTraceContext = createCoroutineTracingContext(name = "other-context")
-        val nameContext = nameCoroutine("name-context")
-
-        traceableParent.launch(otherTraceContext) { forceSuspend("A1", 1) }
-        traceableParent.launch(nameContext) { forceSuspend("A2", 1) }
-
-        emptyParent.launch(otherTraceContext) { forceSuspend("B1", 1) }
-        emptyParent.launch(nameContext) { forceSuspend("A2", 1) }
-
-        /*
-        Expected trace output (image alt text):
-         */
-    }
-
     override suspend fun runExperiment() {
         runStep(1, ::step1UntracedCoroutineOnDefaultDispatcher)
         runStep(2, ::step2UntracedCoroutineOnTracedLooperThread)
@@ -311,6 +273,5 @@ constructor(@FixedThread1 private var handlerDispatcher: CoroutineDispatcher) : 
         runStep(6, ::step6UseLaunchedTraced)
         runStep(7, ::step7ExplicitLaunchName)
         runStep(8, ::step8CountContinuations)
-        runStep(9, ::step9MergingTraceContexts)
     }
 }
