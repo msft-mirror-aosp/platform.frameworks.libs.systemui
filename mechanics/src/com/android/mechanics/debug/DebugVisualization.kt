@@ -18,17 +18,22 @@ package com.android.mechanics.debug
 
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
-import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.snapshotFlow
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.composed
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.drawscope.ContentDrawScope
 import androidx.compose.ui.graphics.drawscope.DrawScope
+import androidx.compose.ui.node.DrawModifierNode
+import androidx.compose.ui.node.ModifierNodeElement
+import androidx.compose.ui.node.ObserverModifierNode
+import androidx.compose.ui.node.observeReads
+import androidx.compose.ui.platform.InspectorInfo
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.util.fastForEachIndexed
 import com.android.mechanics.MotionValue
@@ -77,12 +82,10 @@ fun DebugMotionValueVisualization(
  * @param inputRange The range of the input (x) axis
  * @param outputRange The range of the output (y) axis.
  */
-@Composable
 fun Modifier.debugMotionSpecGraph(
     spec: MotionSpec,
     inputRange: ClosedFloatingPointRange<Float>,
-    outputRange: ClosedFloatingPointRange<Float> =
-        remember(spec, inputRange) { spec.computeOutputValueRange(inputRange) },
+    outputRange: ClosedFloatingPointRange<Float>,
 ): Modifier = drawBehind {
     drawAxis(Color.Gray)
     if (spec.isUnidirectional) {
@@ -111,35 +114,18 @@ fun Modifier.debugMotionValueGraph(
     motionValue: MotionValue,
     color: Color,
     inputRange: ClosedFloatingPointRange<Float>,
-    outputRange: ClosedFloatingPointRange<Float> =
-        remember(motionValue.spec, inputRange) {
-            motionValue.spec.computeOutputValueRange(inputRange)
-        },
+    outputRange: ClosedFloatingPointRange<Float>,
     historySize: Int = 100,
-): Modifier = composed {
-    val inspector = remember(motionValue) { motionValue.debugInspector() }
+): Modifier =
+    this then DebugMotionValueGraphElement(motionValue, color, inputRange, outputRange, historySize)
 
-    val history = remember { mutableStateListOf<FrameData>() }
-
-    LaunchedEffect(inspector, history) {
-        snapshotFlow { inspector.frame }
-            .collect {
-                history.add(it)
-                if (history.size > historySize) {
-                    history.removeFirst()
-                }
-            }
-    }
-
-    DisposableEffect(inspector) { onDispose { inspector.dispose() } }
-
-    this.drawBehind { drawInputOutputTrail(history, inputRange, outputRange, color) }
-}
-
-private val MotionSpec.isUnidirectional: Boolean
-    get() = maxDirection == minDirection
-
-private fun MotionSpec.computeOutputValueRange(
+/**
+ * Utility to compute the min/max output values of the spec for the given input.
+ *
+ * Note: this only samples at breakpoint locations. For segment mappings that produce smaller/larger
+ * values in between two breakpoints, this method might might not produce a correct result.
+ */
+fun MotionSpec.computeOutputValueRange(
     inputRange: ClosedFloatingPointRange<Float>
 ): ClosedFloatingPointRange<Float> {
     return if (isUnidirectional) {
@@ -155,7 +141,13 @@ private fun MotionSpec.computeOutputValueRange(
     }
 }
 
-private fun DirectionalMotionSpec.computeOutputValueRange(
+/**
+ * Utility to compute the min/max output values of the spec for the given input.
+ *
+ * Note: this only samples at breakpoint locations. For segment mappings that produce smaller/larger
+ * values in between two breakpoints, this method might might not produce a correct result.
+ */
+fun DirectionalMotionSpec.computeOutputValueRange(
     inputRange: ClosedFloatingPointRange<Float>
 ): ClosedFloatingPointRange<Float> {
 
@@ -178,6 +170,111 @@ private fun DirectionalMotionSpec.computeOutputValueRange(
 
     return samples.min()..samples.max()
 }
+
+private data class DebugMotionValueGraphElement(
+    val motionValue: MotionValue,
+    val color: Color,
+    val inputRange: ClosedFloatingPointRange<Float>,
+    val outputRange: ClosedFloatingPointRange<Float>,
+    val historySize: Int,
+) : ModifierNodeElement<DebugMotionValueGraphNode>() {
+
+    init {
+        require(historySize > 0)
+    }
+
+    override fun create() =
+        DebugMotionValueGraphNode(motionValue, color, inputRange, outputRange, historySize)
+
+    override fun update(node: DebugMotionValueGraphNode) {
+        node.motionValue = motionValue
+        node.color = color
+        node.inputRange = inputRange
+        node.outputRange = outputRange
+        node.historySize = historySize
+    }
+
+    override fun InspectorInfo.inspectableProperties() {
+        // intentionally empty
+    }
+}
+
+private class DebugMotionValueGraphNode(
+    motionValue: MotionValue,
+    var color: Color,
+    var inputRange: ClosedFloatingPointRange<Float>,
+    var outputRange: ClosedFloatingPointRange<Float>,
+    historySize: Int,
+) : DrawModifierNode, ObserverModifierNode, Modifier.Node() {
+
+    private var debugInspector by mutableStateOf<DebugInspector?>(null)
+    private val history = mutableStateListOf<FrameData>()
+
+    var historySize = historySize
+        set(value) {
+            field = value
+
+            if (history.size > value) {
+                history.removeRange(0, value - historySize)
+            }
+        }
+
+    var motionValue = motionValue
+        set(value) {
+            if (value != field) {
+                disposeDebugInspector()
+                field = value
+
+                if (isAttached) {
+                    acquireDebugInspector()
+                }
+            }
+        }
+
+    override fun onAttach() {
+        acquireDebugInspector()
+    }
+
+    override fun onDetach() {
+        disposeDebugInspector()
+    }
+
+    private fun acquireDebugInspector() {
+        debugInspector = motionValue.debugInspector()
+        observeFrameAndAddToHistory()
+    }
+
+    private fun disposeDebugInspector() {
+        debugInspector?.dispose()
+        debugInspector = null
+        history.clear()
+    }
+
+    override fun ContentDrawScope.draw() {
+        drawInputOutputTrail(history, inputRange, outputRange, color)
+        drawContent()
+    }
+
+    private fun observeFrameAndAddToHistory() {
+        var lastFrame: FrameData? = null
+
+        observeReads { lastFrame = debugInspector?.frame }
+
+        lastFrame?.also {
+            history.add(it)
+            if (history.size > historySize) {
+                history.removeFirst()
+            }
+        }
+    }
+
+    override fun onObservedReadsChanged() {
+        observeFrameAndAddToHistory()
+    }
+}
+
+private val MotionSpec.isUnidirectional: Boolean
+    get() = maxDirection == minDirection
 
 private fun DrawScope.mapPointInInputToX(
     input: Float,
