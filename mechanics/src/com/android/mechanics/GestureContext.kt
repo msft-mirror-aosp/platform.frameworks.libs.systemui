@@ -58,8 +58,19 @@ interface GestureContext {
     val dragOffset: Float
 }
 
+/**
+ * [GestureContext] with a mutable [dragOffset].
+ *
+ * The implementation class defines whether the [direction] is updated accordingly.
+ */
+interface MutableDragOffsetGestureContext : GestureContext {
+    /** The gesture distance of the current gesture, in pixels. */
+    override var dragOffset: Float
+}
+
 /** [GestureContext] implementation for manually set values. */
-class ProvidedGestureContext(direction: InputDirection, dragOffset: Float) : GestureContext {
+class ProvidedGestureContext(dragOffset: Float, direction: InputDirection) :
+    MutableDragOffsetGestureContext {
     override var direction by mutableStateOf(direction)
     override var dragOffset by mutableFloatStateOf(dragOffset)
 }
@@ -79,7 +90,7 @@ class DistanceGestureContext(
     initialDragOffset: Float,
     initialDirection: InputDirection,
     directionChangeSlop: Float,
-) : GestureContext {
+) : MutableDragOffsetGestureContext {
     init {
         require(directionChangeSlop > 0) {
             "directionChangeSlop must be greater than 0, was $directionChangeSlop"
