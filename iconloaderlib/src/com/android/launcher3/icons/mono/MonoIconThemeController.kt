@@ -36,6 +36,7 @@ import com.android.launcher3.icons.BaseIconFactory
 import com.android.launcher3.icons.BitmapInfo
 import com.android.launcher3.icons.IconThemeController
 import com.android.launcher3.icons.MonochromeIconFactory
+import com.android.launcher3.icons.SourceHint
 import com.android.launcher3.icons.ThemedBitmap
 import java.nio.ByteBuffer
 
@@ -48,6 +49,7 @@ class MonoIconThemeController(
         icon: AdaptiveIconDrawable,
         info: BitmapInfo,
         factory: BaseIconFactory,
+        sourceHint: SourceHint?,
     ): ThemedBitmap? {
         val mono = getMonochromeDrawable(icon, info)
         if (mono != null) {
@@ -82,6 +84,7 @@ class MonoIconThemeController(
         data: ByteArray,
         info: BitmapInfo,
         factory: BaseIconFactory,
+        sourceHint: SourceHint,
     ): ThemedBitmap? {
         val icon = info.icon
         if (data.size != icon.height * icon.width) return null

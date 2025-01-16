@@ -242,7 +242,8 @@ public class BaseIconFactory implements AutoCloseable {
         if (adaptiveIcon instanceof Extender extender) {
             info = extender.getExtendedInfo(bitmap, color, this, scale[0]);
         } else if (IconProvider.ATLEAST_T && mThemeController != null && adaptiveIcon != null) {
-            info.setThemedBitmap(mThemeController.createThemedBitmap(adaptiveIcon, info, this));
+            info.setThemedBitmap(mThemeController.createThemedBitmap(
+                    adaptiveIcon, info, this, options == null ? null : options.mSourceHint));
         }
         info = info.withFlags(getBitmapFlagOp(options));
         return info;
@@ -526,6 +527,8 @@ public class BaseIconFactory implements AutoCloseable {
         @Nullable
         Integer mExtractedColor;
 
+        @Nullable
+        SourceHint mSourceHint;
 
         /**
          * User for this icon, in case of badging
@@ -578,6 +581,15 @@ public class BaseIconFactory implements AutoCloseable {
          */
         public IconOptions setBitmapGenerationMode(@BitmapGenerationMode int generationMode) {
             mGenerationMode = generationMode;
+            return this;
+        }
+
+        /**
+         * User for this icon, in case of badging
+         */
+        @NonNull
+        public IconOptions setSourceHint(@Nullable SourceHint sourceHint) {
+            mSourceHint = sourceHint;
             return this;
         }
     }
