@@ -97,6 +97,8 @@ public class FastBitmapDrawable extends Drawable implements Drawable.Callback {
 
     private Drawable mBadge;
 
+    private boolean mHoverScaleEnabledForDisplay = true;
+
     public FastBitmapDrawable(Bitmap b) {
         this(b, Color.TRANSPARENT);
     }
@@ -254,7 +256,9 @@ public class FastBitmapDrawable extends Drawable implements Drawable.Callback {
             if (s == android.R.attr.state_pressed) {
                 isPressed = true;
                 break;
-            } else if (sFlagHoverEnabled && s == android.R.attr.state_hovered) {
+            } else if (sFlagHoverEnabled
+                    && s == android.R.attr.state_hovered
+                    && mHoverScaleEnabledForDisplay) {
                 isHovered = true;
                 // Do not break on hovered state, as pressed state should take precedence.
             }
@@ -412,6 +416,10 @@ public class FastBitmapDrawable extends Drawable implements Drawable.Callback {
      */
     public static void setFlagHoverEnabled(boolean isFlagHoverEnabled) {
         sFlagHoverEnabled = isFlagHoverEnabled;
+    }
+
+    public void setHoverScaleEnabledForDisplay(boolean hoverScaleEnabledForDisplay) {
+        mHoverScaleEnabledForDisplay = hoverScaleEnabledForDisplay;
     }
 
     public static class FastBitmapConstantState extends ConstantState {
