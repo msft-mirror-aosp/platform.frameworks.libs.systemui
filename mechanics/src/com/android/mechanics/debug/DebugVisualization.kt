@@ -17,18 +17,26 @@
 package com.android.mechanics.debug
 
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.ContentDrawScope
 import androidx.compose.ui.graphics.drawscope.DrawScope
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.drawscope.scale
+import androidx.compose.ui.graphics.drawscope.translate
 import androidx.compose.ui.node.DrawModifierNode
 import androidx.compose.ui.node.ModifierNodeElement
 import androidx.compose.ui.node.ObserverModifierNode
@@ -39,9 +47,13 @@ import androidx.compose.ui.util.fastForEachIndexed
 import com.android.mechanics.MotionValue
 import com.android.mechanics.spec.DirectionalMotionSpec
 import com.android.mechanics.spec.Guarantee
+import com.android.mechanics.spec.InputDirection
 import com.android.mechanics.spec.MotionSpec
+import com.android.mechanics.spec.SegmentKey
 import kotlin.math.max
 import kotlin.math.min
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.launch
 
 /**
  * A debug visualization of the [motionValue].
@@ -52,25 +64,48 @@ import kotlin.math.min
  *
  * @param motionValue The [MotionValue] to inspect.
  * @param inputRange The relevant range of the input (x) axis, for which to draw the graph.
- * @param color Color for the dots indicating the value
- * @param historySize Number of past values to draw as a trail.
+ * @param maxAgeMillis Max age of the elements in the history trail.
  */
 @Composable
 fun DebugMotionValueVisualization(
     motionValue: MotionValue,
     inputRange: ClosedFloatingPointRange<Float>,
     modifier: Modifier = Modifier,
-    color: Color = Color.DarkGray,
-    historySize: Int = 100,
+    maxAgeMillis: Long = 1000L,
 ) {
     val spec = motionValue.spec
     val outputRange = remember(spec, inputRange) { spec.computeOutputValueRange(inputRange) }
 
+    val inspector = remember(motionValue) { motionValue.debugInspector() }
+
+    DisposableEffect(inspector) { onDispose { inspector.dispose() } }
+
+    val colorScheme = MaterialTheme.colorScheme
+    val axisColor = colorScheme.outline
+    val specColor = colorScheme.tertiary
+    val valueColor = colorScheme.primary
+
+    val primarySpec = motionValue.spec.get(inspector.frame.gestureDirection)
+    val activeSegment = inspector.frame.segmentKey
+
     Spacer(
         modifier =
             modifier
-                .debugMotionSpecGraph(spec, inputRange, outputRange)
-                .debugMotionValueGraph(motionValue, color, inputRange, outputRange, historySize)
+                .debugMotionSpecGraph(
+                    primarySpec,
+                    inputRange,
+                    outputRange,
+                    axisColor,
+                    specColor,
+                    activeSegment,
+                )
+                .debugMotionValueGraph(
+                    motionValue,
+                    valueColor,
+                    inputRange,
+                    outputRange,
+                    maxAgeMillis,
+                )
     )
 }
 
@@ -83,17 +118,15 @@ fun DebugMotionValueVisualization(
  * @param outputRange The range of the output (y) axis.
  */
 fun Modifier.debugMotionSpecGraph(
-    spec: MotionSpec,
+    spec: DirectionalMotionSpec,
     inputRange: ClosedFloatingPointRange<Float>,
     outputRange: ClosedFloatingPointRange<Float>,
+    axisColor: Color = Color.Gray,
+    specColor: Color = Color.Blue,
+    activeSegment: SegmentKey? = null,
 ): Modifier = drawBehind {
-    drawAxis(Color.Gray)
-    if (spec.isUnidirectional) {
-        drawDirectionalSpec(spec.maxDirection, inputRange, outputRange, Color.Red)
-    } else {
-        drawDirectionalSpec(spec.minDirection, inputRange, outputRange, Color.Red)
-        drawDirectionalSpec(spec.maxDirection, inputRange, outputRange, Color.Blue)
-    }
+    drawAxis(axisColor)
+    drawDirectionalSpec(spec, inputRange, outputRange, specColor, activeSegment)
 }
 
 /**
@@ -107,7 +140,7 @@ fun Modifier.debugMotionSpecGraph(
  * @param color Color for the dots indicating the value
  * @param inputRange The range of the input (x) axis
  * @param outputRange The range of the output (y) axis.
- * @param historySize Number of past values to draw as a trail.
+ * @param maxAgeMillis Max age of the elements in the history trail.
  */
 @Composable
 fun Modifier.debugMotionValueGraph(
@@ -115,9 +148,10 @@ fun Modifier.debugMotionValueGraph(
     color: Color,
     inputRange: ClosedFloatingPointRange<Float>,
     outputRange: ClosedFloatingPointRange<Float>,
-    historySize: Int = 100,
+    maxAgeMillis: Long = 1000L,
 ): Modifier =
-    this then DebugMotionValueGraphElement(motionValue, color, inputRange, outputRange, historySize)
+    this then
+        DebugMotionValueGraphElement(motionValue, color, inputRange, outputRange, maxAgeMillis)
 
 /**
  * Utility to compute the min/max output values of the spec for the given input.
@@ -176,22 +210,22 @@ private data class DebugMotionValueGraphElement(
     val color: Color,
     val inputRange: ClosedFloatingPointRange<Float>,
     val outputRange: ClosedFloatingPointRange<Float>,
-    val historySize: Int,
+    val maxAgeMillis: Long,
 ) : ModifierNodeElement<DebugMotionValueGraphNode>() {
 
     init {
-        require(historySize > 0)
+        require(maxAgeMillis > 0)
     }
 
     override fun create() =
-        DebugMotionValueGraphNode(motionValue, color, inputRange, outputRange, historySize)
+        DebugMotionValueGraphNode(motionValue, color, inputRange, outputRange, maxAgeMillis)
 
     override fun update(node: DebugMotionValueGraphNode) {
         node.motionValue = motionValue
         node.color = color
         node.inputRange = inputRange
         node.outputRange = outputRange
-        node.historySize = historySize
+        node.maxAgeMillis = maxAgeMillis
     }
 
     override fun InspectorInfo.inspectableProperties() {
@@ -204,20 +238,11 @@ private class DebugMotionValueGraphNode(
     var color: Color,
     var inputRange: ClosedFloatingPointRange<Float>,
     var outputRange: ClosedFloatingPointRange<Float>,
-    historySize: Int,
+    var maxAgeMillis: Long,
 ) : DrawModifierNode, ObserverModifierNode, Modifier.Node() {
 
     private var debugInspector by mutableStateOf<DebugInspector?>(null)
     private val history = mutableStateListOf<FrameData>()
-
-    var historySize = historySize
-        set(value) {
-            field = value
-
-            if (history.size > value) {
-                history.removeRange(0, value - historySize)
-            }
-        }
 
     var motionValue = motionValue
         set(value) {
@@ -233,6 +258,25 @@ private class DebugMotionValueGraphNode(
 
     override fun onAttach() {
         acquireDebugInspector()
+
+        coroutineScope.launch {
+            while (true) {
+                if (history.size > 1) {
+
+                    withFrameNanos { thisFrameTime ->
+                        while (
+                            history.size > 1 &&
+                                (thisFrameTime - history.first().frameTimeNanos) >
+                                    maxAgeMillis * 1_000_000
+                        ) {
+                            history.removeFirst()
+                        }
+                    }
+                }
+
+                snapshotFlow { history.size > 1 }.first { it }
+            }
+        }
     }
 
     override fun onDetach() {
@@ -251,6 +295,9 @@ private class DebugMotionValueGraphNode(
     }
 
     override fun ContentDrawScope.draw() {
+        if (history.isNotEmpty()) {
+            drawDirectionAndAnimationStatus(history.last())
+        }
         drawInputOutputTrail(history, inputRange, outputRange, color)
         drawContent()
     }
@@ -260,12 +307,7 @@ private class DebugMotionValueGraphNode(
 
         observeReads { lastFrame = debugInspector?.frame }
 
-        lastFrame?.also {
-            history.add(it)
-            if (history.size > historySize) {
-                history.removeFirst()
-            }
-        }
+        lastFrame?.also { history.add(it) }
     }
 
     override fun onObservedReadsChanged() {
@@ -297,12 +339,16 @@ private fun DrawScope.drawDirectionalSpec(
     inputRange: ClosedFloatingPointRange<Float>,
     outputRange: ClosedFloatingPointRange<Float>,
     color: Color,
+    activeSegment: SegmentKey?,
 ) {
 
     val startSegment = spec.findBreakpointIndex(inputRange.start)
     val endSegment = spec.findBreakpointIndex(inputRange.endInclusive)
 
     for (segmentIndex in startSegment..endSegment) {
+        val isActiveSegment =
+            activeSegment?.let { spec.findSegmentIndex(it) == segmentIndex } ?: false
+
         val mapping = spec.mappings[segmentIndex]
         val startBreakpoint = spec.breakpoints[segmentIndex]
         val segmentStart = startBreakpoint.position
@@ -317,14 +363,18 @@ private fun DrawScope.drawDirectionalSpec(
 
         val start = Offset(mapPointInInputToX(fromInput, inputRange), fromY)
         val end = Offset(mapPointInInputToX(toInput, inputRange), toY)
-        drawLine(color, start, end)
+
+        val strokeWidth = if (isActiveSegment) 2.dp.toPx() else Stroke.HairlineWidth
+        val dotSize = if (isActiveSegment) 4.dp.toPx() else 2.dp.toPx()
+
+        drawLine(color, start, end, strokeWidth = strokeWidth)
 
         if (segmentStart == fromInput) {
-            drawCircle(color, 2.dp.toPx(), start)
+            drawCircle(color, dotSize, start)
         }
 
         if (segmentEnd == toInput) {
-            drawCircle(color, 2.dp.toPx(), end)
+            drawCircle(color, dotSize, end)
         }
 
         val guarantee = startBreakpoint.guarantee
@@ -347,6 +397,53 @@ private fun DrawScope.drawDirectionalSpec(
                 )
                 drawLine(color, guaranteeOffset, guaranteeOffset.plus(Offset(arrowSize, arrowSize)))
             }
+        }
+    }
+}
+
+private fun DrawScope.drawDirectionAndAnimationStatus(currentFrame: FrameData) {
+    val indicatorSize = min(this.size.height, 24.dp.toPx())
+
+    this.scale(
+        scaleX = if (currentFrame.gestureDirection == InputDirection.Max) 1f else -1f,
+        scaleY = 1f,
+    ) {
+        val color = if (currentFrame.isStable) Color.Green else Color.Red
+        val strokeWidth = 1.dp.toPx()
+        val d1 = indicatorSize / 2f
+        val d2 = indicatorSize / 3f
+
+        translate(left = 2.dp.toPx()) {
+            drawLine(
+                color,
+                Offset(center.x - d2, center.y - d1),
+                center,
+                strokeWidth = strokeWidth,
+                cap = StrokeCap.Round,
+            )
+            drawLine(
+                color,
+                Offset(center.x - d2, center.y + d1),
+                center,
+                strokeWidth = strokeWidth,
+                cap = StrokeCap.Round,
+            )
+        }
+        translate(left = -2.dp.toPx()) {
+            drawLine(
+                color,
+                Offset(center.x - d2, center.y - d1),
+                center,
+                strokeWidth = strokeWidth,
+                cap = StrokeCap.Round,
+            )
+            drawLine(
+                color,
+                Offset(center.x - d2, center.y + d1),
+                center,
+                strokeWidth = strokeWidth,
+                cap = StrokeCap.Round,
+            )
         }
     }
 }
