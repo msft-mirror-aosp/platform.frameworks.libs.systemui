@@ -17,6 +17,7 @@
 package com.android.app.tracing.coroutines
 
 import android.annotation.SuppressLint
+import android.os.PerfettoTrace
 import android.os.SystemProperties
 import android.os.Trace
 import android.util.Log
@@ -38,9 +39,6 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.DelicateCoroutinesApi
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 
-/** Use a final subclass to avoid virtual calls (b/316642146). */
-@PublishedApi internal class TraceDataThreadLocal : ThreadLocal<TraceData?>()
-
 /**
  * Thread-local storage for tracking open trace sections in the current coroutine context; it should
  * only be used when paired with a [TraceContextElement].
@@ -54,11 +52,19 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
  */
 @PublishedApi internal val traceThreadLocal: TraceDataThreadLocal = TraceDataThreadLocal()
 
-private val alwaysEnableStackWalker =
-    SystemProperties.getBoolean("debug.coroutine_tracing.walk_stack_override", false)
+internal object DebugSysProps {
+    @JvmField
+    val alwaysEnableStackWalker =
+        SystemProperties.getBoolean("debug.coroutine_tracing.walk_stack_override", false)
 
-private val alwaysEnableContinuationCounting =
-    SystemProperties.getBoolean("debug.coroutine_tracing.count_continuations_override", false)
+    @JvmField
+    val alwaysEnableContinuationCounting =
+        SystemProperties.getBoolean("debug.coroutine_tracing.count_continuations_override", false)
+
+    @JvmField
+    val UsePerfettoSdk =
+        SystemProperties.getBoolean("debug.coroutine_tracing.use_perfetto_sdk", false)
+}
 
 /**
  * Returns a new [TraceContextElement] (or [EmptyCoroutineContext] if `coroutine_tracing` feature is
@@ -124,8 +130,9 @@ public fun createCoroutineTracingContext(
             name = name,
             isRoot = true,
             countContinuations =
-                !testMode && (countContinuations || alwaysEnableContinuationCounting),
-            walkStackForDefaultNames = walkStackForDefaultNames || alwaysEnableStackWalker,
+                !testMode && (countContinuations || DebugSysProps.alwaysEnableContinuationCounting),
+            walkStackForDefaultNames =
+                walkStackForDefaultNames || DebugSysProps.alwaysEnableStackWalker,
             shouldIgnoreClassName = shouldIgnoreClassName,
             parentId = null,
             inheritedTracePrefix = if (testMode) "" else null,
@@ -160,6 +167,17 @@ public fun nameCoroutine(name: String): CoroutineContext = nameCoroutine { name 
 public inline fun nameCoroutine(name: () -> String): CoroutineContext {
     contract { callsInPlace(name, InvocationKind.AT_MOST_ONCE) }
     return if (Flags.coroutineTracing()) CoroutineTraceName(name()) else EmptyCoroutineContext
+}
+
+private object PerfettoTraceConfig {
+    // cc = coroutine continuations
+    @JvmField val COROUTINE_CATEGORY: PerfettoTrace.Category = PerfettoTrace.Category("cc")
+
+    init {
+        if (DebugSysProps.UsePerfettoSdk) {
+            COROUTINE_CATEGORY.register()
+        }
+    }
 }
 
 @PublishedApi
@@ -207,6 +225,8 @@ internal open class CoroutineTraceName(internal val name: String?) : CoroutineCo
     }
 }
 
+private fun nextRandomInt(): Int = ThreadLocalRandom.current().nextInt(1, Int.MAX_VALUE)
+
 /**
  * Used for tracking parent-child relationship of coroutines and persisting [TraceData] when
  * coroutines are suspended and resumed.
@@ -230,11 +250,12 @@ internal open class CoroutineTraceName(internal val name: String?) : CoroutineCo
  * @see nameCoroutine
  * @see traceCoroutine
  */
+@SuppressLint("UnclosedTrace")
 @OptIn(DelicateCoroutinesApi::class, ExperimentalCoroutinesApi::class)
 internal class TraceContextElement(
     name: String,
     private val isRoot: Boolean,
-    private val countContinuations: Boolean,
+    countContinuations: Boolean,
     private val walkStackForDefaultNames: Boolean,
     private val shouldIgnoreClassName: ((String) -> Boolean)?,
     parentId: Int?,
@@ -248,15 +269,24 @@ internal class TraceContextElement(
             { it as? TraceContextElement },
         )
 
-    private val currentId: Int = ThreadLocalRandom.current().nextInt(1, Int.MAX_VALUE)
-
+    private val currentId: Int = nextRandomInt()
     private val nameWithId =
         "${if (isRoot) "ROOT-" else ""}$name;c=$currentId;p=${parentId ?: "none"}"
+
+    // Don't use Perfetto SDK when inherited trace prefixes are used since it is a feature only
+    // intended for testing, and only the `android.os.Trace` APIs currently have test shadows:
+    private val usePerfettoSdk = DebugSysProps.UsePerfettoSdk && inheritedTracePrefix == null
+
+    private var continuationId = if (usePerfettoSdk) nextRandomInt() else 0
 
     init {
         val traceSection = "TCE#init;$nameWithId"
         debug { traceSection }
-        Trace.traceBegin(Trace.TRACE_TAG_APP, traceSection)
+        if (usePerfettoSdk) {
+            PerfettoTrace.begin(PerfettoTraceConfig.COROUTINE_CATEGORY, traceSection).emit()
+        } else {
+            Trace.traceBegin(Trace.TRACE_TAG_APP, traceSection) // begin: "TCE#init"
+        }
     }
 
     // Minor perf optimization: no need to create TraceData() for root scopes since all launches
@@ -266,12 +296,15 @@ internal class TraceContextElement(
 
     private var coroutineTraceName: String =
         if (inheritedTracePrefix == null) {
-            "coroutine execution;$nameWithId${if (coroutineDepth == -1) "" else ";d=$coroutineDepth"}"
+            COROUTINE_EXECUTION +
+                nameWithId +
+                (if (coroutineDepth == -1) "" else ";d=$coroutineDepth") +
+                (if (countContinuations) ";n=" else "")
         } else {
             "$inheritedTracePrefix$name"
         }
 
-    private var continuationCount = 0
+    private var continuationCount = if (countContinuations) 0 else Int.MIN_VALUE
     private val childDepth =
         if (inheritedTracePrefix != null || coroutineDepth == -1) -1 else coroutineDepth + 1
 
@@ -281,7 +314,11 @@ internal class TraceContextElement(
     private val mergeForChildTraceMessage = "TCE#merge;$nameWithId"
 
     init {
-        Trace.traceEnd(Trace.TRACE_TAG_APP) // end: "TCE#init"
+        if (usePerfettoSdk) {
+            PerfettoTrace.end(PerfettoTraceConfig.COROUTINE_CATEGORY).addFlow(continuationId).emit()
+        } else {
+            Trace.traceEnd(Trace.TRACE_TAG_APP) // end: "TCE#init"
+        }
     }
 
     /**
@@ -299,25 +336,28 @@ internal class TraceContextElement(
      * (`...` indicate coroutine body is running; whitespace indicates the thread is not scheduled;
      * `^` is a suspension point)
      */
-    @SuppressLint("UnclosedTrace")
     override fun updateThreadContext(context: CoroutineContext): TraceData? {
-        val oldState = traceThreadLocal.get()
-        debug { "TCE#update;$nameWithId oldState=${oldState?.currentId}" }
-        if (oldState !== contextTraceData) {
-            traceThreadLocal.set(contextTraceData)
-            if (Trace.isTagEnabled(Trace.TRACE_TAG_APP)) {
-                Trace.traceBegin(
-                    Trace.TRACE_TAG_APP,
-                    if (countContinuations) "$coroutineTraceName;n=${continuationCount++}"
-                    else coroutineTraceName,
+        debug { "TCE#update;$nameWithId" }
+        // Calls to `updateThreadContext` will not happen in parallel on the same context,
+        // and they cannot happen before the prior suspension point. Additionally,
+        // `restoreThreadContext` does not modify `traceData`, so it is safe to iterate over
+        // the collection here:
+        val storage = traceThreadLocal.get() ?: return null
+        val oldState = storage.data
+        if (oldState === contextTraceData) return oldState
+        if (usePerfettoSdk) {
+            PerfettoTrace.begin(
+                    PerfettoTraceConfig.COROUTINE_CATEGORY,
+                    coroutineTraceName + if (continuationCount < 0) "" else continuationCount,
                 )
-                // Calls to `updateThreadContext` will not happen in parallel on the same context,
-                // and they cannot happen before the prior suspension point. Additionally,
-                // `restoreThreadContext` does not modify `traceData`, so it is safe to iterate over
-                // the collection here:
-                contextTraceData?.beginAllOnThread()
-            }
+                .addTerminatingFlow(continuationId)
+                .emit()
+            continuationId = nextRandomInt()
+        } else {
+            Trace.traceBegin(Trace.TRACE_TAG_APP, coroutineTraceName)
         }
+        if (continuationCount >= 0) continuationCount++
+        storage.updateDataForContinuation(contextTraceData, continuationId)
         return oldState
     }
 
@@ -338,11 +378,11 @@ internal class TraceContextElement(
      * OR
      *
      * ```
-     * Thread #1 |  [update].x..^  [   ...    restore    ...   ]               [update].x..^[restore]
+     * Thread #1 |  [update].x..^  [   ...    restore    ...   ]              [update].x..^[restore]
      * --------------------------------------------------------------------------------------------
      * Thread #2 |                 [update]...x....x..^[restore]
      * --------------------------------------------------------------------------------------------
-     * Thread #3 |                                     [ ... update ... ] ....^  [restore]
+     * Thread #3 |                                     [ ... update ... ] ...^  [restore]
      * ```
      *
      * (`...` indicate coroutine body is running; whitespace indicates the thread is not scheduled;
@@ -356,34 +396,35 @@ internal class TraceContextElement(
         // thread after the last suspension point. This is why we use a [TraceStateHolder]:
         // so we can end the correct number of trace sections, restoring the thread to its state
         // prior to the last call to [updateThreadContext].
-        if (oldState !== traceThreadLocal.get()) {
-            if (Trace.isTagEnabled(Trace.TRACE_TAG_APP)) {
-                contextTraceData?.endAllOnThread()
-                Trace.traceEnd(Trace.TRACE_TAG_APP) // end: coroutineTraceName
-            }
-            traceThreadLocal.set(oldState)
+        val storage = traceThreadLocal.get() ?: return
+        if (storage.data === oldState) return
+        val contId = storage.restoreDataForSuspension(oldState)
+        if (usePerfettoSdk) {
+            PerfettoTrace.end(PerfettoTraceConfig.COROUTINE_CATEGORY).addFlow(contId).emit()
+        } else {
+            Trace.traceEnd(Trace.TRACE_TAG_APP) // end: coroutineTraceName
         }
     }
 
     override fun copyForChild(): CopyableThreadContextElement<TraceData?> {
         debug { copyForChildTraceMessage }
         try {
-            Trace.traceBegin(Trace.TRACE_TAG_APP, copyForChildTraceMessage)
+            Trace.traceBegin(Trace.TRACE_TAG_APP, copyForChildTraceMessage) // begin: TCE#copy
             // Root is a special case in which the name is copied to the child by default.
             // Otherwise, everything launched on a coroutine would have an empty name by default
             return createChildContext(if (isRoot) name else null)
         } finally {
-            Trace.traceEnd(Trace.TRACE_TAG_APP) // end: copyForChildTraceMessage
+            Trace.traceEnd(Trace.TRACE_TAG_APP) // end: TCE#copy
         }
     }
 
     override fun mergeForChild(overwritingElement: CoroutineContext.Element): CoroutineContext {
         debug { mergeForChildTraceMessage }
         try {
-            Trace.traceBegin(Trace.TRACE_TAG_APP, mergeForChildTraceMessage)
+            Trace.traceBegin(Trace.TRACE_TAG_APP, mergeForChildTraceMessage) // begin: TCE#merge
             return createChildContext(overwritingElement[CoroutineTraceName]?.name)
         } finally {
-            Trace.traceEnd(Trace.TRACE_TAG_APP) // end: mergeForChildTraceMessage
+            Trace.traceEnd(Trace.TRACE_TAG_APP) // end: TCE#merge
         }
     }
 
@@ -394,7 +435,7 @@ internal class TraceContextElement(
                     walkStackForClassName(shouldIgnoreClassName)
                 else name ?: "",
             isRoot = false,
-            countContinuations = countContinuations,
+            countContinuations = continuationCount >= 0,
             walkStackForDefaultNames = walkStackForDefaultNames,
             shouldIgnoreClassName = shouldIgnoreClassName,
             parentId = currentId,
@@ -439,6 +480,8 @@ private fun walkStackForClassName(additionalDropPredicate: ((String) -> Boolean)
 private const val UNEXPECTED_TRACE_DATA_ERROR_MESSAGE =
     "Overwriting context element with non-empty trace data. There should only be one " +
         "TraceContextElement per coroutine, and it should be installed in the root scope. "
+
+@PublishedApi internal const val COROUTINE_EXECUTION: String = "coroutine execution;"
 
 @PublishedApi internal const val TAG: String = "CoroutineTracing"
 

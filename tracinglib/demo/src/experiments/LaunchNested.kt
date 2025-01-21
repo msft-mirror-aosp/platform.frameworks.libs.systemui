@@ -15,32 +15,33 @@
  */
 package com.example.tracing.demo.experiments
 
-import com.android.app.tracing.coroutines.launchTraced as launch
+import com.android.app.tracing.coroutines.launchTraced
+import com.android.app.tracing.coroutines.traceCoroutine
 import com.example.tracing.demo.FixedThread1
-import com.example.tracing.demo.FixedThread2
-import com.example.tracing.demo.FixedThread3
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.withContext
 
 @Singleton
-class LaunchNested
-@Inject
-constructor(
-    @FixedThread1 private var dispatcher1: CoroutineDispatcher,
-    @FixedThread2 private var dispatcher2: CoroutineDispatcher,
-    @FixedThread3 private val dispatcher3: CoroutineDispatcher,
-) : TracedExperiment() {
+class LaunchNested @Inject constructor(@FixedThread1 private var dispatcher1: CoroutineDispatcher) :
+    TracedExperiment() {
     override val description: String = "launch{launch{launch{launch{}}}}"
 
     override suspend fun runExperiment(): Unit = coroutineScope {
-        launch("launch(thread1)", dispatcher1) {
-            forceSuspend("111", 5)
-            launch("launch(thread2)", dispatcher2) {
-                forceSuspend("222", 5)
-                launch("launch(thread3)", dispatcher3) { forceSuspend("333", 5) }
+        fun CoroutineScope.recursivelyLaunch(n: Int) {
+            if (n == 400) return
+            launchTraced("launch#$n", start = CoroutineStart.UNDISPATCHED) {
+                traceCoroutine("trace-span") {
+                    recursivelyLaunch(n + 1)
+                    delay(1)
+                }
             }
         }
+        withContext(dispatcher1) { recursivelyLaunch(0) }
     }
 }

@@ -14,59 +14,85 @@
  * limitations under the License.
  */
 
-@file:OptIn(DelicateCoroutinesApi::class, ExperimentalCoroutinesApi::class)
+@file:OptIn(
+    DelicateCoroutinesApi::class,
+    ExperimentalCoroutinesApi::class,
+    ExperimentalStdlibApi::class,
+)
 
 package com.android.test.tracing.coroutines
 
 import android.platform.test.annotations.EnableFlags
-import com.android.app.tracing.coroutines.createCoroutineTracingContext
+import com.android.app.tracing.coroutines.CoroutineTraceName
+import com.android.app.tracing.coroutines.TraceContextElement
 import com.android.app.tracing.coroutines.launchTraced
 import com.android.app.tracing.coroutines.withContextTraced
 import com.android.systemui.Flags.FLAG_COROUTINE_TRACING
-import kotlinx.coroutines.CoroutineScope
+import kotlin.coroutines.EmptyCoroutineContext
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.DelicateCoroutinesApi
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
-import kotlinx.coroutines.asCoroutineDispatcher
-import kotlinx.coroutines.asExecutor
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.newSingleThreadContext
 import kotlinx.coroutines.plus
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 @EnableFlags(FLAG_COROUTINE_TRACING)
 class BackgroundThreadTracingTest : TestBase() {
 
-    override val scope = CoroutineScope(createCoroutineTracingContext("main", testMode = true))
+    @Test
+    fun withContext_reuseOuterDispatcher() =
+        runTest(finalEvent = 5) {
+            val originalDispatcher = currentCoroutineContext()[CoroutineDispatcher]!!
+            val otherScope = scope.plus(bgThread1)
+            expect(1, "1^main")
+            otherScope
+                .launchTraced("AAA") {
+                    expect(2, "2^AAA")
+                    withContextTraced("inside-withContext", originalDispatcher) {
+                        assertTrue(coroutineContext[CoroutineTraceName] is TraceContextElement)
+                        expect(3, "2^AAA", "inside-withContext")
+                        delay(1)
+                        expect(4, "2^AAA", "inside-withContext")
+                    }
+                    expect(5, "2^AAA")
+                }
+                .join()
+        }
 
     @Test
-    fun withContext_reentrant() =
-        runTest(totalEvents = 11) {
+    fun withContext_reentryToSameContext() =
+        runTest(totalEvents = 10) {
+            val otherScope = scope.plus(bgThread1)
             expect("1^main")
-            val thread1 = newSingleThreadContext("thread-#1").asExecutor().asCoroutineDispatcher()
-            val bgScope = scope.plus(thread1)
-            val otherJob =
-                bgScope.launchTraced("AAA") {
+            otherScope
+                .launchTraced("AAA") {
                     expect("2^AAA")
-                    delay(1)
-                    expect("2^AAA")
-                    withContextTraced("BBB", Dispatchers.Main.immediate) {
-                        expect("2^AAA", "BBB")
-                        delay(1)
-                        expect("2^AAA", "BBB")
-                        withContextTraced("CCC", thread1) {
-                            expect("2^AAA", "BBB", "CCC")
-                            delay(1)
-                            expect("2^AAA", "BBB", "CCC")
+                    var job: Job? = null
+                    launchTraced("BBB") {
+                            expect("2^AAA:1^BBB")
+                            job =
+                                scope.launchTraced("CCC") {
+                                    withContextTraced("DDD", bgThread1) {
+                                        expect("3^CCC", "DDD")
+                                        delay(1)
+                                        expect("3^CCC", "DDD")
+                                    }
+                                    withContextTraced("EEE", EmptyCoroutineContext) {
+                                        expect("3^CCC", "EEE")
+                                        delay(1)
+                                        expect("3^CCC", "EEE")
+                                    }
+                                }
+                            expect("2^AAA:1^BBB")
                         }
-                        expect("2^AAA", "BBB")
-                    }
-                    expect("2^AAA")
-                    delay(1)
+                        .join()
+                    job!!.join()
                     expect("2^AAA")
                 }
-            delay(195)
-            otherJob.cancel()
+                .join()
             expect("1^main")
         }
 }

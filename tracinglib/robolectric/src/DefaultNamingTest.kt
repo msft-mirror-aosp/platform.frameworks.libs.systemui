@@ -20,7 +20,6 @@ package com.android.test.tracing.coroutines
 
 import android.platform.test.annotations.EnableFlags
 import com.android.app.tracing.coroutines.asyncTraced
-import com.android.app.tracing.coroutines.createCoroutineTracingContext
 import com.android.app.tracing.coroutines.flow.collectLatestTraced
 import com.android.app.tracing.coroutines.flow.collectTraced
 import com.android.app.tracing.coroutines.flow.filterTraced
@@ -41,7 +40,6 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.shareIn
 import kotlinx.coroutines.job
-import kotlinx.coroutines.newSingleThreadContext
 import kotlinx.coroutines.withContext
 import org.junit.Assert.assertEquals
 import org.junit.Test
@@ -49,8 +47,6 @@ import org.junit.Test
 /** Tests behavior of default names using reflection */
 @EnableFlags(FLAG_COROUTINE_TRACING)
 class DefaultNamingTest : TestBase() {
-
-    override val scope = CoroutineScope(createCoroutineTracingContext("main", testMode = true))
 
     @Test
     fun collectTraced1() {
@@ -154,7 +150,7 @@ class DefaultNamingTest : TestBase() {
             expect(1, "1^main") // top-level scope
             coldFlow.collectLatestTraced {
                 expectEvent(listOf(5, 9))
-                delay(10)
+                delay(50)
                 assertEquals(42, it) // 21 * 2 = 42
                 expect(
                     11,
@@ -376,7 +372,7 @@ class DefaultNamingTest : TestBase() {
                     (e.message?.startsWith("Flow invariant is violated") ?: false)
             },
             block = {
-                val thread1 = newSingleThreadContext("thread-#1")
+                val thread1 = bgThread1
                 expect(1, "1^main")
                 flow {
                         expect(2, "1^main", "collect:COLLECT")

@@ -15,9 +15,14 @@
  */
 package com.example.tracing.demo.experiments
 
-import com.android.app.tracing.coroutines.launchTraced as launch
+import com.android.app.tracing.coroutines.launchTraced
 import com.android.app.tracing.coroutines.traceCoroutine
+import com.android.app.tracing.coroutines.withContextTraced
 import com.example.tracing.demo.FixedPool
+import com.example.tracing.demo.FixedThread1
+import com.example.tracing.demo.FixedThread2
+import com.example.tracing.demo.FixedThread3
+import com.example.tracing.demo.FixedThread4
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlinx.coroutines.CoroutineDispatcher
@@ -27,14 +32,37 @@ import kotlinx.coroutines.delay
 @Singleton
 class LaunchStressTest
 @Inject
-constructor(@FixedPool private var fixedPoolDispatcher: CoroutineDispatcher) : TracedExperiment() {
+constructor(
+    @FixedThread1 private var dispatcher1: CoroutineDispatcher,
+    @FixedThread2 private var dispatcher2: CoroutineDispatcher,
+    @FixedThread3 private val dispatcher3: CoroutineDispatcher,
+    @FixedThread4 private val dispatcher4: CoroutineDispatcher,
+    @FixedPool private var fixedPoolDispatcher: CoroutineDispatcher,
+) : TracedExperiment() {
 
     override val description: String = "Simultaneous launch{} calls on different threads"
 
     override suspend fun runExperiment(): Unit = coroutineScope {
-        repeat(1000) { i -> launch("launch(empty)") { traceCoroutine("delay:$i") { delay(1) } } }
-        launch("launch(pool)", fixedPoolDispatcher) {
-            repeat(1000) { i -> launch("launch") { traceCoroutine("delay:$i") { delay(1) } } }
+        repeat(16) { n ->
+            launchTraced("launch#$n", fixedPoolDispatcher) {
+                withContextTraced("context-switch-pool", fixedPoolDispatcher) {
+                    withContextTraced("context-switch-1", dispatcher1) {
+                        traceCoroutine("delay#$n:1") { delay(5) }
+                    }
+                    traceCoroutine("delay#$n:2") { delay(5) }
+                    withContextTraced("context-switch-2", dispatcher2) {
+                        traceCoroutine("delay#$n:3") { delay(5) }
+                    }
+                }
+                withContextTraced("context-switch-3", dispatcher3) {
+                    traceCoroutine("delay#$n:3") {
+                        traceCoroutine("delay#$n:4") { delay(5) }
+                        withContextTraced("context-switch-4", dispatcher4) {
+                            traceCoroutine("delay#$n:5") { delay(5) }
+                        }
+                    }
+                }
+            }
         }
     }
 }

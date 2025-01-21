@@ -14,27 +14,36 @@
  * limitations under the License.
  */
 
+@file:OptIn(ExperimentalCoroutinesApi::class, DelicateCoroutinesApi::class)
+
 package com.android.test.tracing.coroutines
 
-import android.os.Looper
 import android.platform.test.flag.junit.SetFlagsRule
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import com.android.app.tracing.coroutines.COROUTINE_EXECUTION
+import com.android.app.tracing.coroutines.createCoroutineTracingContext
+import com.android.app.tracing.coroutines.traceThreadLocal
 import com.android.test.tracing.coroutines.util.FakeTraceState
 import com.android.test.tracing.coroutines.util.FakeTraceState.getOpenTraceSectionsOnCurrentThread
 import com.android.test.tracing.coroutines.util.ShadowTrace
 import java.io.PrintWriter
 import java.io.StringWriter
-import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
+import kotlin.coroutines.CoroutineContext
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.CoroutineStart
+import kotlinx.coroutines.DelicateCoroutinesApi
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.newSingleThreadContext
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
 import org.junit.After
 import org.junit.Assert.assertTrue
@@ -43,23 +52,36 @@ import org.junit.Before
 import org.junit.ClassRule
 import org.junit.Rule
 import org.junit.runner.RunWith
-import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
 
 class InvalidTraceStateException(message: String, cause: Throwable? = null) :
     AssertionError(message, cause)
 
+internal val mainTestDispatcher = newSingleThreadContext("test-main")
+internal val bgThread1 = newSingleThreadContext("test-bg-1")
+internal val bgThread2 = newSingleThreadContext("test-bg-2")
+internal val bgThread3 = newSingleThreadContext("test-bg-3")
+internal val bgThread4 = newSingleThreadContext("test-bg-4")
+
 @RunWith(AndroidJUnit4::class)
 @Config(shadows = [ShadowTrace::class])
 abstract class TestBase {
-
     companion object {
         @JvmField
         @ClassRule
-        val setFlagsClassRule: SetFlagsRule.ClassRule = SetFlagsRule.ClassRule()
+        val setFlagsClassRule: SetFlagsRule.ClassRule =
+            SetFlagsRule.ClassRule(com.android.systemui.Flags::class.java)
+
+        @JvmStatic
+        private fun isRobolectricTest(): Boolean {
+            return System.getProperty("java.vm.name") != "Dalvik"
+        }
     }
 
-    @JvmField @Rule val setFlagsRule = SetFlagsRule()
+    // TODO(b/339471826): Robolectric does not execute @ClassRule correctly
+    @get:Rule
+    val setFlagsRule: SetFlagsRule =
+        if (isRobolectricTest()) SetFlagsRule() else setFlagsClassRule.createSetFlagsRule()
 
     private val eventCounter = AtomicInteger(0)
     private val allEventCounter = AtomicInteger(0)
@@ -68,18 +90,32 @@ abstract class TestBase {
     private val assertionErrors = mutableListOf<AssertionError>()
 
     /** The scope to be used by the test in [runTest] */
-    abstract val scope: CoroutineScope
+    val scope: CoroutineScope by lazy { CoroutineScope(extraContext + mainTestDispatcher) }
+
+    /**
+     * Context passed to the scope used for the test. If the returned [CoroutineContext] contains a
+     * [CoroutineDispatcher] it will be overwritten.
+     */
+    open val extraContext: CoroutineContext by lazy {
+        createCoroutineTracingContext("main", testMode = true)
+    }
 
     @Before
     fun setup() {
-        FakeTraceState.clearAll()
         FakeTraceState.isTracingEnabled = true
+        FakeTraceState.clearAll()
+
+        // Reset all thread-local state
+        traceThreadLocal.remove()
+        val dispatchers = listOf(mainTestDispatcher, bgThread1, bgThread2, bgThread3, bgThread4)
+        runBlocking { dispatchers.forEach { withContext(it) { traceThreadLocal.remove() } } }
+
+        // Initialize scope, which is a lazy type:
+        assertTrue(scope.isActive)
     }
 
     @After
     fun tearDown() {
-        FakeTraceState.isTracingEnabled = false
-        FakeTraceState.clearAll()
         val sw = StringWriter()
         val pw = PrintWriter(sw)
 
@@ -94,7 +130,6 @@ abstract class TestBase {
      * Launches the test on the provided [scope], then uses [runBlocking] to wait for completion.
      * The test will timeout if it takes longer than 200ms.
      */
-    @OptIn(ExperimentalStdlibApi::class)
     protected fun runTest(
         isExpectedException: ((Throwable) -> Boolean)? = null,
         finalEvent: Int? = null,
@@ -115,22 +150,15 @@ abstract class TestBase {
                                 allExceptions.add(e)
                             }
                         },
-                    start = CoroutineStart.LAZY,
                     block = block,
                 )
 
             runBlocking {
-                val timeoutMillis = 200L
+                val timeoutMs = 200L
                 try {
-                    val shadowLooper = shadowOf(Looper.getMainLooper())
-                    job.start()
-                    repeat(200) { shadowLooper.idleFor(1, TimeUnit.MILLISECONDS) }
-                    withTimeout(timeoutMillis) { job.join() }
+                    withTimeout(timeoutMs) { job.join() }
                 } catch (e: TimeoutCancellationException) {
-                    fail(
-                        "Timeout running test. Test should complete in less than $timeoutMillis ms"
-                    )
-                    job.cancel()
+                    fail("Timeout running test. Test should complete in less than $timeoutMs ms")
                     throw e
                 } finally {
                     scope.cancel()
@@ -168,17 +196,8 @@ abstract class TestBase {
         expect(*expectedOpenTraceSections)
     }
 
-    /**
-     * Same as [expect], but also call [delay] for 1ms, calling [expect] before and after the
-     * suspension point.
-     */
-    protected suspend fun expectD(expectedEvent: Int, vararg expectedOpenTraceSections: String) {
-        expect(expectedEvent, *expectedOpenTraceSections)
-        delay(1)
-        expect(*expectedOpenTraceSections)
-    }
-
     protected fun expectEndsWith(vararg expectedOpenTraceSections: String) {
+        allEventCounter.getAndAdd(1)
         // Inspect trace output to the fake used for recording android.os.Trace API calls:
         val actualSections = getOpenTraceSectionsOnCurrentThread()
         if (expectedOpenTraceSections.size <= actualSections.size) {
@@ -287,10 +306,9 @@ abstract class TestBase {
                 throwInsteadOfLog,
             )
         } else {
-            expectedOpenTraceSections.forEachIndexed { n, expectedTrace ->
+            expectedOpenTraceSections.forEachIndexed { n, expected ->
                 val actualTrace = actualOpenSections[n]
-                val expected = expectedTrace.substringBefore(";")
-                val actual = actualTrace.substringBefore(";")
+                val actual = actualTrace.getTracedName()
                 if (expected != actual) {
                     logInvalidTraceState(
                         createFailureMessage(
@@ -358,6 +376,13 @@ abstract class TestBase {
     }
 }
 
+private fun String.getTracedName(): String =
+    if (startsWith(COROUTINE_EXECUTION))
+    // For strings like "coroutine execution;scope-name;c=1234;p=5678", extract:
+    // "scope-name"
+    substringAfter(";").substringBefore(";")
+    else substringBefore(";")
+
 private const val INVALID_EVENT = -1
 
 private const val FINAL_EVENT = Int.MIN_VALUE
@@ -380,6 +405,6 @@ private fun Array<out String>.prettyPrintList(): String {
     return if (isEmpty()) ""
     else
         toList().joinToString(separator = "\", \"", prefix = "\"", postfix = "\"") {
-            it.substringBefore(";")
+            it.getTracedName()
         }
 }
