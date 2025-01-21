@@ -21,7 +21,6 @@ package com.android.app.tracing.coroutines
 import android.os.Trace
 import com.android.app.tracing.beginSlice
 import com.android.app.tracing.endSlice
-import com.android.systemui.Flags
 import java.util.ArrayDeque
 import kotlin.contracts.ExperimentalContracts
 import kotlin.math.max
@@ -39,7 +38,7 @@ private typealias TraceSection = String
 @PublishedApi
 internal class TraceDataThreadLocal : ThreadLocal<TraceStorage?>() {
     override fun initialValue(): TraceStorage? {
-        return if (Flags.coroutineTracing()) {
+        return if (com.android.systemui.Flags.coroutineTracing()) {
             TraceStorage(null)
         } else {
             null
@@ -69,20 +68,7 @@ internal class TraceStorage(internal var data: TraceData?) {
      * * `>1` indicates the current coroutine is resumed inside another coroutine, e.g. due to an
      *   unconfined dispatcher or [UNDISPATCHED] launch.
      */
-    internal var contIndex = -1
-
-    internal lateinit var continuationIds: IntArray
-
-    private lateinit var debugCounterTrack: String
-
-    init {
-        if (DebugSysProps.UsePerfettoSdk) {
-            continuationIds = IntArray(INITIAL_THREAD_LOCAL_STACK_SIZE)
-        }
-        if (DEBUG) {
-            debugCounterTrack = "TCE#${Thread.currentThread().threadId()}"
-        }
-    }
+    private var contIndex = -1
 
     /**
      * Count of slices opened on the current thread due to current [TraceData] that must be closed
@@ -94,7 +80,14 @@ internal class TraceStorage(internal var data: TraceData?) {
      * it indicates there is already something very wrong with the trace, so we will not waste CPU
      * cycles error checking.
      */
-    internal var openSliceCount = ByteArray(INITIAL_THREAD_LOCAL_STACK_SIZE)
+    private var openSliceCount = ByteArray(INITIAL_THREAD_LOCAL_STACK_SIZE)
+
+    private var continuationIds: IntArray? =
+        if (android.os.Flags.perfettoSdkTracingV2()) IntArray(INITIAL_THREAD_LOCAL_STACK_SIZE)
+        else null
+
+    private val debugCounterTrack: String? =
+        if (DEBUG) "TCE#${Thread.currentThread().threadId()}" else null
 
     /**
      * Adds a new trace section to the current trace data. The slice will be traced on the current
@@ -129,32 +122,24 @@ internal class TraceStorage(internal var data: TraceData?) {
     fun updateDataForContinuation(contextTraceData: TraceData?, contId: Int) {
         data = contextTraceData
         val n = ++contIndex
-        if (DEBUG) {
-            Trace.traceCounter(Trace.TRACE_TAG_APP, debugCounterTrack, n)
-        }
+        if (DEBUG) Trace.traceCounter(Trace.TRACE_TAG_APP, debugCounterTrack!!, n)
         if (n < 0 || MAX_THREAD_LOCAL_STACK_SIZE <= n) return // fail-safe
         var size = openSliceCount.size
         if (n >= size) {
             size = max(2 * size, MAX_THREAD_LOCAL_STACK_SIZE)
             openSliceCount = openSliceCount.copyInto(ByteArray(size))
-            if (::continuationIds.isInitialized) {
-                continuationIds = continuationIds.copyInto(IntArray(size))
-            }
+            continuationIds = continuationIds?.copyInto(IntArray(size))
         }
         openSliceCount[n] = data?.beginAllOnThread() ?: 0
-        if (::continuationIds.isInitialized && 0 < contId) {
-            continuationIds[n] = contId
-        }
+        if (0 < contId) continuationIds?.set(n, contId)
     }
 
     /** Update [data] for suspension */
     fun restoreDataForSuspension(oldState: TraceData?): Int {
         data = oldState
         val n = contIndex--
-        if (DEBUG) {
-            Trace.traceCounter(Trace.TRACE_TAG_APP, debugCounterTrack, n)
-        }
-        if (n < 0 || MAX_THREAD_LOCAL_STACK_SIZE <= n) return 0 // fail-safe
+        if (DEBUG) Trace.traceCounter(Trace.TRACE_TAG_APP, debugCounterTrack!!, n)
+        if (n < 0 || openSliceCount.size <= n) return 0 // fail-safe
         if (Trace.isTagEnabled(Trace.TRACE_TAG_APP)) {
             val lastState = openSliceCount[n]
             var i = 0
@@ -163,8 +148,7 @@ internal class TraceStorage(internal var data: TraceData?) {
                 i++
             }
         }
-        return if (::continuationIds.isInitialized && n < continuationIds.size) continuationIds[n]
-        else 0
+        return continuationIds?.let { if (n < it.size) it[n] else null } ?: 0
     }
 }
 
