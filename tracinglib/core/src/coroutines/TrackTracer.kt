@@ -77,6 +77,20 @@ public class TrackTracer(
         return Closeable { Trace.asyncTraceForTrackEnd(traceTag, trackName, cookie) }
     }
 
+    /** Traces [block] both sync and async. */
+    public fun traceSyncAndAsync(sliceName: () -> String, block: () -> Unit) {
+        contract {
+            callsInPlace(block, InvocationKind.EXACTLY_ONCE)
+            callsInPlace(sliceName, InvocationKind.AT_MOST_ONCE)
+        }
+        if (Trace.isEnabled()) {
+            val name = sliceName()
+            TraceUtils.trace(name) { traceAsync(name, block) }
+        } else {
+            block()
+        }
+    }
+
     public companion object {
         /**
          * Creates an instant event for a track called [trackName] inside [groupName]. See
@@ -85,6 +99,16 @@ public class TrackTracer(
         @JvmStatic
         public fun instantForGroup(groupName: String, trackName: String, i: Int) {
             Trace.traceCounter(Trace.TRACE_TAG_APP, trackGroup(groupName, trackName), i)
+        }
+
+        /**
+         * Creates an instant event for a track called [trackName] inside [groupName]. See
+         * [trackGroup] for details on how the rendering in groups works.
+         */
+        @JvmStatic
+        public fun instantForGroup(groupName: String, trackName: String, event: () -> String) {
+            if (!Trace.isEnabled()) return
+            Trace.instantForTrack(Trace.TRACE_TAG_APP, trackGroup(groupName, trackName), event())
         }
 
         /** Creates an instant event for [groupName] grgorp, see [instantForGroup]. */

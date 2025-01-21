@@ -27,5 +27,6 @@ public object TrackGroupUtils {
      * "shade" related tracks will appear together, under the "shade" track in the process
      * workspace).
      */
+    @JvmStatic
     public fun trackGroup(groupName: String, trackName: String): String = "$groupName##$trackName"
 }
