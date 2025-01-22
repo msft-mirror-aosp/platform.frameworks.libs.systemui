@@ -22,7 +22,7 @@ import android.platform.test.flag.junit.SetFlagsRule
 import android.platform.test.rule.EnsureDeviceSettingsRule
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.filters.SmallTest
-import com.android.systemui.Flags
+import com.android.systemui.Flags.FLAG_COROUTINE_TRACING
 import java.util.concurrent.atomic.AtomicInteger
 import org.junit.After
 import org.junit.Assert
@@ -33,7 +33,7 @@ import org.junit.runner.RunWith
 
 @SmallTest
 @RunWith(AndroidJUnit4::class)
-@EnableFlags(Flags.FLAG_COROUTINE_TRACING)
+@EnableFlags(FLAG_COROUTINE_TRACING)
 class ThreadLocalMicroBenchmark {
 
     @get:Rule val setFlagsRule = SetFlagsRule()

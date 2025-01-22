@@ -21,7 +21,6 @@ import android.os.PerfettoTrace
 import android.os.SystemProperties
 import android.os.Trace
 import android.util.Log
-import com.android.systemui.Flags
 import java.lang.StackWalker.StackFrame
 import java.util.concurrent.ThreadLocalRandom
 import java.util.concurrent.atomic.AtomicInteger
@@ -60,10 +59,6 @@ internal object DebugSysProps {
     @JvmField
     val alwaysEnableContinuationCounting =
         SystemProperties.getBoolean("debug.coroutine_tracing.count_continuations_override", false)
-
-    @JvmField
-    val UsePerfettoSdk =
-        SystemProperties.getBoolean("debug.coroutine_tracing.use_perfetto_sdk", false)
 }
 
 /**
@@ -125,7 +120,7 @@ public fun createCoroutineTracingContext(
     walkStackForDefaultNames: Boolean = false,
     shouldIgnoreClassName: ((String) -> Boolean)? = null,
 ): CoroutineContext {
-    return if (Flags.coroutineTracing()) {
+    return if (com.android.systemui.Flags.coroutineTracing()) {
         TraceContextElement(
             name = name,
             isRoot = true,
@@ -166,7 +161,11 @@ public fun nameCoroutine(name: String): CoroutineContext = nameCoroutine { name 
 @Deprecated("Use .launchInTraced, .launchTraced, .shareInTraced, etc.")
 public inline fun nameCoroutine(name: () -> String): CoroutineContext {
     contract { callsInPlace(name, InvocationKind.AT_MOST_ONCE) }
-    return if (Flags.coroutineTracing()) CoroutineTraceName(name()) else EmptyCoroutineContext
+    return if (com.android.systemui.Flags.coroutineTracing()) {
+        CoroutineTraceName(name())
+    } else {
+        EmptyCoroutineContext
+    }
 }
 
 private object PerfettoTraceConfig {
@@ -174,7 +173,7 @@ private object PerfettoTraceConfig {
     @JvmField val COROUTINE_CATEGORY: PerfettoTrace.Category = PerfettoTrace.Category("cc")
 
     init {
-        if (DebugSysProps.UsePerfettoSdk) {
+        if (android.os.Flags.perfettoSdkTracingV2()) {
             COROUTINE_CATEGORY.register()
         }
     }
@@ -275,7 +274,8 @@ internal class TraceContextElement(
 
     // Don't use Perfetto SDK when inherited trace prefixes are used since it is a feature only
     // intended for testing, and only the `android.os.Trace` APIs currently have test shadows:
-    private val usePerfettoSdk = DebugSysProps.UsePerfettoSdk && inheritedTracePrefix == null
+    private val usePerfettoSdk =
+        android.os.Flags.perfettoSdkTracingV2() && inheritedTracePrefix == null
 
     private var continuationId = if (usePerfettoSdk) nextRandomInt() else 0
 

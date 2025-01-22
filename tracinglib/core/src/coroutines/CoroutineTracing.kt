@@ -19,7 +19,6 @@
 package com.android.app.tracing.coroutines
 
 import com.android.app.tracing.traceSection
-import com.android.systemui.Flags
 import kotlin.contracts.ExperimentalContracts
 import kotlin.contracts.InvocationKind
 import kotlin.contracts.contract
@@ -223,10 +222,14 @@ public inline fun <T, R> R.traceCoroutine(crossinline spanName: () -> String, bl
     // tracing is not active (i.e. when TRACE_TAG_APP is disabled). Otherwise, when the
     // coroutine resumes when tracing is active, we won't know its name.
     try {
-        if (Flags.coroutineTracing()) traceThreadLocal.get()?.beginCoroutineTrace(spanName())
+        if (com.android.systemui.Flags.coroutineTracing()) {
+            traceThreadLocal.get()?.beginCoroutineTrace(spanName())
+        }
         return block()
     } finally {
-        if (Flags.coroutineTracing()) traceThreadLocal.get()?.endCoroutineTrace()
+        if (com.android.systemui.Flags.coroutineTracing()) {
+            traceThreadLocal.get()?.endCoroutineTrace()
+        }
     }
 }
 
@@ -239,10 +242,14 @@ public inline fun <T> traceCoroutine(crossinline spanName: () -> String, block: 
     // tracing is not active (i.e. when TRACE_TAG_APP is disabled). Otherwise, when the
     // coroutine resumes when tracing is active, we won't know its name.
     try {
-        if (Flags.coroutineTracing()) traceThreadLocal.get()?.beginCoroutineTrace(spanName())
+        if (com.android.systemui.Flags.coroutineTracing()) {
+            traceThreadLocal.get()?.beginCoroutineTrace(spanName())
+        }
         return block()
     } finally {
-        if (Flags.coroutineTracing()) traceThreadLocal.get()?.endCoroutineTrace()
+        if (com.android.systemui.Flags.coroutineTracing()) {
+            traceThreadLocal.get()?.endCoroutineTrace()
+        }
     }
 }
 
@@ -259,9 +266,10 @@ public inline fun <T> traceCoroutine(spanName: String, block: () -> T): T {
 }
 
 /**
- * Returns the passed context if [Flags.coroutineTracing] is false. Otherwise, returns a new context
- * by adding [CoroutineTraceName] to the given context. The [CoroutineTraceName] in the passed
- * context will take precedence over the new [CoroutineTraceName].
+ * Returns the passed context if [com.android.systemui.Flags.coroutineTracing] is false. Otherwise,
+ * returns a new context by adding [CoroutineTraceName] to the given context. The
+ * [CoroutineTraceName] in the passed context will take precedence over the new
+ * [CoroutineTraceName].
  */
 @PublishedApi
 internal inline fun addName(
@@ -269,7 +277,11 @@ internal inline fun addName(
     context: CoroutineContext,
 ): CoroutineContext {
     contract { callsInPlace(spanName, InvocationKind.AT_MOST_ONCE) }
-    return if (Flags.coroutineTracing()) CoroutineTraceName(spanName()) + context else context
+    return if (com.android.systemui.Flags.coroutineTracing()) {
+        CoroutineTraceName(spanName()) + context
+    } else {
+        context
+    }
 }
 
 @PublishedApi

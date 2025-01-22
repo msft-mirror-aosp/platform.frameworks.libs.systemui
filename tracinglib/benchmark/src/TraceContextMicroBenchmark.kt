@@ -26,7 +26,7 @@ import androidx.test.filters.SmallTest
 import com.android.app.tracing.coroutines.createCoroutineTracingContext
 import com.android.app.tracing.coroutines.nameCoroutine
 import com.android.app.tracing.coroutines.traceCoroutine
-import com.android.systemui.Flags
+import com.android.systemui.Flags.FLAG_COROUTINE_TRACING
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
@@ -41,7 +41,7 @@ import org.junit.runner.RunWith
 
 @SmallTest
 @RunWith(AndroidJUnit4::class)
-@EnableFlags(Flags.FLAG_COROUTINE_TRACING)
+@EnableFlags(FLAG_COROUTINE_TRACING)
 class TraceContextMicroBenchmark {
 
     @get:Rule val setFlagsRule = SetFlagsRule()

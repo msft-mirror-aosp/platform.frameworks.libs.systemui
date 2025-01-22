@@ -21,7 +21,6 @@ import com.android.app.tracing.coroutines.createCoroutineTracingContext
 import com.android.app.tracing.coroutines.traceCoroutine
 import com.android.app.tracing.coroutines.traceThreadLocal
 import com.android.systemui.Flags.FLAG_COROUTINE_TRACING
-import com.android.systemui.Flags.coroutineTracing
 import com.android.test.tracing.coroutines.util.FakeTraceState
 import kotlin.coroutines.CoroutineContext
 import kotlin.coroutines.EmptyCoroutineContext
@@ -37,7 +36,7 @@ class FlagDisabledTest : TestBase() {
 
     @Test
     fun tracingDisabledWhenFlagIsOff() = runTest {
-        assertFalse(coroutineTracing())
+        assertFalse(com.android.systemui.Flags.coroutineTracing())
         assertNull(traceThreadLocal.get())
         withContext(createCoroutineTracingContext(testMode = true)) {
             assertNull(traceThreadLocal.get())
