@@ -16,6 +16,7 @@
 
 package com.google.android.wallpaper.weathereffects
 
+import android.app.wallpaper.WallpaperDescription
 import android.content.Context
 import android.view.SurfaceHolder
 import com.google.android.torus.core.engine.TorusEngine
@@ -25,7 +26,7 @@ import com.google.android.wallpaper.weathereffects.domain.WeatherEffectsInteract
 import javax.inject.Inject
 import kotlinx.coroutines.CoroutineScope
 
-class WeatherWallpaperService @Inject constructor(): LiveWallpaper() {
+class WeatherWallpaperService @Inject constructor() : LiveWallpaper() {
 
     @Inject lateinit var interactor: WeatherEffectsInteractor
     @Inject @MainScope lateinit var applicationScope: CoroutineScope
@@ -35,7 +36,11 @@ class WeatherWallpaperService @Inject constructor(): LiveWallpaper() {
         WallpaperEffectsDebugApplication.graph.inject(this)
     }
 
-    override fun getWallpaperEngine(context: Context, surfaceHolder: SurfaceHolder): TorusEngine {
+    override fun getWallpaperEngine(
+        context: Context,
+        surfaceHolder: SurfaceHolder,
+        wallpaperDescription: WallpaperDescription?,
+    ): TorusEngine {
         return WeatherEngine(surfaceHolder, applicationScope, interactor, context)
     }
 }
