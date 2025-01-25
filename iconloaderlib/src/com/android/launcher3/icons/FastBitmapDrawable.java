@@ -65,8 +65,7 @@ public class FastBitmapDrawable extends Drawable implements Drawable.Callback {
     private static boolean sFlagHoverEnabled = false;
 
     protected final Paint mPaint = new Paint(Paint.FILTER_BITMAP_FLAG | Paint.ANTI_ALIAS_FLAG);
-    protected final Bitmap mBitmap;
-    protected final int mIconColor;
+    public final BitmapInfo mBitmapInfo;
 
     @Nullable private ColorFilter mColorFilter;
 
@@ -99,18 +98,24 @@ public class FastBitmapDrawable extends Drawable implements Drawable.Callback {
 
     private boolean mHoverScaleEnabledForDisplay = true;
 
+    protected FastBitmapDrawable(Bitmap b, int iconColor) {
+        this(BitmapInfo.of(b, iconColor));
+    }
+
     public FastBitmapDrawable(Bitmap b) {
-        this(b, Color.TRANSPARENT);
+        this(BitmapInfo.fromBitmap(b));
     }
 
     public FastBitmapDrawable(BitmapInfo info) {
-        this(info.icon, info.color);
+        mBitmapInfo = info;
+        setFilterBitmap(true);
     }
 
-    protected FastBitmapDrawable(Bitmap b, int iconColor) {
-        mBitmap = b;
-        mIconColor = iconColor;
-        setFilterBitmap(true);
+    /**
+     * Returns true if the drawable points to the same bitmap icon object
+     */
+    public boolean isSameInfo(BitmapInfo info) {
+        return mBitmapInfo == info;
     }
 
     @Override
@@ -145,7 +150,7 @@ public class FastBitmapDrawable extends Drawable implements Drawable.Callback {
     }
 
     protected void drawInternal(Canvas canvas, Rect bounds) {
-        canvas.drawBitmap(mBitmap, null, bounds, mPaint);
+        canvas.drawBitmap(mBitmapInfo.icon, null, bounds, mPaint);
     }
 
     /**
@@ -153,7 +158,7 @@ public class FastBitmapDrawable extends Drawable implements Drawable.Callback {
      */
     public int getIconColor() {
         int whiteScrim = setColorAlphaBound(Color.WHITE, WHITE_SCRIM_ALPHA);
-        return ColorUtils.compositeColors(whiteScrim, mIconColor);
+        return ColorUtils.compositeColors(whiteScrim, mBitmapInfo.color);
     }
 
     /**
@@ -220,12 +225,12 @@ public class FastBitmapDrawable extends Drawable implements Drawable.Callback {
 
     @Override
     public int getIntrinsicWidth() {
-        return mBitmap.getWidth();
+        return mBitmapInfo.icon.getWidth();
     }
 
     @Override
     public int getIntrinsicHeight() {
-        return mBitmap.getHeight();
+        return mBitmapInfo.icon.getHeight();
     }
 
     @Override
@@ -333,7 +338,7 @@ public class FastBitmapDrawable extends Drawable implements Drawable.Callback {
     }
 
     protected FastBitmapConstantState newConstantState() {
-        return new FastBitmapConstantState(mBitmap, mIconColor);
+        return new FastBitmapConstantState(mBitmapInfo);
     }
 
     @Override
@@ -423,8 +428,7 @@ public class FastBitmapDrawable extends Drawable implements Drawable.Callback {
     }
 
     public static class FastBitmapConstantState extends ConstantState {
-        protected final Bitmap mBitmap;
-        protected final int mIconColor;
+        protected final BitmapInfo mBitmapInfo;
 
         // These are initialized later so that subclasses don't need to
         // pass everything in constructor
@@ -434,12 +438,15 @@ public class FastBitmapDrawable extends Drawable implements Drawable.Callback {
         @DrawableCreationFlags int mCreationFlags = 0;
 
         public FastBitmapConstantState(Bitmap bitmap, int color) {
-            mBitmap = bitmap;
-            mIconColor = color;
+            this(BitmapInfo.of(bitmap, color));
+        }
+
+        public FastBitmapConstantState(BitmapInfo info) {
+            mBitmapInfo = info;
         }
 
         protected FastBitmapDrawable createDrawable() {
-            return new FastBitmapDrawable(mBitmap, mIconColor);
+            return new FastBitmapDrawable(mBitmapInfo);
         }
 
         @Override
