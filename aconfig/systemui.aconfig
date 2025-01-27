@@ -108,3 +108,17 @@ flag {
   description: "Shows the status bar on connected displays"
   bug: "379264862"
 }
+
+flag {
+   name: "lockscreen_custom_clocks"
+   namespace: "systemui"
+   description: "Enable lockscreen custom clocks"
+   bug: "378486437"
+}
+
+flag {
+   name: "clock_reactive_variants"
+   namespace: "systemui"
+   description: "Add reactive variant fonts to some clocks"
+   bug: "343495953"
+}
