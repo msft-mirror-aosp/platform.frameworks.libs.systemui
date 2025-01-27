@@ -33,6 +33,7 @@ android_test {
     static_libs: [
         // ":mechanics" dependencies
         "androidx.compose.runtime_runtime",
+        "androidx.compose.material3_material3",
         "androidx.compose.ui_ui-util",
         "androidx.compose.foundation_foundation-layout",
 
