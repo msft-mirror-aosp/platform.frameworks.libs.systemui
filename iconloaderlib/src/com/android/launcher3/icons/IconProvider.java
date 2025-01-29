@@ -61,9 +61,6 @@ import java.util.Objects;
  */
 public class IconProvider {
 
-    static final int CONFIG_ICON_MASK_RES_ID = Resources.getSystem().getIdentifier(
-            "config_icon_mask", "string", "android");
-
     private static final String TAG = "IconProvider";
     private static final boolean DEBUG = false;
     public static final boolean ATLEAST_T = BuildCompat.isAtLeastT();
@@ -179,20 +176,26 @@ public class IconProvider {
                 final Resources resources = mContext.getPackageManager()
                         .getResourcesForApplication(appInfo);
                 // Try to load the package item icon first
-                if (info.icon != 0) {
+                if (info != appInfo && info.icon != 0) {
                     try {
                         icon = resources.getDrawableForDensity(info.icon, density);
                     } catch (Resources.NotFoundException exc) { }
                 }
                 if (icon == null && appInfo.icon != 0) {
                     // Load the fallback app icon
-                    try {
-                        icon = resources.getDrawableForDensity(appInfo.icon, density);
-                    } catch (Resources.NotFoundException exc) { }
+                    icon = loadAppInfoIcon(appInfo, resources, density);
                 }
             } catch (NameNotFoundException | Resources.NotFoundException exc) { }
         }
         return icon != null ? icon : getFullResDefaultActivityIcon(density);
+    }
+
+    @Nullable
+    protected Drawable loadAppInfoIcon(ApplicationInfo info, Resources resources, int density) {
+        try {
+            return resources.getDrawableForDensity(info.icon, density);
+        } catch (Resources.NotFoundException exc) { }
+        return null;
     }
 
     @TargetApi(Build.VERSION_CODES.TIRAMISU)
