@@ -52,6 +52,7 @@ abstract class LiveWallpaper : WallpaperService() {
         const val COMMAND_GOING_TO_SLEEP = "android.wallpaper.goingtosleep"
         const val COMMAND_PREVIEW_INFO = "android.wallpaper.previewinfo"
         const val COMMAND_LOCKSCREEN_LAYOUT_CHANGED = "android.wallpaper.lockscreen_layout_changed"
+        const val COMMAND_LOCKSCREEN_TAP_POSITION = "android.wallpaper.lockscreen_tap_position"
         const val WALLPAPER_FLAG_NOT_FOUND = -1
     }
 
@@ -208,9 +209,7 @@ abstract class LiveWallpaper : WallpaperService() {
             return false
         }
 
-        /**
-         * Returns the information if the wallpaper is visible.
-         */
+        /** Returns the information if the wallpaper is visible. */
         fun isVisible(): Boolean {
             this.wallpaperServiceEngine?.let {
                 return it.isVisible
@@ -414,6 +413,11 @@ abstract class LiveWallpaper : WallpaperService() {
                         onLockscreenLayoutChanged(extras)
                     }
                 }
+                COMMAND_LOCKSCREEN_TAP_POSITION -> {
+                    if (extras != null) {
+                        onLockscreenFocalAreaTap(extras)
+                    }
+                }
             }
 
             if (resultRequested) return extras
@@ -475,6 +479,12 @@ abstract class LiveWallpaper : WallpaperService() {
         fun onLockscreenLayoutChanged(extras: Bundle) {
             if (wallpaperEngine is LiveWallpaperEventListener) {
                 (wallpaperEngine as LiveWallpaperEventListener).onLockscreenLayoutChanged(extras)
+            }
+        }
+
+        fun onLockscreenFocalAreaTap(extras: Bundle) {
+            if (wallpaperEngine is LiveWallpaperEventListener) {
+                (wallpaperEngine as LiveWallpaperEventListener).onLockscreenFocalAreaTap(extras)
             }
         }
     }

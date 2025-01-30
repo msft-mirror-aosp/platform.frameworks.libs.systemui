@@ -150,4 +150,11 @@ interface LiveWallpaperEventListener {
     // TODO: when smartspace is moved from below small clock to the right of the clock, we need to
     // change all smartspace bottom mentioned above to small clock bottom
     fun onLockscreenLayoutChanged(extras: Bundle) {}
+
+    /**
+     * Make wallpaper be able to react to short tap event on lockscreen. Tap should be within the
+     * wallpaper focal area, extras contains position applied on wallpaper, including
+     * "tapInWallpaperFocalAreaX" and "tapInWallpaperFocalAreaY".
+     */
+    fun onLockscreenFocalAreaTap(extras: Bundle) {}
 }
