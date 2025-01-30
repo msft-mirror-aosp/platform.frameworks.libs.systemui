@@ -328,15 +328,24 @@ public abstract class ViewCapture {
         @UiThread
         public void onDraw() {
             Trace.beginSection("vc#onDraw");
-            captureViewTree(mRoot, mViewPropertyRef);
-            ViewPropertyRef captured = mViewPropertyRef.next;
-            if (captured != null) {
-                captured.callback = mCaptureCallback;
-                captured.elapsedRealtimeNanos = SystemClock.elapsedRealtimeNanos();
-                mBgExecutor.execute(captured);
+            try {
+                View root = mRoot;
+                if (root == null) {
+                    // Handle the corner case where another (non-UI) thread
+                    // concurrently stopped the capture and set mRoot = null
+                    return;
+                }
+                captureViewTree(root, mViewPropertyRef);
+                ViewPropertyRef captured = mViewPropertyRef.next;
+                if (captured != null) {
+                    captured.callback = mCaptureCallback;
+                    captured.elapsedRealtimeNanos = SystemClock.elapsedRealtimeNanos();
+                    mBgExecutor.execute(captured);
+                }
+                mIsFirstFrame = false;
+            } finally {
+                Trace.endSection();
             }
-            mIsFirstFrame = false;
-            Trace.endSection();
         }
 
         /**
