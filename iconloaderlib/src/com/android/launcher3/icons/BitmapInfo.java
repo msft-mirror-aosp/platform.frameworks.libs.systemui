@@ -59,6 +59,7 @@ public class BitmapInfo {
 
     public static final String TAG = "BitmapInfo";
 
+    @NonNull
     public final Bitmap icon;
     public final int color;
 
@@ -72,7 +73,7 @@ public class BitmapInfo {
 
     private BitmapInfo badgeInfo;
 
-    public BitmapInfo(Bitmap icon, int color) {
+    public BitmapInfo(@NonNull Bitmap icon, int color) {
         this.icon = icon;
         this.color = color;
     }
