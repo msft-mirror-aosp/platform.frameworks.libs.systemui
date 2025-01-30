@@ -101,7 +101,6 @@ flag {
     bug: "242791070"
 }
 
-
 flag {
   name: "status_bar_connected_displays"
   namespace: "lse_desktop_experience"
@@ -121,4 +120,11 @@ flag {
    namespace: "systemui"
    description: "Add reactive variant fonts to some clocks"
    bug: "343495953"
+}
+
+flag {
+    name: "extended_wallpaper_effects"
+    namespace: "systemui"
+    description: "Enables extended wallpaper effects"
+    bug: "334125919"
 }
