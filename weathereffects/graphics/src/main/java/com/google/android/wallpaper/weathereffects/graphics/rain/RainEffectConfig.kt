@@ -26,8 +26,6 @@ import com.google.android.wallpaper.weathereffects.graphics.utils.GraphicsUtils
 data class RainEffectConfig(
     /** The first layer of the shader, rain showering in the environment. */
     val rainShowerShader: RuntimeShader,
-    /** The second layer of the shader, rain running on the glass window. */
-    val glassRainShader: RuntimeShader,
     /** The final layer of the shader, which adds color grading. */
     val colorGradingShader: RuntimeShader,
     /** Shader that evaluates the outline based on the alpha value. */
@@ -50,17 +48,15 @@ data class RainEffectConfig(
         pixelDensity: Float,
     ) : this(
         rainShowerShader = GraphicsUtils.loadShader(assets, RAIN_SHOWER_LAYER_SHADER_PATH),
-        glassRainShader = GraphicsUtils.loadShader(assets, GLASS_RAIN_LAYER_SHADER_PATH),
         colorGradingShader = GraphicsUtils.loadShader(assets, COLOR_GRADING_SHADER_PATH),
         outlineShader = GraphicsUtils.loadShader(assets, OUTLINE_SHADER_PATH),
         lut = GraphicsUtils.loadTexture(assets, LOOKUP_TABLE_TEXTURE_PATH),
         pixelDensity,
-        COLOR_GRADING_INTENSITY
+        COLOR_GRADING_INTENSITY,
     )
 
     private companion object {
         private const val RAIN_SHOWER_LAYER_SHADER_PATH = "shaders/rain_shower_layer.agsl"
-        private const val GLASS_RAIN_LAYER_SHADER_PATH = "shaders/rain_glass_layer.agsl"
         private const val COLOR_GRADING_SHADER_PATH = "shaders/color_grading_lut.agsl"
         private const val OUTLINE_SHADER_PATH = "shaders/outline.agsl"
         private const val LOOKUP_TABLE_TEXTURE_PATH = "textures/rain_lut.png"
