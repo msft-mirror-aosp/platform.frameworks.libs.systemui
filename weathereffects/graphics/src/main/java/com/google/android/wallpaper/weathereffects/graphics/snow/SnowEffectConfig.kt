@@ -64,16 +64,16 @@ data class SnowEffectConfig(
         lut = GraphicsUtils.loadTexture(assets, LOOKUP_TABLE_TEXTURE_PATH),
         pixelDensity,
         COLOR_GRADING_INTENSITY,
-        MAX_SNOW_THICKNESS
+        MAX_SNOW_THICKNESS,
     )
 
-    private companion object {
+    companion object {
         private const val SHADER_PATH = "shaders/snow_effect.agsl"
         private const val ACCUMULATED_SNOW_SHADER_PATH = "shaders/snow_accumulation.agsl"
         private const val COLOR_GRADING_SHADER_PATH = "shaders/color_grading_lut.agsl"
         private const val NOISE_TEXTURE_PATH = "textures/clouds.png"
         private const val LOOKUP_TABLE_TEXTURE_PATH = "textures/snow_lut.png"
         private const val COLOR_GRADING_INTENSITY = 0.25f
-        private const val MAX_SNOW_THICKNESS = 10f
+        const val MAX_SNOW_THICKNESS = 10f
     }
 }

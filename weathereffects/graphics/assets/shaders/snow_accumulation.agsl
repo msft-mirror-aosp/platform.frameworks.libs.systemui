@@ -37,10 +37,8 @@ vec4 main(float2 fragCoord) {
     float dY = (aN - aS) * 0.5;
     dY = max(dY, 0.0);
 
-    float accumulatedSnow = smoothstep(0.1, 1.8, dY * 5.0);
     vec4 color = vec4(0., 0., 0., 1.);
-    color.r = accumulatedSnow;
+    color.r = dY * 10.0;
     color.g = random(uv);
-    color.b = variation;
     return color;
 }

@@ -58,8 +58,8 @@ Snow generateSnow(
 
     /* Grid. */
     // Increase the last number to make each layer more separate from the previous one.
-    float depth = 0.65 + layerIndex * 0.37;
-    float speedAdj = 1. + layerIndex * 0.15;
+    float depth = 0.65 + layerIndex * 0.555;
+    float speedAdj = 1. + layerIndex * 0.225;
     float layerR = idGenerator(layerIndex);
     snowGridSize *= depth;
     time += layerR * 58.3;
@@ -116,37 +116,9 @@ Snow generateSnow(
         farLayerFadeOut;
 
     /* Cell snow flake. */
-    // Horizontal movement: Wiggle (Adjust the wiggle speed based on the distance).
-    float wiggleSpeed = map(
-        normalizedLayerIndex,
-        0.2,
-        0.7,
-        closestSnowLayerWiggleSpeed,
-        farthestSnowLayerWiggleSpeed);
-    // Adjust wiggle based on layer number (0 = closer to screen => we want less movement).
-    float wiggleAmp = 0.6 + 0.4 * smoothstep(0.5, 2.5, layerIndex);
-    // Define the start based on the cell id.
-    float horizontalStartAmp = 0.5;
-    // Add the wiggle (equation decided by testing in Grapher).
-    float horizontalWiggle = wiggle(
-        // Current uv position.
-        uv.y
-        // Adjustment so the shape is not skewed.
-        - cellUv.y / snowGridSize.y
-        // variation based on cell ID.
-        + cellId * 2.1,
-        wiggleSpeed * speedAdj);
-
-    // Add the start and wiggle and make that when we are closer to the edge, we don't wiggle much
-    // (so the drop doesn't go outside it's cell).
-    horizontalWiggle = horizontalStartAmp * wiggleAmp * horizontalWiggle;
-
-    // Calculate main cell drop.
-    float snowFlakePosUncorrected = (cellUv.x - horizontalWiggle);
-
     // Calculate snow flake.
     vec2 snowFlakeShape = vec2(0.28, 0.26);
-    vec2 snowFlakePos = vec2(snowFlakePosUncorrected, cellUv.y * cellAspectRatio);
+    vec2 snowFlakePos = vec2(cellUv.x, cellUv.y * cellAspectRatio);
     snowFlakePos -= vec2(
             0.,
             (uv.y - 0.5 / screenAspectRatio)  - cellUv.y / snowGridSize.y
