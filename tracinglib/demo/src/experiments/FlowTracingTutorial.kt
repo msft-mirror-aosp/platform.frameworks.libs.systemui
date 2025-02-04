@@ -128,7 +128,7 @@ constructor(
     //                // Alternatively, call `.flowName("hello-cold")` before or after `flowOn`
     // changes
     //                // the dispatcher.
-    //                .flowOn(nameCoroutine("hello-cold") + dispatcherA)
+    //                .flowOn(CoroutineTraceName("hello-cold") + dispatcherA)
     //                .map { it * 2 }
     //                .collectTraced("my-collector") { forceSuspend("A:$it", 1) }
     //        }

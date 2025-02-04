@@ -138,36 +138,6 @@ public fun createCoroutineTracingContext(
     }
 }
 
-/**
- * Returns a new [CoroutineTraceName] (or [EmptyCoroutineContext] if `coroutine_tracing` feature is
- * flagged off). When the current [CoroutineScope] has a [TraceContextElement] installed,
- * [CoroutineTraceName] can be used to name the child scope under construction.
- *
- * [TraceContextElement] should be installed on the root, and [CoroutineTraceName] on the children.
- */
-@Deprecated("Use .launchInTraced, .launchTraced, .shareInTraced, etc.")
-public fun nameCoroutine(name: String): CoroutineContext = nameCoroutine { name }
-
-/**
- * Returns a new [CoroutineTraceName] (or [EmptyCoroutineContext] if `coroutine_tracing` feature is
- * flagged off). When the current [CoroutineScope] has a [TraceContextElement] installed,
- * [CoroutineTraceName] can be used to name the child scope under construction.
- *
- * [TraceContextElement] should be installed on the root, and [CoroutineTraceName] on the children.
- *
- * @param name lazy string to only be called if feature is enabled
- */
-@OptIn(ExperimentalContracts::class)
-@Deprecated("Use .launchInTraced, .launchTraced, .shareInTraced, etc.")
-public inline fun nameCoroutine(name: () -> String): CoroutineContext {
-    contract { callsInPlace(name, InvocationKind.AT_MOST_ONCE) }
-    return if (com.android.systemui.Flags.coroutineTracing()) {
-        CoroutineTraceName(name())
-    } else {
-        EmptyCoroutineContext
-    }
-}
-
 private object PerfettoTraceConfig {
     // cc = coroutine continuations
     @JvmField val COROUTINE_CATEGORY: PerfettoTrace.Category = PerfettoTrace.Category("cc")

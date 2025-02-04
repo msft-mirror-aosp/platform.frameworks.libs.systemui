@@ -23,7 +23,6 @@ import com.android.app.tracing.coroutines.CoroutineTraceName
 import com.android.app.tracing.coroutines.TraceContextElement
 import com.android.app.tracing.coroutines.coroutineScopeTraced
 import com.android.app.tracing.coroutines.launchTraced
-import com.android.app.tracing.coroutines.nameCoroutine
 import com.android.app.tracing.coroutines.traceCoroutine
 import com.android.app.tracing.coroutines.withContextTraced
 import com.android.systemui.Flags.FLAG_COROUTINE_TRACING
@@ -172,8 +171,8 @@ class CoroutineTracingTest : TestBase() {
         runTest(finalEvent = 4) {
             assertTrue(coroutineContext[CoroutineTraceName] is TraceContextElement)
             expect(1, "1^main")
-            withContext(nameCoroutine("inside-withContext")) { // <-- BAD, DON'T DO THIS
-                // This is why nameCoroutine() should not be used this way, it overwrites the
+            withContext(CoroutineTraceName("inside-withContext")) { // <-- BAD, DON'T DO THIS
+                // This is why CoroutineTraceName() should not be used this way, it overwrites the
                 // TraceContextElement. Because it is not a CopyableThreadContextElement, it is
                 // not given opportunity to merge with the parent trace context.
                 // While we could make CoroutineTraceName a CopyableThreadContextElement, it would
@@ -305,7 +304,7 @@ class CoroutineTracingTest : TestBase() {
             expect(1, "1^main")
             delay(1)
             expect(2, "1^main")
-            val reusedNameContext = nameCoroutine("my-coroutine")
+            val reusedNameContext = CoroutineTraceName("my-coroutine")
             launch(reusedNameContext) {
                 expect(3, "1^main:1^my-coroutine")
                 delay(1)
