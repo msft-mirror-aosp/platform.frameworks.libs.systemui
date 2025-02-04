@@ -183,8 +183,8 @@ vec3 generateStaticGlassRain(vec2 uv, half time, half intensity, vec2 gridSize) 
     // Apply a curve to the time.
     normalizedTime *= normalizedTime;
 
-    vec2 pos = cellUv * (1.5 - 0.5 * cellId + normalizedTime * 50.);
-    float mask = smoothstep(0.3, 0.2, length(pos))
+     vec2 pos = cellUv * (1.5 - 0.5 * cellId + normalizedTime * 50.);
+     float mask = smoothstep(0.3, 0.2, length(pos))
                  * smoothstep(0.2, 0.06, normalizedTime)
                  * smoothstep(0., 0.45, intensity);
 

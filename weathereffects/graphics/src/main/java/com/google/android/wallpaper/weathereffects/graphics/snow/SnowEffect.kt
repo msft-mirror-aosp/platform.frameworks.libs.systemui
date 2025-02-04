@@ -30,7 +30,6 @@ import com.google.android.wallpaper.weathereffects.graphics.WeatherEffect.Compan
 import com.google.android.wallpaper.weathereffects.graphics.WeatherEffectBase
 import com.google.android.wallpaper.weathereffects.graphics.utils.GraphicsUtils
 import com.google.android.wallpaper.weathereffects.graphics.utils.MathUtils
-import com.google.android.wallpaper.weathereffects.graphics.utils.MatrixUtils.getScale
 import com.google.android.wallpaper.weathereffects.graphics.utils.TimeUtils
 import java.util.concurrent.Executor
 
@@ -53,11 +52,9 @@ class SnowEffect(
     private var frameBuffer = FrameBuffer(background.width, background.height)
     private val frameBufferPaint = Paint().also { it.shader = snowConfig.accumulatedSnowShader }
 
-    private var scale = getScale(parallaxMatrix)
-
     init {
         frameBuffer.setRenderEffect(
-            RenderEffect.createBlurEffect(4f / scale, 4f / scale, Shader.TileMode.CLAMP)
+            RenderEffect.createBlurEffect(4f / bitmapScale, 4f / bitmapScale, Shader.TileMode.CLAMP)
         )
         updateTextureUniforms()
         adjustCropping(surfaceSize)
@@ -101,12 +98,15 @@ class SnowEffect(
         if (!super.setBitmaps(foreground, background)) {
             return false
         }
-        scale = getScale(parallaxMatrix)
         frameBuffer.close()
         frameBuffer =
             FrameBuffer(background.width, background.height).apply {
                 setRenderEffect(
-                    RenderEffect.createBlurEffect(4f / scale, 4f / scale, Shader.TileMode.CLAMP)
+                    RenderEffect.createBlurEffect(
+                        4f / bitmapScale,
+                        4f / bitmapScale,
+                        Shader.TileMode.CLAMP,
+                    )
                 )
             }
         // GenerateAccumulatedSnow needs foreground for accumulatedSnowShader, and needs frameBuffer
@@ -152,10 +152,10 @@ class SnowEffect(
 
     private fun generateAccumulatedSnow() {
         val renderingCanvas = frameBuffer.beginDrawing()
-        snowConfig.accumulatedSnowShader.setFloatUniform("scale", scale)
+        snowConfig.accumulatedSnowShader.setFloatUniform("scale", bitmapScale)
         snowConfig.accumulatedSnowShader.setFloatUniform(
             "snowThickness",
-            snowConfig.maxAccumulatedSnowThickness * intensity / scale,
+            snowConfig.maxAccumulatedSnowThickness * intensity / bitmapScale,
         )
         snowConfig.accumulatedSnowShader.setFloatUniform("screenWidth", surfaceSize.width)
         snowConfig.accumulatedSnowShader.setInputBuffer(
