@@ -15,7 +15,7 @@
  */
 package com.example.tracing.demo.experiments
 
-import com.android.app.tracing.coroutines.nameCoroutine
+import com.android.app.tracing.coroutines.asyncTraced
 import com.android.app.tracing.coroutines.traceCoroutine
 import com.android.app.tracing.traceSection
 import com.example.tracing.demo.FixedThread1
@@ -76,7 +76,7 @@ constructor(
         // no dispatcher specified, so will inherit dispatcher from whoever called
         // run(), meaning the main thread
         val deferredE =
-            async(nameCoroutine("overridden-scope-name-for-deferredE")) {
+            asyncTraced("overridden-scope-name-for-deferredE") {
                 traceCoroutine("async#E") { forceSuspend("deferredE", 25) }
             }
 

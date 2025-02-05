@@ -18,7 +18,6 @@ package com.android.test.tracing.coroutines
 
 import android.platform.test.annotations.EnableFlags
 import com.android.app.tracing.coroutines.launchTraced
-import com.android.app.tracing.coroutines.nameCoroutine
 import com.android.app.tracing.coroutines.traceCoroutine
 import com.android.app.tracing.coroutines.traceThreadLocal
 import com.android.app.tracing.coroutines.withContextTraced
@@ -206,40 +205,36 @@ class MultiThreadedCoroutineTracingTest : TestBase() {
 
     @Test
     fun nestedTraceSectionsMultiThreaded() = runTest {
-        val context1 = bgThread1 + nameCoroutine("coroutineA")
-        val context2 = bgThread2 + nameCoroutine("coroutineB")
-        val context3 = context1 + nameCoroutine("coroutineC")
-
-        launchTraced("launch#1", context1) {
-            expect("1^main:1^coroutineA")
+        launchTraced("launch#1", bgThread1) {
+            expect("1^main:1^launch#1")
             delay(1L)
-            traceCoroutine("span-1") { expect("1^main:1^coroutineA", "span-1") }
-            expect("1^main:1^coroutineA")
-            expect("1^main:1^coroutineA")
-            launchTraced("launch#2", context2) {
-                expect("1^main:1^coroutineA:1^coroutineB")
+            traceCoroutine("span-1") { expect("1^main:1^launch#1", "span-1") }
+            expect("1^main:1^launch#1")
+            expect("1^main:1^launch#1")
+            launchTraced("launch#2", bgThread2) {
+                expect("1^main:1^launch#1:1^launch#2")
                 delay(1L)
-                traceCoroutine("span-2") { expect("1^main:1^coroutineA:1^coroutineB", "span-2") }
-                expect("1^main:1^coroutineA:1^coroutineB")
-                expect("1^main:1^coroutineA:1^coroutineB")
-                launchTraced("launch#3", context3) {
+                traceCoroutine("span-2") { expect("1^main:1^launch#1:1^launch#2", "span-2") }
+                expect("1^main:1^launch#1:1^launch#2")
+                expect("1^main:1^launch#1:1^launch#2")
+                launchTraced("launch#3", bgThread1) {
                     // "launch#3" is dropped because context has a TraceContextElement.
                     // The CoroutineScope (i.e. `this` in `this.launch {}`) should have a
                     // TraceContextElement, but using TraceContextElement in the passed context is
                     // incorrect.
-                    expect("1^main:1^coroutineA:1^coroutineB:1^coroutineC")
-                    launchTraced("launch#4", context1) {
-                        expect("1^main:1^coroutineA:1^coroutineB:1^coroutineC:1^coroutineA")
+                    expect("1^main:1^launch#1:1^launch#2:1^launch#3")
+                    launchTraced("launch#4", bgThread1) {
+                        expect("1^main:1^launch#1:1^launch#2:1^launch#3:1^launch#4")
                     }
                 }
             }
-            expect("1^main:1^coroutineA")
+            expect("1^main:1^launch#1")
         }
         expect("1^main")
 
         // Launching without the trace extension won't result in traces
-        launch(context1) { expect("1^main:2^coroutineA") }
-        launch(context2) { expect("1^main:3^coroutineB") }
+        launch(bgThread1) { expect("1^main:2^") }
+        launch(bgThread2) { expect("1^main:3^") }
     }
 
     @Test

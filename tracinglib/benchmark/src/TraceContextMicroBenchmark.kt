@@ -24,11 +24,10 @@ import android.platform.test.rule.EnsureDeviceSettingsRule
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.filters.SmallTest
 import com.android.app.tracing.coroutines.createCoroutineTracingContext
-import com.android.app.tracing.coroutines.nameCoroutine
+import com.android.app.tracing.coroutines.launchTraced
 import com.android.app.tracing.coroutines.traceCoroutine
 import com.android.systemui.Flags.FLAG_COROUTINE_TRACING
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.yield
@@ -81,7 +80,7 @@ class TraceContextMicroBenchmark {
         val state = perfStatusReporter.benchmarkState
 
         val context1 = createCoroutineTracingContext("scope1")
-        val context2 = nameCoroutine("scope2")
+        val context2 = createCoroutineTracingContext("scope2")
         runBlocking {
             while (state.keepRunning()) {
                 withContext(context1) {
@@ -108,7 +107,7 @@ class TraceContextMicroBenchmark {
 
         runBlocking(createCoroutineTracingContext("root")) {
             val job1 =
-                launch(nameCoroutine("scope1")) {
+                launchTraced("scope1") {
                     while (true) {
                         traceCoroutine("hello") {
                             traceCoroutine("world") { yield() }
@@ -117,7 +116,7 @@ class TraceContextMicroBenchmark {
                     }
                 }
             val job2 =
-                launch(nameCoroutine("scope2")) {
+                launchTraced("scope2") {
                     while (true) {
                         traceCoroutine("hallo") {
                             traceCoroutine("welt") { yield() }

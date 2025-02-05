@@ -179,8 +179,8 @@ class DefaultNamingTest : TestBase() {
                         delay(1)
                         emit(42)
                         expect(5, "1^main:1^")
-                    } // there is no API for passing a custom context to the new shared flow, so weg
-                    // can't pass our custom child name using `nameCoroutine()`
+                    } // there is no API for passing a custom context to the new shared flow, so we
+                    // can't pass our custom child name using `CoroutineTraceName()`
                     .shareIn(this, SharingStarted.Eagerly, 4)
 
             launchTraced("AAAA") {
