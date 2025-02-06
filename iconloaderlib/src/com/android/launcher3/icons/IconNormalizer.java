@@ -18,7 +18,6 @@ package com.android.launcher3.icons;
 
 import android.annotation.TargetApi;
 import android.content.Context;
-import android.content.res.Resources;
 import android.graphics.Bitmap;
 import android.graphics.Canvas;
 import android.graphics.Color;
@@ -28,17 +27,15 @@ import android.graphics.Path;
 import android.graphics.PorterDuff;
 import android.graphics.PorterDuffXfermode;
 import android.graphics.Rect;
-import android.graphics.RectF;
 import android.graphics.Region;
 import android.graphics.drawable.AdaptiveIconDrawable;
 import android.graphics.drawable.Drawable;
 import android.os.Build;
 import android.util.Log;
 
-import java.nio.ByteBuffer;
-
 import androidx.annotation.NonNull;
-import androidx.annotation.Nullable;
+
+import java.nio.ByteBuffer;
 
 public class IconNormalizer {
 
@@ -72,10 +69,7 @@ public class IconNormalizer {
     private final Paint mPaintMaskShapeOutline;
     private final byte[] mPixels;
 
-    private final RectF mAdaptiveIconBounds;
     private float mAdaptiveIconScale;
-
-    private boolean mEnableShapeDetection;
 
     // for each y, stores the position of the leftmost x and the rightmost x
     private final float[] mLeftBorder;
@@ -85,7 +79,7 @@ public class IconNormalizer {
     private final Matrix mMatrix;
 
     /** package private **/
-    IconNormalizer(Context context, int iconBitmapSize, boolean shapeDetection) {
+    IconNormalizer(Context context, int iconBitmapSize) {
         // Use twice the icon size as maximum size to avoid scaling down twice.
         mMaxSize = iconBitmapSize * 2;
         mBitmap = Bitmap.createBitmap(mMaxSize, mMaxSize, Bitmap.Config.ALPHA_8);
@@ -94,7 +88,6 @@ public class IconNormalizer {
         mLeftBorder = new float[mMaxSize];
         mRightBorder = new float[mMaxSize];
         mBounds = new Rect();
-        mAdaptiveIconBounds = new RectF();
 
         mPaintMaskShape = new Paint();
         mPaintMaskShape.setColor(Color.RED);
@@ -111,7 +104,6 @@ public class IconNormalizer {
         mShapePath = new Path();
         mMatrix = new Matrix();
         mAdaptiveIconScale = SCALE_NOT_INITIALIZED;
-        mEnableShapeDetection = shapeDetection;
     }
 
     private static float getScale(float hullArea, float boundingArea, float fullArea) {
@@ -133,7 +125,7 @@ public class IconNormalizer {
      * @param size Canvas size to use
      */
     @TargetApi(Build.VERSION_CODES.O)
-    public static float normalizeAdaptiveIcon(Drawable d, int size, @Nullable RectF outBounds) {
+    public static float normalizeAdaptiveIcon(Drawable d, int size) {
         Rect tmpBounds = new Rect(d.getBounds());
         d.setBounds(0, 0, size, size);
 
@@ -141,17 +133,7 @@ public class IconNormalizer {
         Region region = new Region();
         region.setPath(path, new Region(0, 0, size, size));
 
-        Rect hullBounds = region.getBounds();
         int hullArea = GraphicsUtils.getArea(region);
-
-        if (outBounds != null) {
-            float sizeF = size;
-            outBounds.set(
-                    hullBounds.left / sizeF,
-                    hullBounds.top / sizeF,
-                    1 - (hullBounds.right / sizeF),
-                    1 - (hullBounds.bottom / sizeF));
-        }
         d.setBounds(tmpBounds);
         return getScale(hullArea, hullArea, size * size);
     }
@@ -233,17 +215,11 @@ public class IconNormalizer {
      *
      * This closeness is used to determine the ratio of hull area to the full icon size.
      * Refer {@link #MAX_CIRCLE_AREA_FACTOR} and {@link #MAX_SQUARE_AREA_FACTOR}
-     *
-     * @param outBounds optional rect to receive the fraction distance from each edge.
      */
-    public synchronized float getScale(@NonNull Drawable d, @Nullable RectF outBounds,
-            @Nullable Path path, @Nullable boolean[] outMaskShape) {
+    public synchronized float getScale(@NonNull Drawable d) {
         if (d instanceof AdaptiveIconDrawable) {
             if (mAdaptiveIconScale == SCALE_NOT_INITIALIZED) {
-                mAdaptiveIconScale = normalizeAdaptiveIcon(d, mMaxSize, mAdaptiveIconBounds);
-            }
-            if (outBounds != null) {
-                outBounds.set(mAdaptiveIconBounds);
+                mAdaptiveIconScale = normalizeAdaptiveIcon(d, mMaxSize);
             }
             return mAdaptiveIconScale;
         }
@@ -334,14 +310,6 @@ public class IconNormalizer {
         mBounds.top = topY;
         mBounds.bottom = bottomY;
 
-        if (outBounds != null) {
-            outBounds.set(((float) mBounds.left) / width, ((float) mBounds.top) / height,
-                    1 - ((float) mBounds.right) / width,
-                    1 - ((float) mBounds.bottom) / height);
-        }
-        if (outMaskShape != null && mEnableShapeDetection && outMaskShape.length > 0) {
-            outMaskShape[0] = isShape(path);
-        }
         // Area of the rectangle required to fit the convex hull
         float rectArea = (bottomY + 1 - topY) * (rightX + 1 - leftX);
         return getScale(area, rectArea, width * height);

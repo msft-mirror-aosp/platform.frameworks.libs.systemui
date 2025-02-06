@@ -58,7 +58,7 @@ data class FrameData
 internal constructor(
     val input: Float,
     val gestureDirection: InputDirection,
-    val gestureDistance: Float,
+    val gestureDragOffset: Float,
     val frameTimeNanos: Long,
     val springState: SpringState,
     private val segment: SegmentData,

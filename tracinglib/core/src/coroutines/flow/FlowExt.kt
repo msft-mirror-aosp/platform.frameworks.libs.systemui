@@ -14,13 +14,16 @@
  * limitations under the License.
  */
 
+@file:OptIn(ExperimentalTypeInference::class)
+
 package com.android.app.tracing.coroutines.flow
 
 import com.android.app.tracing.coroutines.CoroutineTraceName
 import com.android.app.tracing.coroutines.traceCoroutine
-import com.android.systemui.Flags
+import com.android.app.tracing.coroutines.traceName
 import kotlin.experimental.ExperimentalTypeInference
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.FlowCollector
 import kotlinx.coroutines.flow.SharedFlow
@@ -32,6 +35,7 @@ import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.flow as safeFlow
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.mapLatest
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.shareIn
 import kotlinx.coroutines.flow.stateIn
@@ -76,20 +80,18 @@ internal inline fun <T, R> Flow<T>.unsafeTransform(
  * ```
  */
 public fun <T> Flow<T>.flowName(name: String): Flow<T> {
-    return if (Flags.coroutineTracing()) {
-        unsafeFlow(name) { collect { traceCoroutine("emit") { emit(it) } } }
+    return if (com.android.systemui.Flags.coroutineTracing()) {
+        unsafeTransform(name) { traceCoroutine("emit") { emit(it) } }
     } else {
         this
     }
 }
 
 public fun <T> Flow<T>.onEachTraced(name: String, action: suspend (T) -> Unit): Flow<T> {
-    return if (Flags.coroutineTracing()) {
+    return if (com.android.systemui.Flags.coroutineTracing()) {
         unsafeTransform(name) { value ->
             traceCoroutine("onEach:action") { action(value) }
-            traceCoroutine("onEach:emit") {
-                return@unsafeTransform emit(value)
-            }
+            traceCoroutine("onEach:emit") { emit(value) }
         }
     } else {
         onEach(action)
@@ -113,15 +115,16 @@ public fun <T> Flow<T>.onEachTraced(name: String, action: suspend (T) -> Unit): 
  * @see kotlinx.coroutines.flow.collect
  */
 public suspend fun <T> Flow<T>.collectTraced(name: String, collector: FlowCollector<T>) {
-    if (Flags.coroutineTracing()) {
+    if (com.android.systemui.Flags.coroutineTracing()) {
         flowName(name).collect(collector)
     } else {
         collect(collector)
     }
 }
 
+/** @see kotlinx.coroutines.flow.collect */
 public suspend fun <T> Flow<T>.collectTraced(name: String) {
-    if (Flags.coroutineTracing()) {
+    if (com.android.systemui.Flags.coroutineTracing()) {
         flowName(name).collect()
     } else {
         collect()
@@ -130,13 +133,35 @@ public suspend fun <T> Flow<T>.collectTraced(name: String) {
 
 /** @see kotlinx.coroutines.flow.collect */
 public suspend fun <T> Flow<T>.collectTraced(collector: FlowCollector<T>) {
-    if (Flags.coroutineTracing()) {
-        collectTraced(
-            name = collector::class.java.name.substringAfterLast("."),
-            collector = collector,
-        )
+    if (com.android.systemui.Flags.coroutineTracing()) {
+        collectTraced(name = collector.traceName, collector = collector)
     } else {
         collect(collector)
+    }
+}
+
+@ExperimentalCoroutinesApi
+public fun <T, R> Flow<T>.mapLatestTraced(
+    name: String,
+    @BuilderInference transform: suspend (value: T) -> R,
+): Flow<R> {
+    return if (com.android.systemui.Flags.coroutineTracing()) {
+        val collectName = "mapLatest:$name"
+        val actionName = "$collectName:transform"
+        traceCoroutine(collectName) { mapLatest { traceCoroutine(actionName) { transform(it) } } }
+    } else {
+        mapLatest(transform)
+    }
+}
+
+@ExperimentalCoroutinesApi
+public fun <T, R> Flow<T>.mapLatestTraced(
+    @BuilderInference transform: suspend (value: T) -> R
+): Flow<R> {
+    return if (com.android.systemui.Flags.coroutineTracing()) {
+        mapLatestTraced(transform.traceName, transform)
+    } else {
+        mapLatestTraced(transform)
     }
 }
 
@@ -145,7 +170,7 @@ internal suspend fun <T> Flow<T>.collectLatestTraced(
     name: String,
     action: suspend (value: T) -> Unit,
 ) {
-    if (Flags.coroutineTracing()) {
+    if (com.android.systemui.Flags.coroutineTracing()) {
         val collectName = "collectLatest:$name"
         val actionName = "$collectName:action"
         return traceCoroutine(collectName) {
@@ -158,8 +183,8 @@ internal suspend fun <T> Flow<T>.collectLatestTraced(
 
 /** @see kotlinx.coroutines.flow.collectLatest */
 public suspend fun <T> Flow<T>.collectLatestTraced(action: suspend (value: T) -> Unit) {
-    if (Flags.coroutineTracing()) {
-        collectLatestTraced(action::class.java.name.substringAfterLast("."), action)
+    if (com.android.systemui.Flags.coroutineTracing()) {
+        collectLatestTraced(action.traceName, action)
     } else {
         collectLatest(action)
     }
@@ -171,15 +196,9 @@ public inline fun <T, R> Flow<T>.transformTraced(
     name: String,
     @BuilderInference crossinline transform: suspend FlowCollector<R>.(value: T) -> Unit,
 ): Flow<R> {
-    return if (Flags.coroutineTracing()) {
+    return if (com.android.systemui.Flags.coroutineTracing()) {
         // Safe flow must be used because collector is exposed to the caller
-        safeFlow {
-            collect { value ->
-                traceCoroutine("$name:transform") {
-                    return@collect transform(value)
-                }
-            }
-        }
+        safeFlow { collect { value -> traceCoroutine("$name:transform") { transform(value) } } }
     } else {
         transform(transform)
     }
@@ -190,12 +209,10 @@ public inline fun <T> Flow<T>.filterTraced(
     name: String,
     crossinline predicate: suspend (T) -> Boolean,
 ): Flow<T> {
-    return if (Flags.coroutineTracing()) {
+    return if (com.android.systemui.Flags.coroutineTracing()) {
         unsafeTransform(name) { value ->
             if (traceCoroutine("filter:predicate") { predicate(value) }) {
-                traceCoroutine("filter:emit") {
-                    return@unsafeTransform emit(value)
-                }
+                traceCoroutine("filter:emit") { emit(value) }
             }
         }
     } else {
@@ -208,12 +225,10 @@ public inline fun <T, R> Flow<T>.mapTraced(
     name: String,
     crossinline transform: suspend (value: T) -> R,
 ): Flow<R> {
-    return if (Flags.coroutineTracing()) {
+    return if (com.android.systemui.Flags.coroutineTracing()) {
         unsafeTransform(name) { value ->
             val transformedValue = traceCoroutine("map:transform") { transform(value) }
-            traceCoroutine("map:emit") {
-                return@unsafeTransform emit(transformedValue)
-            }
+            traceCoroutine("map:emit") { emit(transformedValue) }
         }
     } else {
         map(transform)
@@ -229,7 +244,7 @@ public fun <T> Flow<T>.shareInTraced(
 ): SharedFlow<T> {
     // .shareIn calls this.launch(context), where this === scope, and the previous upstream flow's
     // context is passed to launch
-    return if (Flags.coroutineTracing()) {
+    return if (com.android.systemui.Flags.coroutineTracing()) {
             flowOn(CoroutineTraceName(name))
         } else {
             this
@@ -246,7 +261,7 @@ public fun <T> Flow<T>.stateInTraced(
 ): StateFlow<T> {
     // .stateIn calls this.launch(context), where this === scope, and the previous upstream flow's
     // context is passed to launch
-    return if (Flags.coroutineTracing()) {
+    return if (com.android.systemui.Flags.coroutineTracing()) {
             flowOn(CoroutineTraceName(name))
         } else {
             this
@@ -257,7 +272,7 @@ public fun <T> Flow<T>.stateInTraced(
 /** @see kotlinx.coroutines.flow.stateIn */
 public suspend fun <T> Flow<T>.stateInTraced(name: String, scope: CoroutineScope): StateFlow<T> {
     // .stateIn calls this.launch(context), where this === scope, and the previous upstream flow's
-    return if (Flags.coroutineTracing()) {
+    return if (com.android.systemui.Flags.coroutineTracing()) {
             flowOn(CoroutineTraceName(name))
         } else {
             this

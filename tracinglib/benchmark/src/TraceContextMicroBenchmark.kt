@@ -24,35 +24,30 @@ import android.platform.test.rule.EnsureDeviceSettingsRule
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.filters.SmallTest
 import com.android.app.tracing.coroutines.createCoroutineTracingContext
-import com.android.app.tracing.coroutines.nameCoroutine
+import com.android.app.tracing.coroutines.launchTraced
 import com.android.app.tracing.coroutines.traceCoroutine
-import com.android.systemui.Flags
+import com.android.systemui.Flags.FLAG_COROUTINE_TRACING
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.yield
 import org.junit.After
 import org.junit.Assert
 import org.junit.Before
-import org.junit.ClassRule
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 
-private val TAG: String = TraceContextMicroBenchmark::class.java.simpleName
-
+@SmallTest
 @RunWith(AndroidJUnit4::class)
-@EnableFlags(Flags.FLAG_COROUTINE_TRACING)
+@EnableFlags(FLAG_COROUTINE_TRACING)
 class TraceContextMicroBenchmark {
-
-    @get:Rule val perfStatusReporter = PerfStatusReporter()
 
     @get:Rule val setFlagsRule = SetFlagsRule()
 
-    companion object {
-        @JvmField @ClassRule(order = 1) var ensureDeviceSettingsRule = EnsureDeviceSettingsRule()
-    }
+    @get:Rule val ensureDeviceSettingsRule = EnsureDeviceSettingsRule()
+
+    @get:Rule val perfStatusReporter = PerfStatusReporter()
 
     @Before
     fun before() {
@@ -70,7 +65,6 @@ class TraceContextMicroBenchmark {
         state.resumeTiming()
     }
 
-    @SmallTest
     @Test
     fun testSingleTraceSection() {
         val state = perfStatusReporter.benchmarkState
@@ -81,13 +75,12 @@ class TraceContextMicroBenchmark {
         }
     }
 
-    @SmallTest
     @Test
     fun testNestedContext() {
         val state = perfStatusReporter.benchmarkState
 
         val context1 = createCoroutineTracingContext("scope1")
-        val context2 = nameCoroutine("scope2")
+        val context2 = createCoroutineTracingContext("scope2")
         runBlocking {
             while (state.keepRunning()) {
                 withContext(context1) {
@@ -108,14 +101,13 @@ class TraceContextMicroBenchmark {
         }
     }
 
-    @SmallTest
     @Test
     fun testInterleavedLaunch() {
         val state = perfStatusReporter.benchmarkState
 
         runBlocking(createCoroutineTracingContext("root")) {
             val job1 =
-                launch(nameCoroutine("scope1")) {
+                launchTraced("scope1") {
                     while (true) {
                         traceCoroutine("hello") {
                             traceCoroutine("world") { yield() }
@@ -124,7 +116,7 @@ class TraceContextMicroBenchmark {
                     }
                 }
             val job2 =
-                launch(nameCoroutine("scope2")) {
+                launchTraced("scope2") {
                     while (true) {
                         traceCoroutine("hallo") {
                             traceCoroutine("welt") { yield() }

@@ -21,7 +21,7 @@ import com.android.app.tracing.coroutines.CoroutineTraceName
 import com.android.app.tracing.coroutines.TraceContextElement
 import com.android.app.tracing.coroutines.createCoroutineTracingContext
 import com.android.systemui.Flags.FLAG_COROUTINE_TRACING
-import kotlinx.coroutines.CoroutineScope
+import kotlin.coroutines.CoroutineContext
 import kotlinx.coroutines.launch
 import org.junit.Test
 
@@ -29,17 +29,18 @@ import org.junit.Test
 class CoroutineTraceNameTest : TestBase() {
 
     // BAD: CoroutineTraceName should not be installed on the root like this:
-    override val scope = CoroutineScope(CoroutineTraceName("MainName"))
+    override val extraContext: CoroutineContext by lazy { CoroutineTraceName("MainName") }
 
     @Test
     fun nameMergedWithTraceContext() = runTest {
         expectD()
-        val traceContext1 =
-            createCoroutineTracingContext("trace1", testMode = true) as TraceContextElement
+        val otherTraceContext =
+            createCoroutineTracingContext("TraceContextName", testMode = true)
+                as TraceContextElement
         // MainName is never used. It is overwritten by the CoroutineTracingContext:
-        launch(traceContext1) { expectD("1^trace1") }
+        launch(otherTraceContext) { expectD("1^TraceContextName") }
         expectD()
-        launch(traceContext1) { expectD("2^trace1") }
+        launch(otherTraceContext) { expectD("2^TraceContextName") }
         launch { expectD() }
     }
 }

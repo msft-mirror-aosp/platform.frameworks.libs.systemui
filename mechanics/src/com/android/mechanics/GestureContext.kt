@@ -52,16 +52,27 @@ interface GestureContext {
     /**
      * The gesture distance of the current gesture, in pixels.
      *
-     * Used solely for the [GestureDistance] [Guarantee]. Can be hard-coded to a static value if
+     * Used solely for the [GestureDragDelta] [Guarantee]. Can be hard-coded to a static value if
      * this type of [Guarantee] is not used.
      */
-    val distance: Float
+    val dragOffset: Float
+}
+
+/**
+ * [GestureContext] with a mutable [dragOffset].
+ *
+ * The implementation class defines whether the [direction] is updated accordingly.
+ */
+interface MutableDragOffsetGestureContext : GestureContext {
+    /** The gesture distance of the current gesture, in pixels. */
+    override var dragOffset: Float
 }
 
 /** [GestureContext] implementation for manually set values. */
-class ProvidedGestureContext(direction: InputDirection, distance: Float) : GestureContext {
+class ProvidedGestureContext(dragOffset: Float, direction: InputDirection) :
+    MutableDragOffsetGestureContext {
     override var direction by mutableStateOf(direction)
-    override var distance by mutableFloatStateOf(distance)
+    override var dragOffset by mutableFloatStateOf(dragOffset)
 }
 
 /**
@@ -70,16 +81,16 @@ class ProvidedGestureContext(direction: InputDirection, distance: Float) : Gestu
  * The direction is determined from the gesture input, where going further than
  * [directionChangeSlop] in the opposite direction toggles the direction.
  *
- * @param initialDistance The initial [distance] of the [GestureContext]
+ * @param initialDragOffset The initial [dragOffset] of the [GestureContext]
  * @param initialDirection The initial [direction] of the [GestureContext]
- * @param directionChangeSlop the amount [distance] must be moved in the opposite direction for the
- *   [direction] to flip.
+ * @param directionChangeSlop the amount [dragOffset] must be moved in the opposite direction for
+ *   the [direction] to flip.
  */
 class DistanceGestureContext(
-    initialDistance: Float,
+    initialDragOffset: Float,
     initialDirection: InputDirection,
     directionChangeSlop: Float,
-) : GestureContext {
+) : MutableDragOffsetGestureContext {
     init {
         require(directionChangeSlop > 0) {
             "directionChangeSlop must be greater than 0, was $directionChangeSlop"
@@ -89,37 +100,38 @@ class DistanceGestureContext(
     override var direction by mutableStateOf(initialDirection)
         private set
 
-    private var furthestDistance by mutableFloatStateOf(initialDistance)
-    private var _distance by mutableFloatStateOf(initialDistance)
+    private var furthestDragOffset by mutableFloatStateOf(initialDragOffset)
 
-    override var distance: Float
-        get() = _distance
+    private var _dragOffset by mutableFloatStateOf(initialDragOffset)
+
+    override var dragOffset: Float
+        get() = _dragOffset
         /**
-         * Updates the [distance].
+         * Updates the [dragOffset].
          *
          * This flips the [direction], if the [value] is further than [directionChangeSlop] away
          * from the furthest recorded value regarding to the current [direction].
          */
         set(value) {
-            _distance = value
+            _dragOffset = value
             this.direction =
                 when (direction) {
                     InputDirection.Max -> {
-                        if (furthestDistance - value > directionChangeSlop) {
-                            furthestDistance = value
+                        if (furthestDragOffset - value > directionChangeSlop) {
+                            furthestDragOffset = value
                             InputDirection.Min
                         } else {
-                            furthestDistance = max(value, furthestDistance)
+                            furthestDragOffset = max(value, furthestDragOffset)
                             InputDirection.Max
                         }
                     }
 
                     InputDirection.Min -> {
-                        if (value - furthestDistance > directionChangeSlop) {
-                            furthestDistance = value
+                        if (value - furthestDragOffset > directionChangeSlop) {
+                            furthestDragOffset = value
                             InputDirection.Max
                         } else {
-                            furthestDistance = min(value, furthestDistance)
+                            furthestDragOffset = min(value, furthestDragOffset)
                             InputDirection.Min
                         }
                     }
@@ -143,14 +155,14 @@ class DistanceGestureContext(
 
             when (direction) {
                 InputDirection.Max -> {
-                    if (furthestDistance - distance > directionChangeSlop) {
-                        furthestDistance = distance
+                    if (furthestDragOffset - dragOffset > directionChangeSlop) {
+                        furthestDragOffset = dragOffset
                         direction = InputDirection.Min
                     }
                 }
                 InputDirection.Min -> {
-                    if (distance - furthestDistance > directionChangeSlop) {
-                        furthestDistance = value
+                    if (dragOffset - furthestDragOffset > directionChangeSlop) {
+                        furthestDragOffset = value
                         direction = InputDirection.Max
                     }
                 }
@@ -158,14 +170,14 @@ class DistanceGestureContext(
         }
 
     /**
-     * Sets [distance] and [direction] to the specified values.
+     * Sets [dragOffset] and [direction] to the specified values.
      *
-     * This also resets memoized [furthestDistance], which is used to determine the direction
+     * This also resets memoized [furthestDragOffset], which is used to determine the direction
      * change.
      */
-    fun reset(distance: Float, direction: InputDirection) {
-        this.distance = distance
+    fun reset(dragOffset: Float, direction: InputDirection) {
+        this.dragOffset = dragOffset
         this.direction = direction
-        this.furthestDistance = distance
+        this.furthestDragOffset = dragOffset
     }
 }

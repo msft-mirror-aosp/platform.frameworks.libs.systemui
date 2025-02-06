@@ -18,6 +18,7 @@ package com.android.app.tracing
 
 import android.annotation.SuppressLint
 import android.os.Trace
+import com.android.app.tracing.TrackGroupUtils.trackGroup
 import com.android.app.tracing.coroutines.traceCoroutine
 import java.util.concurrent.ThreadLocalRandom
 import kotlin.contracts.ExperimentalContracts
@@ -237,5 +238,32 @@ public object TraceUtils {
         } else {
             block()
         }
+    }
+
+    /** Starts an async slice, and returns a runnable that stops the slice. */
+    @JvmStatic
+    public fun traceAsyncClosable(
+        traceTag: Long = Trace.TRACE_TAG_APP,
+        trackName: String,
+        sliceName: String,
+    ): () -> Unit {
+        val cookie = ThreadLocalRandom.current().nextInt()
+        Trace.asyncTraceForTrackBegin(traceTag, trackName, sliceName, cookie)
+        return { Trace.asyncTraceForTrackEnd(traceTag, trackName, cookie) }
+    }
+
+    /** Starts an async slice, and returns a runnable that stops the slice. */
+    @JvmStatic
+    @JvmOverloads
+    public fun traceAsyncClosable(
+        traceTag: Long = Trace.TRACE_TAG_APP,
+        trackGroupName: String,
+        trackName: String,
+        sliceName: String,
+    ): () -> Unit {
+        val groupedTrackName = trackGroup(trackGroupName, trackName)
+        val cookie = ThreadLocalRandom.current().nextInt()
+        Trace.asyncTraceForTrackBegin(traceTag, groupedTrackName, sliceName, cookie)
+        return { Trace.asyncTraceForTrackEnd(traceTag, groupedTrackName, cookie) }
     }
 }

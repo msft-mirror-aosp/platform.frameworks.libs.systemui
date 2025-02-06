@@ -25,8 +25,6 @@ import com.android.systemui.Flags.FLAG_COROUTINE_TRACING
 import java.util.concurrent.Executor
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.DelicateCoroutinesApi
-import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.asExecutor
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.channels.awaitClose
@@ -42,7 +40,6 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.job
-import kotlinx.coroutines.newSingleThreadContext
 import org.junit.Test
 
 data class ExampleInfo(val a: Int, val b: Boolean, val c: String)
@@ -133,26 +130,22 @@ private class ExampleRepositoryImpl(
                 )
 }
 
-@OptIn(DelicateCoroutinesApi::class, ExperimentalCoroutinesApi::class)
 @EnableFlags(FLAG_COROUTINE_TRACING)
 class CallbackFlowTracingTest : TestBase() {
 
-    override val scope = CoroutineScope(createCoroutineTracingContext("main", testMode = true))
-
-    private val bgScope =
+    private val bgScope: CoroutineScope by lazy {
         CoroutineScope(
             createCoroutineTracingContext("bg", testMode = true) +
-                newSingleThreadContext("bg-thread") +
+                bgThread1 +
                 scope.coroutineContext.job
         )
+    }
 
     @Test
-    fun callbackFlow1() {
+    fun callbackFlow() {
         val exampleTracker = ExampleStateTrackerImpl()
         val repository = ExampleRepositoryImpl(this, bgScope, exampleTracker)
-
-        expect()
-        runTest {
+        runTest(totalEvents = 15) {
             launchTraced("collectCombined") {
                 repository.combinedState.collectTraced("combined-states") {
                     expect("1^main:1^collectCombined", "collect:combined-states", "emit")

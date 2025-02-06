@@ -16,5 +16,5 @@ android {
 
 dependencies {
     implementation("androidx.core:core")
-    api(project(":NexusLauncher.Flags"))
+    api(project(":NexusLauncher:Flags"))
 }

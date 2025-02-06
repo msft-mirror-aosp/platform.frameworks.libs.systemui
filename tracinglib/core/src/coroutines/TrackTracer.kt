@@ -18,6 +18,7 @@ package com.android.app.tracing.coroutines
 
 import android.os.Trace
 import com.android.app.tracing.TraceUtils
+import com.android.app.tracing.TrackGroupUtils.trackGroup
 import java.io.Closeable
 import java.util.concurrent.ThreadLocalRandom
 import kotlin.contracts.ExperimentalContracts
@@ -41,9 +42,13 @@ import kotlin.contracts.contract
  */
 @OptIn(ExperimentalContracts::class)
 public class TrackTracer(
-    public val trackName: String,
+    trackName: String,
     public val traceTag: Long = Trace.TRACE_TAG_APP,
+    public val trackGroup: String? = null,
 ) {
+    public val trackName: String =
+        if (trackGroup != null) trackGroup(trackGroup, trackName) else trackName
+
     /** See [Trace.instantForTrack]. */
     public inline fun instant(s: () -> String) {
         if (!Trace.isEnabled()) return
@@ -70,5 +75,56 @@ public class TrackTracer(
         val cookie = ThreadLocalRandom.current().nextInt()
         Trace.asyncTraceForTrackBegin(traceTag, trackName, sliceName, cookie)
         return Closeable { Trace.asyncTraceForTrackEnd(traceTag, trackName, cookie) }
+    }
+
+    /** Traces [block] both sync and async. */
+    public fun traceSyncAndAsync(sliceName: () -> String, block: () -> Unit) {
+        contract {
+            callsInPlace(block, InvocationKind.EXACTLY_ONCE)
+            callsInPlace(sliceName, InvocationKind.AT_MOST_ONCE)
+        }
+        if (Trace.isEnabled()) {
+            val name = sliceName()
+            TraceUtils.trace(name) { traceAsync(name, block) }
+        } else {
+            block()
+        }
+    }
+
+    public companion object {
+        /**
+         * Creates an instant event for a track called [trackName] inside [groupName]. See
+         * [trackGroup] for details on how the rendering in groups works.
+         */
+        @JvmStatic
+        public fun instantForGroup(groupName: String, trackName: String, i: Int) {
+            Trace.traceCounter(Trace.TRACE_TAG_APP, trackGroup(groupName, trackName), i)
+        }
+
+        /**
+         * Creates an instant event for a track called [trackName] inside [groupName]. See
+         * [trackGroup] for details on how the rendering in groups works.
+         */
+        @JvmStatic
+        public fun instantForGroup(groupName: String, trackName: String, event: () -> String) {
+            if (!Trace.isEnabled()) return
+            Trace.instantForTrack(Trace.TRACE_TAG_APP, trackGroup(groupName, trackName), event())
+        }
+
+        /** Creates an instant event for [groupName] grgorp, see [instantForGroup]. */
+        @JvmStatic
+        public inline fun instantForGroup(groupName: String, trackName: () -> String, i: Int) {
+            if (!Trace.isEnabled()) return
+            instantForGroup(groupName, trackName(), i)
+        }
+
+        /**
+         * Creates an instant event, see [instantForGroup], converting [i] to an int by multiplying
+         * it by 100.
+         */
+        @JvmStatic
+        public fun instantForGroup(groupName: String, trackName: String, i: Float) {
+            instantForGroup(groupName, trackName, (i * 100).toInt())
+        }
     }
 }

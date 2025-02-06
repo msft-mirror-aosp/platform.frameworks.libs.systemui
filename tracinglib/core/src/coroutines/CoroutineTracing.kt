@@ -14,9 +14,11 @@
  * limitations under the License.
  */
 
+@file:OptIn(ExperimentalContracts::class, ExperimentalContracts::class)
+
 package com.android.app.tracing.coroutines
 
-import com.android.systemui.Flags
+import com.android.app.tracing.traceSection
 import kotlin.contracts.ExperimentalContracts
 import kotlin.contracts.InvocationKind
 import kotlin.contracts.contract
@@ -34,17 +36,25 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
 
-@OptIn(ExperimentalContracts::class)
+/** @see kotlinx.coroutines.coroutineScope */
+public suspend inline fun <R> coroutineScopeTraced(
+    crossinline spanName: () -> String,
+    crossinline block: suspend CoroutineScope.() -> R,
+): R {
+    contract {
+        callsInPlace(spanName, InvocationKind.AT_MOST_ONCE)
+        callsInPlace(block, InvocationKind.EXACTLY_ONCE)
+    }
+    return coroutineScope { traceCoroutine(spanName) { block() } }
+}
+
+/** @see kotlinx.coroutines.coroutineScope */
 public suspend inline fun <R> coroutineScopeTraced(
     traceName: String,
     crossinline block: suspend CoroutineScope.() -> R,
 ): R {
     contract { callsInPlace(block, InvocationKind.EXACTLY_ONCE) }
-    return coroutineScope {
-        traceCoroutine(traceName) {
-            return@coroutineScope block()
-        }
-    }
+    return coroutineScopeTraced({ traceName }, block)
 }
 
 /**
@@ -58,7 +68,8 @@ public inline fun CoroutineScope.launchTraced(
     start: CoroutineStart = CoroutineStart.DEFAULT,
     noinline block: suspend CoroutineScope.() -> Unit,
 ): Job {
-    return launch(nameCoroutine(spanName) + context, start, block)
+    contract { callsInPlace(spanName, InvocationKind.AT_MOST_ONCE) }
+    return launch(addName(spanName, context), start, block)
 }
 
 /**
@@ -71,11 +82,23 @@ public fun CoroutineScope.launchTraced(
     context: CoroutineContext = EmptyCoroutineContext,
     start: CoroutineStart = CoroutineStart.DEFAULT,
     block: suspend CoroutineScope.() -> Unit,
-): Job = launchTraced({ spanName ?: block::class.simpleName ?: "launch" }, context, start, block)
+): Job {
+    return launchTraced({ spanName ?: block.traceName }, context, start, block)
+}
 
 /** @see kotlinx.coroutines.flow.launchIn */
-public fun <T> Flow<T>.launchInTraced(name: String, scope: CoroutineScope): Job =
-    scope.launchTraced(name) { collect() }
+public inline fun <T> Flow<T>.launchInTraced(
+    crossinline spanName: () -> String,
+    scope: CoroutineScope,
+): Job {
+    contract { callsInPlace(spanName, InvocationKind.AT_MOST_ONCE) }
+    return scope.launchTraced(spanName) { collect() }
+}
+
+/** @see kotlinx.coroutines.flow.launchIn */
+public fun <T> Flow<T>.launchInTraced(spanName: String, scope: CoroutineScope): Job {
+    return scope.launchTraced({ spanName }) { collect() }
+}
 
 /**
  * Convenience function for calling [CoroutineScope.async] with [traceCoroutine] enable tracing
@@ -83,11 +106,14 @@ public fun <T> Flow<T>.launchInTraced(name: String, scope: CoroutineScope): Job 
  * @see traceCoroutine
  */
 public inline fun <T> CoroutineScope.asyncTraced(
-    spanName: () -> String,
+    crossinline spanName: () -> String,
     context: CoroutineContext = EmptyCoroutineContext,
     start: CoroutineStart = CoroutineStart.DEFAULT,
     noinline block: suspend CoroutineScope.() -> T,
-): Deferred<T> = async(nameCoroutine(spanName) + context, start, block)
+): Deferred<T> {
+    contract { callsInPlace(spanName, InvocationKind.AT_MOST_ONCE) }
+    return async(addName(spanName, context), start, block)
+}
 
 /**
  * Convenience function for calling [CoroutineScope.async] with [traceCoroutine] enable tracing.
@@ -99,57 +125,62 @@ public fun <T> CoroutineScope.asyncTraced(
     context: CoroutineContext = EmptyCoroutineContext,
     start: CoroutineStart = CoroutineStart.DEFAULT,
     block: suspend CoroutineScope.() -> T,
-): Deferred<T> =
-    asyncTraced({ spanName ?: block::class.simpleName ?: "async" }, context, start, block)
+): Deferred<T> {
+    return asyncTraced({ spanName ?: block.traceName }, context, start, block)
+}
 
 /**
- * Convenience function for calling [runBlocking] with [traceCoroutine] to enable tracing.
+ * Convenience function for calling [withContext] with [traceCoroutine] to enable tracing.
  *
  * @see traceCoroutine
  */
-public inline fun <T> runBlockingTraced(
-    spanName: () -> String,
+public suspend inline fun <T> withContextTraced(
+    crossinline spanName: () -> String,
     context: CoroutineContext,
     noinline block: suspend CoroutineScope.() -> T,
-): T = runBlocking(nameCoroutine(spanName) + context, block)
+): T {
+    contract {
+        callsInPlace(spanName, InvocationKind.AT_MOST_ONCE)
+        callsInPlace(block, InvocationKind.EXACTLY_ONCE)
+    }
+    return traceCoroutine(spanName) { withContext(context, block) }
+}
 
 /**
- * Convenience function for calling [runBlocking] with [traceCoroutine] to enable tracing.
+ * Convenience function for calling [withContext] with [traceCoroutine] to enable tracing.
  *
  * @see traceCoroutine
  */
-public fun <T> runBlockingTraced(
+public suspend inline fun <T> withContextTraced(
     spanName: String? = null,
     context: CoroutineContext,
-    block: suspend CoroutineScope.() -> T,
-): T = runBlockingTraced({ spanName ?: block::class.simpleName ?: "runBlocking" }, context, block)
-
-/**
- * Convenience function for calling [withContext] with [traceCoroutine] to enable tracing.
- *
- * @see traceCoroutine
- */
-public suspend fun <T> withContextTraced(
-    spanName: String? = null,
-    context: CoroutineContext = EmptyCoroutineContext,
-    block: suspend CoroutineScope.() -> T,
-): T = withContextTraced({ spanName ?: block::class.simpleName ?: "withContext" }, context, block)
-
-/**
- * Convenience function for calling [withContext] with [traceCoroutine] to enable tracing.
- *
- * @see traceCoroutine
- */
-@OptIn(ExperimentalContracts::class)
-public suspend inline fun <T> withContextTraced(
-    spanName: () -> String,
-    context: CoroutineContext = EmptyCoroutineContext,
     noinline block: suspend CoroutineScope.() -> T,
 ): T {
     contract { callsInPlace(block, InvocationKind.EXACTLY_ONCE) }
-    traceCoroutine(spanName) {
-        return@withContextTraced withContext(context, block)
+    return withContextTraced({ spanName ?: block.traceName }, context, block)
+}
+
+/** @see kotlinx.coroutines.runBlocking */
+public inline fun <T> runBlockingTraced(
+    crossinline spanName: () -> String,
+    context: CoroutineContext,
+    noinline block: suspend CoroutineScope.() -> T,
+): T {
+    contract {
+        callsInPlace(spanName, InvocationKind.AT_MOST_ONCE)
+        callsInPlace(block, InvocationKind.EXACTLY_ONCE)
     }
+    return traceSection(spanName) { runBlocking(context, block) }
+}
+
+/** @see kotlinx.coroutines.runBlocking */
+public fun <T> runBlockingTraced(
+    spanName: String?,
+    context: CoroutineContext,
+    block: suspend CoroutineScope.() -> T,
+): T {
+    contract { callsInPlace(block, InvocationKind.EXACTLY_ONCE) }
+    return runBlockingTraced({ spanName ?: block.traceName }, context, block)
 }
 
 /**
@@ -182,30 +213,27 @@ public suspend inline fun <T> withContextTraced(
  * @param spanName The name of the code section to appear in the trace
  * @see traceCoroutine
  */
-@OptIn(ExperimentalContracts::class)
-public inline fun <T> traceCoroutine(spanName: () -> String, block: () -> T): T {
+public inline fun <T, R> R.traceCoroutine(crossinline spanName: () -> String, block: R.() -> T): T {
     contract {
         callsInPlace(spanName, InvocationKind.AT_MOST_ONCE)
         callsInPlace(block, InvocationKind.EXACTLY_ONCE)
     }
-
     // For coroutine tracing to work, trace spans must be added and removed even when
     // tracing is not active (i.e. when TRACE_TAG_APP is disabled). Otherwise, when the
     // coroutine resumes when tracing is active, we won't know its name.
-    if (Flags.coroutineTracing()) {
-        traceThreadLocal.get()?.beginSpan(spanName())
-    }
     try {
+        if (com.android.systemui.Flags.coroutineTracing()) {
+            traceThreadLocal.get()?.beginCoroutineTrace(spanName())
+        }
         return block()
     } finally {
-        if (Flags.coroutineTracing()) {
-            traceThreadLocal.get()?.endSpan()
+        if (com.android.systemui.Flags.coroutineTracing()) {
+            traceThreadLocal.get()?.endCoroutineTrace()
         }
     }
 }
 
-@OptIn(ExperimentalContracts::class)
-public inline fun <T, R> R.traceCoroutine(spanName: () -> String, block: R.() -> T): T {
+public inline fun <T> traceCoroutine(crossinline spanName: () -> String, block: () -> T): T {
     contract {
         callsInPlace(spanName, InvocationKind.AT_MOST_ONCE)
         callsInPlace(block, InvocationKind.EXACTLY_ONCE)
@@ -213,19 +241,49 @@ public inline fun <T, R> R.traceCoroutine(spanName: () -> String, block: R.() ->
     // For coroutine tracing to work, trace spans must be added and removed even when
     // tracing is not active (i.e. when TRACE_TAG_APP is disabled). Otherwise, when the
     // coroutine resumes when tracing is active, we won't know its name.
-    val traceData = if (Flags.coroutineTracing()) traceThreadLocal.get() else null
-    traceData?.beginSpan(spanName())
     try {
+        if (com.android.systemui.Flags.coroutineTracing()) {
+            traceThreadLocal.get()?.beginCoroutineTrace(spanName())
+        }
         return block()
     } finally {
-        traceData?.endSpan()
+        if (com.android.systemui.Flags.coroutineTracing()) {
+            traceThreadLocal.get()?.endCoroutineTrace()
+        }
     }
 }
 
 /** @see traceCoroutine */
-public inline fun <T, R> R.traceCoroutine(spanName: String, block: R.() -> T): T =
-    traceCoroutine({ spanName }, block)
+public inline fun <T, R> R.traceCoroutine(spanName: String, block: R.() -> T): T {
+    contract { callsInPlace(block, InvocationKind.EXACTLY_ONCE) }
+    return traceCoroutine({ spanName }, block)
+}
 
 /** @see traceCoroutine */
-public inline fun <T> traceCoroutine(spanName: String, block: () -> T): T =
-    traceCoroutine({ spanName }, block)
+public inline fun <T> traceCoroutine(spanName: String, block: () -> T): T {
+    contract { callsInPlace(block, InvocationKind.EXACTLY_ONCE) }
+    return traceCoroutine({ spanName }, block)
+}
+
+/**
+ * Returns the passed context if [com.android.systemui.Flags.coroutineTracing] is false. Otherwise,
+ * returns a new context by adding [CoroutineTraceName] to the given context. The
+ * [CoroutineTraceName] in the passed context will take precedence over the new
+ * [CoroutineTraceName].
+ */
+@PublishedApi
+internal inline fun addName(
+    crossinline spanName: () -> String,
+    context: CoroutineContext,
+): CoroutineContext {
+    contract { callsInPlace(spanName, InvocationKind.AT_MOST_ONCE) }
+    return if (com.android.systemui.Flags.coroutineTracing()) {
+        CoroutineTraceName(spanName()) + context
+    } else {
+        context
+    }
+}
+
+@PublishedApi
+internal inline val <reified T : Any> T.traceName: String
+    inline get() = this::class.java.name.substringAfterLast(".")

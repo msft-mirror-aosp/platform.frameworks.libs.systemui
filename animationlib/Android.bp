@@ -68,7 +68,6 @@ android_robolectric_test {
     ],
     java_resource_dirs: ["tests/robolectric/config"],
     instrumentation_for: "TestAnimationLibApp",
-    upstream: true,
     strict_mode: false,
 }
 

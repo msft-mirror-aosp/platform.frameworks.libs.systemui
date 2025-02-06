@@ -17,42 +17,33 @@
 package com.android.test.tracing.coroutines
 
 import android.platform.test.annotations.EnableFlags
-import com.android.app.tracing.coroutines.createCoroutineTracingContext
 import com.android.app.tracing.coroutines.launchTraced
-import com.android.app.tracing.coroutines.nameCoroutine
 import com.android.app.tracing.coroutines.traceCoroutine
 import com.android.app.tracing.coroutines.traceThreadLocal
 import com.android.app.tracing.coroutines.withContextTraced
 import com.android.systemui.Flags.FLAG_COROUTINE_TRACING
 import kotlinx.coroutines.CompletableDeferred
-import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CoroutineStart
-import kotlinx.coroutines.DelicateCoroutinesApi
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.newSingleThreadContext
 import kotlinx.coroutines.withContext
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Test
 
-@OptIn(ExperimentalCoroutinesApi::class, DelicateCoroutinesApi::class)
 @EnableFlags(FLAG_COROUTINE_TRACING)
 class MultiThreadedCoroutineTracingTest : TestBase() {
-
-    override val scope = CoroutineScope(createCoroutineTracingContext("main", testMode = true))
 
     @Test
     fun unconfinedLaunch() = runTest {
         val barrier1 = CompletableDeferred<Unit>()
         val barrier2 = CompletableDeferred<Unit>()
         val barrier3 = CompletableDeferred<Unit>()
-        val thread1 = newSingleThreadContext("thread-#1")
-        val thread2 = newSingleThreadContext("thread-#1")
+        val thread1 = bgThread1
+        val thread2 = bgThread2
         // Do NOT assert order. Doing so will make this test flaky due to its use of
         // Dispatchers.Unconfined
         expect("1^main")
@@ -67,10 +58,18 @@ class MultiThreadedCoroutineTracingTest : TestBase() {
                 launchTraced("default-launch", Dispatchers.Unconfined) {
                     traceCoroutine("default-inner") {
                         barrier2.await()
-                        expect(
-                            "1^main",
-                            "1^main:1^unconfined-launch:2^default-launch",
-                            "default-inner",
+                        expectAny(
+                            arrayOf(
+                                "1^main",
+                                "1^main:1^unconfined-launch:2^default-launch",
+                                "default-inner",
+                            ),
+                            arrayOf(
+                                "1^main:1^unconfined-launch:3^thread1-launch",
+                                "thread1-inner",
+                                "1^main:1^unconfined-launch:2^default-launch",
+                                "default-inner",
+                            ),
                         )
                         barrier3.complete(Unit)
                     }
@@ -126,25 +125,29 @@ class MultiThreadedCoroutineTracingTest : TestBase() {
 
     /** @see nestedUpdateAndRestoreOnSingleThread_unconfinedDispatcher */
     @Test
-    fun nestedUpdateAndRestoreOnSingleThread_undispatchedLaunch() =
-        runTest(finalEvent = 3) {
+    fun nestedUpdateAndRestoreOnSingleThread_undispatchedLaunch() {
+        val barrier = CompletableDeferred<Unit>()
+        runTest(finalEvent = 4) {
+            expect(1, "1^main")
             traceCoroutine("parent-span") {
                 launch(start = CoroutineStart.UNDISPATCHED) {
                     traceCoroutine("child-span") {
-                        expect(1, "1^main", "parent-span", "1^main:1^", "child-span")
-                        delay(1) // <-- delay will give parent a chance to restore its context
-                        expect(3, "1^main:1^", "child-span")
+                        expect(2, "1^main", "parent-span", "1^main:1^", "child-span")
+                        barrier.await() // <-- give parent a chance to restore its context
+                        expect(4, "1^main:1^", "child-span")
                     }
                 }
             }
-            expect(2, "1^main")
+            expect(3, "1^main")
+            barrier.complete(Unit)
         }
+    }
 
     @Test
     fun launchOnSeparateThread_defaultDispatcher() =
         runTest(finalEvent = 4) {
             val channel = Channel<Int>()
-            val thread1 = newSingleThreadContext("thread-#1")
+            val thread1 = bgThread1
             expect("1^main")
             traceCoroutine("hello") {
                 expect(1, "1^main", "hello")
@@ -165,10 +168,10 @@ class MultiThreadedCoroutineTracingTest : TestBase() {
 
     @Test
     fun testTraceStorage() {
-        val thread1 = newSingleThreadContext("thread-#1")
-        val thread2 = newSingleThreadContext("thread-#2")
-        val thread3 = newSingleThreadContext("thread-#3")
-        val thread4 = newSingleThreadContext("thread-#4")
+        val thread1 = bgThread1
+        val thread2 = bgThread2
+        val thread3 = bgThread3
+        val thread4 = bgThread4
         val channel = Channel<Int>()
         val threadContexts = listOf(thread1, thread2, thread3, thread4)
         val finishedLaunches = Channel<Int>()
@@ -202,45 +205,41 @@ class MultiThreadedCoroutineTracingTest : TestBase() {
 
     @Test
     fun nestedTraceSectionsMultiThreaded() = runTest {
-        val context1 = newSingleThreadContext("thread-#1") + nameCoroutine("coroutineA")
-        val context2 = newSingleThreadContext("thread-#2") + nameCoroutine("coroutineB")
-        val context3 = context1 + nameCoroutine("coroutineC")
-
-        launchTraced("launch#1", context1) {
-            expect("1^main:1^coroutineA")
+        launchTraced("launch#1", bgThread1) {
+            expect("1^main:1^launch#1")
             delay(1L)
-            traceCoroutine("span-1") { expect("1^main:1^coroutineA", "span-1") }
-            expect("1^main:1^coroutineA")
-            expect("1^main:1^coroutineA")
-            launchTraced("launch#2", context2) {
-                expect("1^main:1^coroutineA:1^coroutineB")
+            traceCoroutine("span-1") { expect("1^main:1^launch#1", "span-1") }
+            expect("1^main:1^launch#1")
+            expect("1^main:1^launch#1")
+            launchTraced("launch#2", bgThread2) {
+                expect("1^main:1^launch#1:1^launch#2")
                 delay(1L)
-                traceCoroutine("span-2") { expect("1^main:1^coroutineA:1^coroutineB", "span-2") }
-                expect("1^main:1^coroutineA:1^coroutineB")
-                expect("1^main:1^coroutineA:1^coroutineB")
-                launchTraced("launch#3", context3) {
+                traceCoroutine("span-2") { expect("1^main:1^launch#1:1^launch#2", "span-2") }
+                expect("1^main:1^launch#1:1^launch#2")
+                expect("1^main:1^launch#1:1^launch#2")
+                launchTraced("launch#3", bgThread1) {
                     // "launch#3" is dropped because context has a TraceContextElement.
                     // The CoroutineScope (i.e. `this` in `this.launch {}`) should have a
                     // TraceContextElement, but using TraceContextElement in the passed context is
                     // incorrect.
-                    expect("1^main:1^coroutineA:1^coroutineB:1^coroutineC")
-                    launchTraced("launch#4", context1) {
-                        expect("1^main:1^coroutineA:1^coroutineB:1^coroutineC:1^coroutineA")
+                    expect("1^main:1^launch#1:1^launch#2:1^launch#3")
+                    launchTraced("launch#4", bgThread1) {
+                        expect("1^main:1^launch#1:1^launch#2:1^launch#3:1^launch#4")
                     }
                 }
             }
-            expect("1^main:1^coroutineA")
+            expect("1^main:1^launch#1")
         }
         expect("1^main")
 
         // Launching without the trace extension won't result in traces
-        launch(context1) { expect("1^main:2^coroutineA") }
-        launch(context2) { expect("1^main:3^coroutineB") }
+        launch(bgThread1) { expect("1^main:2^") }
+        launch(bgThread2) { expect("1^main:3^") }
     }
 
     @Test
     fun scopeReentry_withContextFastPath() = runTest {
-        val thread1 = newSingleThreadContext("thread-#1")
+        val thread1 = bgThread1
         val channel = Channel<Int>()
         val job =
             launchTraced("#1", thread1) {

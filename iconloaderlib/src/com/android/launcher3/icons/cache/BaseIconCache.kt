@@ -47,6 +47,7 @@ import com.android.launcher3.icons.BaseIconFactory.IconOptions
 import com.android.launcher3.icons.BitmapInfo
 import com.android.launcher3.icons.GraphicsUtils
 import com.android.launcher3.icons.IconProvider
+import com.android.launcher3.icons.SourceHint
 import com.android.launcher3.icons.cache.CacheLookupFlag.Companion.DEFAULT_LOOKUP_FLAG
 import com.android.launcher3.util.ComponentKey
 import com.android.launcher3.util.FlagOp
@@ -94,6 +95,13 @@ constructor(
     private var defaultIcon: BitmapInfo? = null
     private val userFlagOpMap = SparseArray<FlagOp>()
     private val userFormatString = SparseArray<String?>()
+
+    private val appInfoCachingLogic =
+        AppInfoCachingLogic(
+            pm = context.packageManager,
+            instantAppResolver = this::isInstantApp,
+            errorLogger = this::logPersistently,
+        )
 
     init {
         updateSystemState()
@@ -273,8 +281,8 @@ constructor(
             if (addToMemCache) cache[cacheKey] = entry
             // Check the DB first.
             val cacheEntryUpdated =
-                if (cursor == null) getEntryFromDBLocked(cacheKey, entry, lookupFlags)
-                else updateTitleAndIconLocked(cacheKey, entry, cursor, lookupFlags)
+                if (cursor == null) getEntryFromDBLocked(cacheKey, entry, lookupFlags, cachingLogic)
+                else updateTitleAndIconLocked(cacheKey, entry, cursor, lookupFlags, cachingLogic)
 
             val obj: T? by lazy { infoProvider.get() }
             if (!cacheEntryUpdated) {
@@ -409,7 +417,7 @@ constructor(
             var entryUpdated = true
 
             // Check the DB first.
-            if (!getEntryFromDBLocked(cacheKey, entry, lookupFlags)) {
+            if (!getEntryFromDBLocked(cacheKey, entry, lookupFlags, appInfoCachingLogic)) {
                 try {
                     val appInfo =
                         context
@@ -430,33 +438,18 @@ constructor(
 
                     // Load the full res icon for the application, but if useLowResIcon is set, then
                     // only keep the low resolution icon instead of the larger full-sized icon
-                    val appIcon = iconProvider.getIcon(appInfo)
-                    if (packageManager.isDefaultApplicationIcon(appIcon)) {
-                        logPersistently(
-                            String.format("Default icon returned for %s", appInfo.packageName),
-                            null,
-                        )
-                    }
-
-                    val iconInfo =
-                        iconFactory.use { li ->
-                            li.createBadgedIconBitmap(
-                                appIcon,
-                                IconOptions().setUser(user).setInstantApp(isInstantApp(appInfo)),
-                            )
-                        }
-
-                    entry.title = appInfo.loadLabel(packageManager)
-                    entry.contentDescription = getUserBadgedLabel(entry.title, user)
+                    val iconInfo = appInfoCachingLogic.loadIcon(context, this, appInfo)
                     entry.bitmap =
                         if (lookupFlags.useLowRes())
                             BitmapInfo.of(BitmapInfo.LOW_RES_ICON, iconInfo.color)
                         else iconInfo
 
+                    loadFallbackTitle(appInfo, entry, appInfoCachingLogic, user)
+
                     // Add the icon in the DB here, since these do not get written during
                     // package updates.
-                    val freshnessId = iconProvider.getStateForApp(appInfo)
-                    if (freshnessId != null) {
+                    appInfoCachingLogic.getFreshnessIdentifier(appInfo, iconProvider)?.let {
+                        freshnessId ->
                         addOrUpdateCacheDbEntry(
                             iconInfo,
                             entry.title,
@@ -483,6 +476,7 @@ constructor(
         cacheKey: ComponentKey,
         entry: CacheEntry,
         lookupFlags: CacheLookupFlag,
+        cachingLogic: CachingLogic<*>,
     ): Boolean {
         var c: Cursor? = null
         Trace.beginSection("loadIconIndividually")
@@ -497,7 +491,7 @@ constructor(
                     ),
                 )
             if (c.moveToNext()) {
-                return updateTitleAndIconLocked(cacheKey, entry, c, lookupFlags)
+                return updateTitleAndIconLocked(cacheKey, entry, c, lookupFlags, cachingLogic)
             }
         } catch (e: SQLiteException) {
             Log.d(TAG, "Error reading icon cache", e)
@@ -513,6 +507,7 @@ constructor(
         entry: CacheEntry,
         c: Cursor,
         lookupFlags: CacheLookupFlag,
+        logic: CachingLogic<*>,
     ): Boolean {
         // Set the alpha to be 255, so that we never have a wrong color
         entry.bitmap =
@@ -552,7 +547,12 @@ constructor(
                 val monoIconData = c.getBlob(INDEX_MONO_ICON)
                 if (themeController != null && monoIconData != null) {
                     entry.bitmap.themedBitmap =
-                        themeController.decode(monoIconData, entry.bitmap, factory)
+                        themeController.decode(
+                            data = monoIconData,
+                            info = entry.bitmap,
+                            factory = factory,
+                            sourceHint = SourceHint(cacheKey, logic),
+                        )
                 }
             }
         }
@@ -639,9 +639,8 @@ constructor(
         fun getPackageKey(packageName: String, user: UserHandle) =
             ComponentKey(ComponentName(packageName, packageName + EMPTY_CLASS_NAME), user)
 
-        // Ensures archived app icons are invalidated after flag is flipped.
-        // TODO: Remove conditional with FLAG_USE_NEW_ICON_FOR_ARCHIVED_APPS
-        @JvmField val RELEASE_VERSION = if (Flags.forceMonochromeAppIcons()) 3 else 2
+        // Ensures themed bitmaps in the icon cache are invalidated
+        @JvmField val RELEASE_VERSION = if (Flags.forceMonochromeAppIcons()) 6 else 5
 
         @JvmField val TABLE_NAME = "icons"
         @JvmField val COLUMN_ROWID = "rowid"

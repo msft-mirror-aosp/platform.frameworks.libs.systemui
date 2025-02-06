@@ -14,17 +14,21 @@
  * limitations under the License.
  */
 
+@file:OptIn(ExperimentalCoroutinesApi::class, DelicateCoroutinesApi::class)
+
 package com.android.test.tracing.coroutines
 
 import android.platform.test.annotations.EnableFlags
-import com.android.app.tracing.coroutines.createCoroutineTracingContext
+import com.android.app.tracing.coroutines.asyncTraced
 import com.android.app.tracing.coroutines.flow.collectLatestTraced
 import com.android.app.tracing.coroutines.flow.collectTraced
 import com.android.app.tracing.coroutines.flow.filterTraced
 import com.android.app.tracing.coroutines.flow.mapTraced
 import com.android.app.tracing.coroutines.flow.transformTraced
 import com.android.app.tracing.coroutines.launchTraced
+import com.android.app.tracing.coroutines.withContextTraced
 import com.android.systemui.Flags.FLAG_COROUTINE_TRACING
+import kotlin.coroutines.EmptyCoroutineContext
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.DelicateCoroutinesApi
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -36,7 +40,6 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.shareIn
 import kotlinx.coroutines.job
-import kotlinx.coroutines.newSingleThreadContext
 import kotlinx.coroutines.withContext
 import org.junit.Assert.assertEquals
 import org.junit.Test
@@ -44,8 +47,6 @@ import org.junit.Test
 /** Tests behavior of default names using reflection */
 @EnableFlags(FLAG_COROUTINE_TRACING)
 class DefaultNamingTest : TestBase() {
-
-    override val scope = CoroutineScope(createCoroutineTracingContext("main", testMode = true))
 
     @Test
     fun collectTraced1() {
@@ -149,7 +150,7 @@ class DefaultNamingTest : TestBase() {
             expect(1, "1^main") // top-level scope
             coldFlow.collectLatestTraced {
                 expectEvent(listOf(5, 9))
-                delay(10)
+                delay(50)
                 assertEquals(42, it) // 21 * 2 = 42
                 expect(
                     11,
@@ -178,8 +179,8 @@ class DefaultNamingTest : TestBase() {
                         delay(1)
                         emit(42)
                         expect(5, "1^main:1^")
-                    } // there is no API for passing a custom context to the new shared flow, so weg
-                    // can't pass our custom child name using `nameCoroutine()`
+                    } // there is no API for passing a custom context to the new shared flow, so we
+                    // can't pass our custom child name using `CoroutineTraceName()`
                     .shareIn(this, SharingStarted.Eagerly, 4)
 
             launchTraced("AAAA") {
@@ -362,7 +363,6 @@ class DefaultNamingTest : TestBase() {
             expect(8, "1^main")
         }
 
-    @OptIn(ExperimentalCoroutinesApi::class, DelicateCoroutinesApi::class)
     @Test
     fun collectTraced12_badTransform() =
         runTest(
@@ -372,7 +372,7 @@ class DefaultNamingTest : TestBase() {
                     (e.message?.startsWith("Flow invariant is violated") ?: false)
             },
             block = {
-                val thread1 = newSingleThreadContext("thread-#1")
+                val thread1 = bgThread1
                 expect(1, "1^main")
                 flow {
                         expect(2, "1^main", "collect:COLLECT")
@@ -385,6 +385,29 @@ class DefaultNamingTest : TestBase() {
                     .collectTraced("COLLECT") {}
             },
         )
+
+    @Test
+    fun coroutineBuilder_defaultNames() {
+        val localFun: suspend CoroutineScope.() -> Unit = {
+            expectAny(
+                arrayOf("1^main:4^DefaultNamingTest\$coroutineBuilder_defaultNames\$localFun$1"),
+                arrayOf("1^main", "DefaultNamingTest\$coroutineBuilder_defaultNames\$localFun$1"),
+                arrayOf("1^main:2^DefaultNamingTest\$coroutineBuilder_defaultNames\$localFun$1"),
+            )
+        }
+        runTest(totalEvents = 6) {
+            launchTraced { expect("1^main:1^DefaultNamingTest\$coroutineBuilder_defaultNames$1$1") }
+                .join()
+            launchTraced(block = localFun).join()
+            asyncTraced { expect("1^main:3^DefaultNamingTest\$coroutineBuilder_defaultNames$1$2") }
+                .await()
+            asyncTraced(block = localFun).await()
+            withContextTraced(context = EmptyCoroutineContext) {
+                expect("1^main", "DefaultNamingTest\$coroutineBuilder_defaultNames$1$3")
+            }
+            withContextTraced(context = EmptyCoroutineContext, block = localFun)
+        }
+    }
 }
 
 fun topLevelFun(value: Int) {

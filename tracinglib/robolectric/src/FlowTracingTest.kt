@@ -14,46 +14,49 @@
  * limitations under the License.
  */
 
+@file:OptIn(ExperimentalCoroutinesApi::class)
+
 package com.android.test.tracing.coroutines
 
 import android.platform.test.annotations.EnableFlags
 import com.android.app.tracing.coroutines.CoroutineTraceName
 import com.android.app.tracing.coroutines.createCoroutineTracingContext
+import com.android.app.tracing.coroutines.flow.collectLatestTraced
 import com.android.app.tracing.coroutines.flow.collectTraced
 import com.android.app.tracing.coroutines.flow.filterTraced
 import com.android.app.tracing.coroutines.flow.flowName
+import com.android.app.tracing.coroutines.flow.mapLatestTraced
 import com.android.app.tracing.coroutines.flow.mapTraced
 import com.android.app.tracing.coroutines.flow.shareInTraced
 import com.android.app.tracing.coroutines.flow.stateInTraced
 import com.android.app.tracing.coroutines.launchInTraced
 import com.android.app.tracing.coroutines.launchTraced
+import com.android.app.tracing.coroutines.traceCoroutine
 import com.android.systemui.Flags.FLAG_COROUTINE_TRACING
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.DelicateCoroutinesApi
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.collect
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.mapLatest
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.shareIn
 import kotlinx.coroutines.job
-import kotlinx.coroutines.newSingleThreadContext
 import kotlinx.coroutines.plus
 import kotlinx.coroutines.yield
 import org.junit.Assert.assertEquals
 import org.junit.Test
 
-@OptIn(DelicateCoroutinesApi::class, ExperimentalCoroutinesApi::class)
 @EnableFlags(FLAG_COROUTINE_TRACING)
 class FlowTracingTest : TestBase() {
-
-    override val scope = CoroutineScope(createCoroutineTracingContext("main", testMode = true))
 
     @Test
     fun collectFlow_simple() {
@@ -139,7 +142,7 @@ class FlowTracingTest : TestBase() {
         val otherScope =
             CoroutineScope(
                 createCoroutineTracingContext("other-scope", testMode = true) +
-                    newSingleThreadContext("other-thread") +
+                    bgThread1 +
                     scope.coroutineContext.job
             )
         val sharedFlow =
@@ -153,7 +156,7 @@ class FlowTracingTest : TestBase() {
                     expect("1^new-name")
                 }
                 .shareInTraced("new-name", otherScope, SharingStarted.Eagerly, 5)
-        runTest(totalEvents = 7) {
+        runTest(totalEvents = 9) {
             yield()
             expect("1^main")
             val job =
@@ -214,21 +217,21 @@ class FlowTracingTest : TestBase() {
             yield()
             expect("1^main")
             coldFlow
-                .onEach { expectAny(arrayOf("1^main:2^launchIn-for-cold")) }
+                .onEach { expect("1^main:2^launchIn-for-cold") }
                 .launchInTraced("launchIn-for-cold", this)
             val job =
                 sharedFlow
-                    .onEach { expectAny(arrayOf("1^main:3^launchIn-for-hot")) }
+                    .onEach { expect("1^main:3^launchIn-for-hot") }
                     .launchInTraced("launchIn-for-hot", this)
-            yield()
             expect("1^main")
+            delay(10)
             job.cancel()
         }
     }
 
     @Test
     fun collectFlow_badUsageOfCoroutineTraceName_coldFlowOnDifferentThread() {
-        val thread1 = newSingleThreadContext("thread-#1")
+        val thread1 = bgThread1
         // Example of bad usage of CoroutineTraceName. CoroutineTraceName is an internal API.
         // It should only be used during collection, or whenever a coroutine is launched.
         // It should not be used as an intermediate operator.
@@ -267,8 +270,8 @@ class FlowTracingTest : TestBase() {
 
     @Test
     fun collectFlow_flowOnTraced() {
-        val thread1 = newSingleThreadContext("thread-#1")
-        val thread2 = newSingleThreadContext("thread-#2")
+        val thread1 = bgThread1
+        val thread2 = bgThread2
         // Example of bad usage of CoroutineTraceName. CoroutineTraceName is an internal API.
         // It should only be used during collection, or whenever a coroutine is launched.
         // It should not be used as an intermediate operator.
@@ -301,7 +304,7 @@ class FlowTracingTest : TestBase() {
 
     @Test
     fun collectFlow_coldFlowOnDifferentThread() {
-        val thread1 = newSingleThreadContext("thread-#1")
+        val thread1 = bgThread1
         val coldFlow =
             flow {
                     expect("1^main:1^fused-name")
@@ -332,25 +335,22 @@ class FlowTracingTest : TestBase() {
 
     @Test
     fun collectTraced_coldFlowOnDifferentThread() {
-        val thread1 = newSingleThreadContext("thread-#1")
+        val thread1 = bgThread1
         val coldFlow =
             flow {
-                    expect("1^main:1^fused-name")
+                    expect("1^main:1^")
                     yield()
-                    expect()
+                    expect("1^main:1^")
                     emit(21)
-                    expect()
+                    expect("1^main:1^")
                     yield()
-                    expect()
+                    expect("1^main:1^")
                 }
-                // "UNUSED_MIDDLE_NAME" is overwritten during operator fusion because the thread
-                // of the flow did not change, meaning no new coroutine needed to be created.
-                .flowOn(CoroutineTraceName("UNUSED_MIDDLE_NAME") + thread1)
                 .map {
-                    expect("1^main:1^fused-name")
+                    expect("1^main:1^")
                     it * 2
                 }
-                .flowOn(CoroutineTraceName("fused-name") + thread1)
+                .flowOn(thread1)
 
         runTest(totalEvents = 9) {
             expect("1^main")
@@ -365,8 +365,41 @@ class FlowTracingTest : TestBase() {
     }
 
     @Test
+    fun collectTraced_collectWithTracedReceiver() {
+        val thread1 = bgThread1
+        val coldFlow =
+            flow {
+                    expect("1^main:1^")
+                    yield()
+                    expect("1^main:1^")
+                    emit(21)
+                    expect("1^main:1^")
+                    yield()
+                    expect("1^main:1^")
+                }
+                .map {
+                    expect("1^main:1^")
+                    it * 2
+                }
+                .flowOn(thread1)
+
+        runTest(totalEvents = 9) {
+            expect("1^main")
+            coldFlow.traceCoroutine("AAA") {
+                collectTraced("coldFlow") {
+                    assertEquals(42, it)
+                    expect("1^main", "AAA", "collect:coldFlow", "emit")
+                    yield()
+                    expect("1^main", "AAA", "collect:coldFlow", "emit")
+                }
+            }
+            expect("1^main")
+        }
+    }
+
+    @Test
     fun collectFlow_nameBeforeDispatcherChange() {
-        val thread1 = newSingleThreadContext("thread-#1")
+        val thread1 = bgThread1
         val coldFlow =
             flow {
                     expect("1^main:1^new-name")
@@ -391,7 +424,7 @@ class FlowTracingTest : TestBase() {
 
     @Test
     fun collectFlow_nameAfterDispatcherChange() {
-        val thread1 = newSingleThreadContext("thread-#1")
+        val thread1 = bgThread1
         val coldFlow =
             flow {
                     expect("1^main:1^new-name")
@@ -416,7 +449,7 @@ class FlowTracingTest : TestBase() {
 
     @Test
     fun collectFlow_nameBeforeAndAfterDispatcherChange() {
-        val thread1 = newSingleThreadContext("thread-#1")
+        val thread1 = bgThread1
         val coldFlow =
             flow {
                     expect("1^main:1^new-name")
@@ -443,12 +476,68 @@ class FlowTracingTest : TestBase() {
     }
 
     @Test
+    fun collectTraced_mapLatest() {
+        val coldFlow =
+            flow {
+                    expect("1^main:1^:1^", "collect:mod2") // child scope used by `collectLatest {}`
+                    emit(1) // should not get used by collectLatest {}
+                    expect("1^main:1^:1^", "collect:mod2")
+                    emit(21)
+                    expect("1^main:1^:1^", "collect:mod2")
+                }
+                .filterTraced("mod2") {
+                    // called twice because upstream has 2 emits
+                    expect("1^main:1^:1^", "collect:mod2", "filter:predicate")
+                    true
+                }
+                .run {
+                    traceCoroutine("CCC") {
+                        mapLatest {
+                            traceCoroutine("DDD") {
+                                expectAny(
+                                    arrayOf(
+                                        "1^main:1^:1^",
+                                        "collect:mod2",
+                                        "filter:emit",
+                                        "1^main:1^:1^:1^",
+                                        "DDD",
+                                    ),
+                                    arrayOf(
+                                        "1^main:1^:1^",
+                                        "collect:mod2",
+                                        "filter:emit",
+                                        "1^main:1^:1^:2^",
+                                        "DDD",
+                                    ),
+                                )
+                                it * 2
+                            }
+                        }
+                    }
+                }
+
+        runTest(totalEvents = 10) {
+            expect("1^main") // top-level scope
+            traceCoroutine("AAA") {
+                coldFlow.collectLatest {
+                    traceCoroutine("BBB") {
+                        delay(50)
+                        assertEquals(42, it)
+                        expect("1^main:1^:3^", "BBB")
+                    }
+                }
+            }
+            expect("1^main")
+        }
+    }
+
+    @Test
     fun collectFlow_badNameUsage() {
         val barrier1 = CompletableDeferred<Unit>()
         val barrier2 = CompletableDeferred<Unit>()
-        val thread1 = newSingleThreadContext("thread-#1")
-        val thread2 = newSingleThreadContext("thread-#2")
-        val thread3 = newSingleThreadContext("thread-#3")
+        val thread1 = bgThread1
+        val thread2 = bgThread2
+        val thread3 = bgThread3
         val coldFlow =
             flow {
                     expect("1^main:1^name-for-filter:1^name-for-map:1^name-for-emit")
@@ -559,24 +648,88 @@ class FlowTracingTest : TestBase() {
     }
 
     @Test
+    fun collectFlow_mapLatest() {
+        val coldFlow = flowOf(1, 2, 3)
+        runTest(totalEvents = 6) {
+            expect("1^main")
+            coldFlow
+                .mapLatestTraced("AAA") {
+                    expectAny(
+                        arrayOf("1^main:1^", "1^main:1^:1^", "mapLatest:AAA:transform"),
+                        arrayOf("1^main:1^", "1^main:1^:2^", "mapLatest:AAA:transform"),
+                        arrayOf("1^main:1^", "1^main:1^:3^", "mapLatest:AAA:transform"),
+                    )
+                    delay(10)
+                    expect("1^main:1^:3^", "mapLatest:AAA:transform")
+                }
+                .collect()
+            expect("1^main")
+        }
+    }
+
+    @Test
+    fun collectFlow_collectLatest() {
+        val coldFlow = flowOf(1, 2, 3)
+        runTest(totalEvents = 6) {
+            expect("1^main")
+            coldFlow.collectLatestTraced("CCC") {
+                expectAny(
+                    arrayOf("1^main:1^", "1^main:1^:1^", "collectLatest:CCC:action"),
+                    arrayOf("1^main:1^", "1^main:1^:2^", "collectLatest:CCC:action"),
+                    arrayOf("1^main:1^", "1^main:1^:3^", "collectLatest:CCC:action"),
+                )
+                delay(10)
+                expect("1^main:1^:3^", "collectLatest:CCC:action")
+            }
+            expect("1^main")
+        }
+    }
+
+    @Test
+    fun collectFlow_mapLatest_collectLatest() {
+        val coldFlow = flowOf(1, 2, 3)
+        runTest(totalEvents = 7) {
+            expect("1^main")
+            coldFlow
+                .mapLatestTraced("AAA") {
+                    expectAny(
+                        arrayOf("1^main:1^:1^", "1^main:1^:1^:1^", "mapLatest:AAA:transform"),
+                        arrayOf("1^main:1^:1^", "1^main:1^:1^:2^", "mapLatest:AAA:transform"),
+                        arrayOf("1^main:1^:1^", "1^main:1^:1^:3^", "mapLatest:AAA:transform"),
+                    )
+                    delay(10)
+                    expect("1^main:1^:1^:3^", "mapLatest:AAA:transform")
+                }
+                .collectLatestTraced("CCC") {
+                    expect("1^main:1^", "1^main:1^:2^", "collectLatest:CCC:action")
+                }
+            expect("1^main")
+        }
+    }
+
+    @Test
     fun collectFlow_stateIn() {
-        val flowThread = newSingleThreadContext("flow-thread")
         val otherScope =
             CoroutineScope(
                 createCoroutineTracingContext("other-scope", testMode = true) +
-                    newSingleThreadContext("other-thread") +
+                    bgThread1 +
                     scope.coroutineContext.job
             )
         val coldFlow =
-            flowOf(1, 2, 3, 4)
-                .onEach { expectAny(arrayOf("1^STATE_1"), arrayOf("2^STATE_2:1^")) }
-                .flowOn(flowThread)
-                .onEach { expectAny(arrayOf("1^STATE_1"), arrayOf("2^STATE_2")) }
+            flowOf(1, 2)
+                .onEach {
+                    delay(2)
+                    expectAny(arrayOf("1^STATE_1"), arrayOf("2^STATE_2"))
+                }
+                .flowOn(bgThread2)
 
-        runTest(totalEvents = 24) {
+        runTest(totalEvents = 10) {
             expect("1^main")
-            val state1 = coldFlow.stateInTraced("STATE_1", otherScope.plus(flowThread))
+
+            val state1 = coldFlow.stateInTraced("STATE_1", otherScope.plus(bgThread2))
             val state2 = coldFlow.stateInTraced("STATE_2", otherScope, SharingStarted.Lazily, 42)
+
+            delay(20)
 
             val job1 =
                 state1.onEach { expect("1^main:1^LAUNCH_1") }.launchInTraced("LAUNCH_1", this)
@@ -584,9 +737,11 @@ class FlowTracingTest : TestBase() {
             val job2 =
                 state2.onEach { expect("1^main:2^LAUNCH_2") }.launchInTraced("LAUNCH_2", this)
 
-            yield()
-            delay(100)
+            delay(10)
             expect("1^main")
+
+            delay(10)
+
             job1.cancel()
             job2.cancel()
         }

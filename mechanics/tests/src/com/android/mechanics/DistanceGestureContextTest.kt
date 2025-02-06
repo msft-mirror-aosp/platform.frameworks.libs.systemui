@@ -31,13 +31,13 @@ class DistanceGestureContextTest {
     fun setDistance_maxDirection_increasingInput_keepsDirection() {
         val underTest =
             DistanceGestureContext(
-                initialDistance = 0f,
+                initialDragOffset = 0f,
                 initialDirection = InputDirection.Max,
                 directionChangeSlop = 5f,
             )
 
         for (value in 0..6) {
-            underTest.distance = value.toFloat()
+            underTest.dragOffset = value.toFloat()
             assertThat(underTest.direction).isEqualTo(InputDirection.Max)
         }
     }
@@ -46,13 +46,13 @@ class DistanceGestureContextTest {
     fun setDistance_minDirection_decreasingInput_keepsDirection() {
         val underTest =
             DistanceGestureContext(
-                initialDistance = 0f,
+                initialDragOffset = 0f,
                 initialDirection = InputDirection.Min,
                 directionChangeSlop = 5f,
             )
 
         for (value in 0 downTo -6) {
-            underTest.distance = value.toFloat()
+            underTest.dragOffset = value.toFloat()
             assertThat(underTest.direction).isEqualTo(InputDirection.Min)
         }
     }
@@ -61,12 +61,12 @@ class DistanceGestureContextTest {
     fun setDistance_maxDirection_decreasingInput_keepsDirection_belowDirectionChangeSlop() {
         val underTest =
             DistanceGestureContext(
-                initialDistance = 0f,
+                initialDragOffset = 0f,
                 initialDirection = InputDirection.Max,
                 directionChangeSlop = 5f,
             )
 
-        underTest.distance = -5f
+        underTest.dragOffset = -5f
         assertThat(underTest.direction).isEqualTo(InputDirection.Max)
     }
 
@@ -74,12 +74,12 @@ class DistanceGestureContextTest {
     fun setDistance_maxDirection_decreasingInput_switchesDirection_aboveDirectionChangeSlop() {
         val underTest =
             DistanceGestureContext(
-                initialDistance = 0f,
+                initialDragOffset = 0f,
                 initialDirection = InputDirection.Max,
                 directionChangeSlop = 5f,
             )
 
-        underTest.distance = (-5f).nextDown()
+        underTest.dragOffset = (-5f).nextDown()
         assertThat(underTest.direction).isEqualTo(InputDirection.Min)
     }
 
@@ -87,12 +87,12 @@ class DistanceGestureContextTest {
     fun setDistance_minDirection_increasingInput_keepsDirection_belowDirectionChangeSlop() {
         val underTest =
             DistanceGestureContext(
-                initialDistance = 0f,
+                initialDragOffset = 0f,
                 initialDirection = InputDirection.Min,
                 directionChangeSlop = 5f,
             )
 
-        underTest.distance = 5f
+        underTest.dragOffset = 5f
         assertThat(underTest.direction).isEqualTo(InputDirection.Min)
     }
 
@@ -100,12 +100,12 @@ class DistanceGestureContextTest {
     fun setDistance_minDirection_decreasingInput_switchesDirection_aboveDirectionChangeSlop() {
         val underTest =
             DistanceGestureContext(
-                initialDistance = 0f,
+                initialDragOffset = 0f,
                 initialDirection = InputDirection.Min,
                 directionChangeSlop = 5f,
             )
 
-        underTest.distance = 5f.nextUp()
+        underTest.dragOffset = 5f.nextUp()
         assertThat(underTest.direction).isEqualTo(InputDirection.Max)
     }
 
@@ -113,39 +113,39 @@ class DistanceGestureContextTest {
     fun reset_resetsFurthestValue() {
         val underTest =
             DistanceGestureContext(
-                initialDistance = 10f,
+                initialDragOffset = 10f,
                 initialDirection = InputDirection.Max,
                 directionChangeSlop = 1f,
             )
 
         underTest.reset(5f, direction = InputDirection.Max)
         assertThat(underTest.direction).isEqualTo(InputDirection.Max)
-        assertThat(underTest.distance).isEqualTo(5f)
+        assertThat(underTest.dragOffset).isEqualTo(5f)
 
-        underTest.distance -= 1f
+        underTest.dragOffset -= 1f
         assertThat(underTest.direction).isEqualTo(InputDirection.Max)
-        assertThat(underTest.distance).isEqualTo(4f)
+        assertThat(underTest.dragOffset).isEqualTo(4f)
 
-        underTest.distance = underTest.distance.nextDown()
+        underTest.dragOffset = underTest.dragOffset.nextDown()
         assertThat(underTest.direction).isEqualTo(InputDirection.Min)
-        assertThat(underTest.distance).isWithin(0.0001f).of(4f)
+        assertThat(underTest.dragOffset).isWithin(0.0001f).of(4f)
     }
 
     @Test
     fun setDirectionChangeSlop_smallerThanCurrentDelta_switchesDirection() {
         val underTest =
             DistanceGestureContext(
-                initialDistance = 10f,
+                initialDragOffset = 10f,
                 initialDirection = InputDirection.Max,
                 directionChangeSlop = 5f,
             )
 
-        underTest.distance -= 2f
+        underTest.dragOffset -= 2f
         assertThat(underTest.direction).isEqualTo(InputDirection.Max)
-        assertThat(underTest.distance).isEqualTo(8f)
+        assertThat(underTest.dragOffset).isEqualTo(8f)
 
         underTest.directionChangeSlop = 1f
         assertThat(underTest.direction).isEqualTo(InputDirection.Min)
-        assertThat(underTest.distance).isEqualTo(8f)
+        assertThat(underTest.dragOffset).isEqualTo(8f)
     }
 }

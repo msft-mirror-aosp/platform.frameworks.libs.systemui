@@ -26,6 +26,7 @@ import android.util.SizeF
 import com.google.android.wallpaper.weathereffects.graphics.utils.GraphicsUtils
 import com.google.android.wallpaper.weathereffects.graphics.utils.MatrixUtils.calculateTransformDifference
 import com.google.android.wallpaper.weathereffects.graphics.utils.MatrixUtils.centerCropMatrix
+import com.google.android.wallpaper.weathereffects.graphics.utils.MatrixUtils.getScale
 import com.google.android.wallpaper.weathereffects.graphics.utils.MatrixUtils.invertAndTransposeMatrix
 import kotlin.random.Random
 
@@ -47,6 +48,7 @@ abstract class WeatherEffectBase(
     // Apply to weather components not rely on image textures
     // Should be identity matrix in editor, and only change when parallax applied in homescreen
     private val transformMatrixWeather: FloatArray = FloatArray(9)
+    protected var bitmapScale = getScale(centerCropMatrix)
     protected var elapsedTime: Float = 0f
 
     abstract val shader: RuntimeShader
@@ -56,6 +58,7 @@ abstract class WeatherEffectBase(
 
     override fun setMatrix(matrix: Matrix) {
         this.parallaxMatrix.set(matrix)
+        bitmapScale = getScale(parallaxMatrix)
         adjustCropping(surfaceSize)
     }
 
@@ -111,6 +114,7 @@ abstract class WeatherEffectBase(
                 SizeF(background.width.toFloat(), background.height.toFloat()),
             )
         parallaxMatrix.set(centerCropMatrix)
+        bitmapScale = getScale(centerCropMatrix)
         shader.setInputBuffer(
             "background",
             BitmapShader(this.background, Shader.TileMode.MIRROR, Shader.TileMode.MIRROR),

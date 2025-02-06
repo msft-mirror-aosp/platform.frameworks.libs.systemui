@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2024 The Android Open Source Project
+ * Copyright (C) 2025 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -13,7 +13,14 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+package com.google.android.ambient.app
 
-package com.android.test.tracing.coroutines.util
+/**
+ * Generic high level interface for write sessions created from [AmbientDataPublishingManager]'s.
+ */
+// TODO(b/391934208): This file is partially migrated. Lack reportUsage, delete.
+interface AmbientDataWriteSession {
+    fun publish(ambientData: AmbientData)
 
-internal fun currentThreadId(): Long = Thread.currentThread().id
+    fun close()
+}

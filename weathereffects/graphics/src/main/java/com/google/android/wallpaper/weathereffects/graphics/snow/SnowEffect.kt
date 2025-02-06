@@ -53,11 +53,13 @@ class SnowEffect(
     private var frameBuffer = FrameBuffer(background.width, background.height)
     private val frameBufferPaint = Paint().also { it.shader = snowConfig.accumulatedSnowShader }
 
-    private var scale = getScale(parallaxMatrix)
-
     init {
         frameBuffer.setRenderEffect(
-            RenderEffect.createBlurEffect(4f / scale, 4f / scale, Shader.TileMode.CLAMP)
+            RenderEffect.createBlurEffect(
+                BLUR_RADIUS / bitmapScale,
+                BLUR_RADIUS / bitmapScale,
+                Shader.TileMode.CLAMP,
+            )
         )
         updateTextureUniforms()
         adjustCropping(surfaceSize)
@@ -91,24 +93,30 @@ class SnowEffect(
          * Increase effect speed as weather intensity decreases. This compensates for the floaty
          * appearance when there are fewer particles at the original speed.
          */
-        snowSpeed = MathUtils.map(intensity, 0f, 1f, 2.5f, 1.7f)
-        this.intensity = intensity
-        // Regenerate accumulated snow since the uniform changed.
-        generateAccumulatedSnow()
+        if (this.intensity != intensity) {
+            snowSpeed = MathUtils.map(intensity, 0f, 1f, 2.5f, 1.7f)
+            this.intensity = intensity
+        }
     }
 
     override fun setBitmaps(foreground: Bitmap?, background: Bitmap): Boolean {
         if (!super.setBitmaps(foreground, background)) {
             return false
         }
-        scale = getScale(parallaxMatrix)
+
         frameBuffer.close()
-        frameBuffer =
-            FrameBuffer(background.width, background.height).apply {
-                setRenderEffect(
-                    RenderEffect.createBlurEffect(4f / scale, 4f / scale, Shader.TileMode.CLAMP)
+        frameBuffer = FrameBuffer(background.width, background.height)
+        val newScale = getScale(parallaxMatrix)
+        if (bitmapScale != newScale) {
+            bitmapScale = newScale
+            frameBuffer.setRenderEffect(
+                RenderEffect.createBlurEffect(
+                    BLUR_RADIUS / bitmapScale,
+                    BLUR_RADIUS / bitmapScale,
+                    Shader.TileMode.CLAMP,
                 )
-            }
+            )
+        }
         // GenerateAccumulatedSnow needs foreground for accumulatedSnowShader, and needs frameBuffer
         // which is also changed with background
         generateAccumulatedSnow()
@@ -128,8 +136,18 @@ class SnowEffect(
         get() = snowConfig.colorGradingIntensity
 
     override fun setMatrix(matrix: Matrix) {
+        val oldScale = bitmapScale
         super.setMatrix(matrix)
-        generateAccumulatedSnow()
+        if (bitmapScale != oldScale) {
+            frameBuffer.setRenderEffect(
+                RenderEffect.createBlurEffect(
+                    BLUR_RADIUS / bitmapScale,
+                    BLUR_RADIUS / bitmapScale,
+                    Shader.TileMode.CLAMP,
+                )
+            )
+            generateAccumulatedSnow()
+        }
     }
 
     override fun updateTextureUniforms() {
@@ -152,16 +170,17 @@ class SnowEffect(
 
     private fun generateAccumulatedSnow() {
         val renderingCanvas = frameBuffer.beginDrawing()
-        snowConfig.accumulatedSnowShader.setFloatUniform("scale", scale)
+        snowConfig.accumulatedSnowShader.setFloatUniform("scale", bitmapScale)
         snowConfig.accumulatedSnowShader.setFloatUniform(
             "snowThickness",
-            snowConfig.maxAccumulatedSnowThickness * intensity / scale,
+            SNOW_THICKNESS / bitmapScale,
         )
         snowConfig.accumulatedSnowShader.setFloatUniform("screenWidth", surfaceSize.width)
         snowConfig.accumulatedSnowShader.setInputBuffer(
             "foreground",
             BitmapShader(foreground, Shader.TileMode.MIRROR, Shader.TileMode.MIRROR),
         )
+
         renderingCanvas.drawPaint(frameBufferPaint)
         frameBuffer.endDrawing()
 
@@ -179,5 +198,13 @@ class SnowEffect(
     override fun updateGridSize(newSurfaceSize: SizeF) {
         val gridSize = GraphicsUtils.computeDefaultGridSize(newSurfaceSize, snowConfig.pixelDensity)
         snowConfig.shader.setFloatUniform("gridSize", 7 * gridSize, 2f * gridSize)
+    }
+
+    companion object {
+        val BLUR_RADIUS = 4f
+        // Use blur effect for both blurring the snow accumulation and generating a gradient edge
+        // so that intensity can control snow thickness by cut the gradient edge in snow_effect
+        // shader.
+        val SNOW_THICKNESS = 6f
     }
 }

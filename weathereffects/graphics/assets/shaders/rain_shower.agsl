@@ -41,8 +41,6 @@ Rain generateRain(
     in float rainIntensity
 ) {
     /* Grid. */
-    // Number of rows and columns (each one is a cell, a drop).
-    float cellAspectRatio = rainGridSize.x / rainGridSize.y;
     // Aspect ratio impacts visible cells.
     uv.y /= screenAspectRatio;
     // scale the UV to allocate number of rows and columns.

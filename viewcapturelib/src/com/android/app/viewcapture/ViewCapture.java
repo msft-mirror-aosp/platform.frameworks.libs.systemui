@@ -63,6 +63,7 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
+import java.util.stream.Collectors;
 
 /**
  * Utility class for capturing view data every frame
@@ -161,9 +162,12 @@ public abstract class ViewCapture {
     public void stopCapture(@NonNull View rootView) {
         mListeners.forEach(it -> {
             if (rootView == it.mRoot) {
-                runOnUiThread(() -> it.mRoot.getViewTreeObserver().removeOnDrawListener(it),
-                        it.mRoot);
-                it.mRoot = null;
+                runOnUiThread(() -> {
+                    if (it.mRoot != null) {
+                        it.mRoot.getViewTreeObserver().removeOnDrawListener(it);
+                        it.mRoot = null;
+                    }
+                }, it.mRoot);
             }
         });
     }
@@ -201,7 +205,7 @@ public abstract class ViewCapture {
     }
 
     private static List<String> toStringList(List<Class> classList) {
-        return classList.stream().map(Class::getName).toList();
+        return classList.stream().map(Class::getName).collect(Collectors.toList());
     }
 
     public CompletableFuture<Optional<MotionWindowData>> getDumpTask(View view) {
@@ -218,10 +222,15 @@ public abstract class ViewCapture {
     private CompletableFuture<List<WindowData>> getWindowData(Context context,
             ArrayList<Class> outClassList, Predicate<WindowListener> filter) {
         ViewIdProvider idProvider = new ViewIdProvider(context.getResources());
-        return CompletableFuture.supplyAsync(() ->
-                mListeners.stream().filter(filter).toList(), MAIN_EXECUTOR).thenApplyAsync(it ->
-                        it.stream().map(l -> l.dumpToProto(idProvider, outClassList)).toList(),
-                mBgExecutor);
+        return CompletableFuture.supplyAsync(
+                () -> mListeners.stream()
+                        .filter(filter)
+                        .collect(Collectors.toList()),
+                MAIN_EXECUTOR).thenApplyAsync(
+                        it -> it.stream()
+                                .map(l -> l.dumpToProto(idProvider, outClassList))
+                                .collect(Collectors.toList()),
+                        mBgExecutor);
     }
 
     @WorkerThread
@@ -325,15 +334,24 @@ public abstract class ViewCapture {
         @UiThread
         public void onDraw() {
             Trace.beginSection("vc#onDraw");
-            captureViewTree(mRoot, mViewPropertyRef);
-            ViewPropertyRef captured = mViewPropertyRef.next;
-            if (captured != null) {
-                captured.callback = mCaptureCallback;
-                captured.elapsedRealtimeNanos = SystemClock.elapsedRealtimeNanos();
-                mBgExecutor.execute(captured);
+            try {
+                View root = mRoot;
+                if (root == null) {
+                    // Handle the corner case where another (non-UI) thread
+                    // concurrently stopped the capture and set mRoot = null
+                    return;
+                }
+                captureViewTree(root, mViewPropertyRef);
+                ViewPropertyRef captured = mViewPropertyRef.next;
+                if (captured != null) {
+                    captured.callback = mCaptureCallback;
+                    captured.elapsedRealtimeNanos = SystemClock.elapsedRealtimeNanos();
+                    mBgExecutor.execute(captured);
+                }
+                mIsFirstFrame = false;
+            } finally {
+                Trace.endSection();
             }
-            mIsFirstFrame = false;
-            Trace.endSection();
         }
 
         /**
@@ -494,9 +512,11 @@ public abstract class ViewCapture {
         @AnyThread
         void detachFromRoot() {
             mIsActive = false;
-            if (mRoot != null) {
-                runOnUiThread(() -> mRoot.getViewTreeObserver().removeOnDrawListener(this), mRoot);
-            }
+            runOnUiThread(() -> {
+                if (mRoot != null) {
+                    mRoot.getViewTreeObserver().removeOnDrawListener(this);
+                }
+            }, mRoot);
         }
 
         @UiThread
