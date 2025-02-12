@@ -60,6 +60,7 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
+import java.util.stream.Collectors;
 
 /**
  * Utility class for capturing view data every frame
@@ -206,7 +207,7 @@ public abstract class ViewCapture {
     }
 
     private static List<String> toStringList(List<Class> classList) {
-        return classList.stream().map(Class::getName).toList();
+        return classList.stream().map(Class::getName).collect(Collectors.toList());
     }
 
     public CompletableFuture<Optional<MotionWindowData>> getDumpTask(View view) {
@@ -223,10 +224,15 @@ public abstract class ViewCapture {
     private CompletableFuture<List<WindowData>> getWindowData(Context context,
             ArrayList<Class> outClassList, Predicate<WindowListener> filter) {
         ViewIdProvider idProvider = new ViewIdProvider(context.getResources());
-        return CompletableFuture.supplyAsync(() ->
-                mListeners.stream().filter(filter).toList(), MAIN_EXECUTOR).thenApplyAsync(it ->
-                        it.stream().map(l -> l.dumpToProto(idProvider, outClassList)).toList(),
-                mBgExecutor);
+        return CompletableFuture.supplyAsync(
+                () -> mListeners.stream()
+                        .filter(filter)
+                        .collect(Collectors.toList()),
+                MAIN_EXECUTOR).thenApplyAsync(
+                        it -> it.stream()
+                                .map(l -> l.dumpToProto(idProvider, outClassList))
+                                .collect(Collectors.toList()),
+                        mBgExecutor);
     }
 
     @WorkerThread
