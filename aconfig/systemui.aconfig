@@ -66,6 +66,30 @@ flag {
 flag {
     name: "new_customization_picker_ui"
     namespace: "systemui"
-    description: "Enables the BC25 design of the customization picker UI."
+    description: "Enables the new design of the customization picker UI."
     bug: "339081035"
+}
+
+flag {
+    name: "ambient_aod"
+    namespace: "systemui"
+    description: "Enables ambient wallpaper and AOD enhancements"
+    bug: "372655702"
+}
+
+flag {
+    name: "enable_launcher_icon_shapes"
+    namespace: "systemui"
+    description: "Enables launcher icon shapes customization"
+    bug: "348708061"
+}
+
+flag {
+    name: "smartspace_sports_card_background"
+    namespace: "systemui"
+    description: "Enables Smartspace sports card background protection and related ui updates"
+    bug: "380285747"
+    metadata {
+         purpose: PURPOSE_BUGFIX
+    }
 }

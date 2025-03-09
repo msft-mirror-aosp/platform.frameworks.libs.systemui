@@ -252,7 +252,7 @@ internal class MSDLRepositoryImpl : MSDLRepository {
                         HapticComposition(
                             listOf(
                                 HapticCompositionPrimitive(
-                                    VibrationEffect.Composition.PRIMITIVE_TICK,
+                                    VibrationEffect.Composition.PRIMITIVE_CLICK,
                                     scale = 1f,
                                     delayMillis = 0,
                                 )
@@ -260,7 +260,24 @@ internal class MSDLRepositoryImpl : MSDLRepository {
                             VibrationEffect.createPredefined(VibrationEffect.EFFECT_TICK),
                         )
                     },
-                HapticToken.DRAG_INDICATOR to
+                HapticToken.DRAG_INDICATOR_CONTINUOUS to
+                    MSDLHapticData {
+                        HapticComposition(
+                            List(size = 5) {
+                                HapticCompositionPrimitive(
+                                    VibrationEffect.Composition.PRIMITIVE_LOW_TICK,
+                                    scale = 0.3f,
+                                    delayMillis = 0,
+                                )
+                            },
+                            VibrationEffect.createWaveform(
+                                longArrayOf(10, 20, 20, 10),
+                                intArrayOf(10, 30, 50, 10),
+                                -1,
+                            ),
+                        )
+                    },
+                HapticToken.DRAG_INDICATOR_DISCRETE to
                     MSDLHapticData {
                         HapticComposition(
                             listOf(

@@ -17,19 +17,19 @@
 package com.android.launcher3.icons.cache;
 
 import android.content.ComponentName;
-import android.content.pm.PackageManager;
+import android.content.pm.ApplicationInfo;
 import android.graphics.drawable.Drawable;
 import android.os.UserHandle;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 
+import com.android.launcher3.icons.IconProvider;
+
 /**
  * A simple interface to represent an object which can be added to icon cache
- *
- * @param <T> Any subclass of the icon cache with which this object is associated
  */
-public interface CachedObject<T extends BaseIconCache> {
+public interface CachedObject {
 
     /**
      * Returns the component name for the underlying object
@@ -44,13 +44,28 @@ public interface CachedObject<T extends BaseIconCache> {
     /**
      * Loads the user visible label for the provided object
      */
-    @Nullable CharSequence getLabel(PackageManager pm);
+    @Nullable CharSequence getLabel();
 
     /**
      * Loads the user visible icon for the provided object
      */
     @Nullable
-    default Drawable getFullResIcon(@NonNull T cache) {
+    default Drawable getFullResIcon(@NonNull BaseIconCache cache) {
         return null;
+    }
+
+    /**
+     * @see CachingLogic#getApplicationInfo
+     */
+    @Nullable
+    ApplicationInfo getApplicationInfo();
+
+    /**
+     * Returns a persistable string that can be used to indicate indicate the correctness of the
+     * cache for the provided item
+     */
+    @Nullable
+    default String getFreshnessIdentifier(@NonNull IconProvider iconProvider) {
+        return iconProvider.getStateForApp(getApplicationInfo());
     }
 }

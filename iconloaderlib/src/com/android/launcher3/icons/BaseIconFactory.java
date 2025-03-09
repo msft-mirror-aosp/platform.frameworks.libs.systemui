@@ -43,7 +43,6 @@ import com.android.launcher3.util.FlagOp;
 import com.android.launcher3.util.UserIconInfo;
 
 import java.lang.annotation.Retention;
-import java.util.Objects;
 
 /**
  * This class will be moved to androidx library. There shouldn't be any dependency outside
@@ -88,7 +87,7 @@ public class BaseIconFactory implements AutoCloseable {
     protected final int mFullResIconDpi;
     protected final int mIconBitmapSize;
 
-    protected boolean mMonoIconEnabled;
+    protected IconThemeController mThemeController;
 
     @Nullable
     private IconNormalizer mNormalizer;
@@ -145,8 +144,17 @@ public class BaseIconFactory implements AutoCloseable {
         return mNormalizer;
     }
 
+    @Nullable
+    public IconThemeController getThemeController() {
+        return mThemeController;
+    }
+
     public int getFullResIconDpi() {
         return mFullResIconDpi;
+    }
+
+    public int getIconBitmapSize() {
+        return mIconBitmapSize;
     }
 
     @SuppressWarnings("deprecation")
@@ -234,28 +242,11 @@ public class BaseIconFactory implements AutoCloseable {
 
         if (adaptiveIcon instanceof BitmapInfo.Extender extender) {
             info = extender.getExtendedInfo(bitmap, color, this, scale[0]);
-        } else if (IconProvider.ATLEAST_T && mMonoIconEnabled) {
-            Drawable mono = getMonochromeDrawable(adaptiveIcon);
-            if (mono != null) {
-                info.setMonoIcon(createIconBitmap(mono, scale[0], MODE_ALPHA), this);
-            }
+        } else if (IconProvider.ATLEAST_T && mThemeController != null && adaptiveIcon != null) {
+            info.setThemedBitmap(mThemeController.createThemedBitmap(adaptiveIcon, info, this));
         }
         info = info.withFlags(getBitmapFlagOp(options));
         return info;
-    }
-
-    /**
-     * Returns a monochromatic version of the given drawable or null, if it is not supported
-     *
-     * @param base the original icon
-     */
-    @TargetApi(Build.VERSION_CODES.TIRAMISU)
-    protected Drawable getMonochromeDrawable(AdaptiveIconDrawable base) {
-        Drawable mono = base.getMonochrome();
-        if (mono != null) {
-            return new ClippedMonoDrawable(mono);
-        }
-        return null;
     }
 
     @NonNull
@@ -383,7 +374,7 @@ public class BaseIconFactory implements AutoCloseable {
     }
 
     @NonNull
-    protected Bitmap createIconBitmap(@Nullable final Drawable icon, final float scale,
+    public Bitmap createIconBitmap(@Nullable final Drawable icon, final float scale,
             @BitmapGenerationMode int bitmapGenerationMode) {
         final int size = mIconBitmapSize;
         final Bitmap bitmap;
@@ -488,14 +479,8 @@ public class BaseIconFactory implements AutoCloseable {
     }
 
     @NonNull
-    public BitmapInfo makeDefaultIcon() {
-        return createBadgedIconBitmap(getFullResDefaultActivityIcon(mFullResIconDpi));
-    }
-
-    @NonNull
-    public static Drawable getFullResDefaultActivityIcon(final int iconDpi) {
-        return Objects.requireNonNull(Resources.getSystem().getDrawableForDensity(
-                android.R.drawable.sym_def_app_icon, iconDpi));
+    public BitmapInfo makeDefaultIcon(IconProvider iconProvider) {
+        return createBadgedIconBitmap(iconProvider.getFullResDefaultActivityIcon(mFullResIconDpi));
     }
 
     /**
@@ -610,26 +595,6 @@ public class BaseIconFactory implements AutoCloseable {
         @Override
         public int getIntrinsicWidth() {
             return 1;
-        }
-    }
-
-    protected static class ClippedMonoDrawable extends InsetDrawable {
-
-        @NonNull
-        private final AdaptiveIconDrawable mCrop;
-
-        public ClippedMonoDrawable(@Nullable final Drawable base) {
-            super(base, -getExtraInsetFraction());
-            mCrop = new AdaptiveIconDrawable(new ColorDrawable(Color.BLACK), null);
-        }
-
-        @Override
-        public void draw(Canvas canvas) {
-            mCrop.setBounds(getBounds());
-            int saveCount = canvas.save();
-            canvas.clipPath(mCrop.getIconMask());
-            super.draw(canvas);
-            canvas.restoreToCount(saveCount);
         }
     }
 

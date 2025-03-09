@@ -36,11 +36,11 @@ import com.google.android.torus.core.wallpaper.listener.LiveWallpaperKeyguardEve
 import java.lang.ref.WeakReference
 
 /**
- * Implements [WallpaperService] using Filament to render the wallpaper.
- * An instance of this class should only implement [getWallpaperEngine]
+ * Implements [WallpaperService] using Filament to render the wallpaper. An instance of this class
+ * should only implement [getWallpaperEngine]
  *
- * Note: [LiveWallpaper] subclasses must include the following attribute/s
- * in the AndroidManifest.xml:
+ * Note: [LiveWallpaper] subclasses must include the following attribute/s in the
+ * AndroidManifest.xml:
  * - android:configChanges="uiMode"
  */
 abstract class LiveWallpaper : WallpaperService() {
@@ -50,6 +50,7 @@ abstract class LiveWallpaper : WallpaperService() {
         const val COMMAND_KEYGUARD_GOING_AWAY = "android.wallpaper.keyguardgoingaway"
         const val COMMAND_GOING_TO_SLEEP = "android.wallpaper.goingtosleep"
         const val COMMAND_PREVIEW_INFO = "android.wallpaper.previewinfo"
+        const val COMMAND_LOCKSCREEN_LAYOUT_CHANGED = "android.wallpaper.lockscreen_layout_changed"
         const val WALLPAPER_FLAG_NOT_FOUND = -1
     }
 
@@ -77,40 +78,41 @@ abstract class LiveWallpaper : WallpaperService() {
          * through WallpaperService.Engine.onCommand events that should be more accurate.
          */
         if (Build.VERSION.SDK_INT <= Build.VERSION_CODES.R) {
-            wakeStateReceiver = object : BroadcastReceiver() {
-                override fun onReceive(context: Context, intent: Intent) {
-                    val positionExtras = Bundle()
-                    when (intent.action) {
-                        Intent.ACTION_SCREEN_ON -> {
-                            positionExtras.putInt(
-                                LiveWallpaperEventListener.WAKE_ACTION_LOCATION_X,
-                                -1
-                            )
-                            positionExtras.putInt(
-                                LiveWallpaperEventListener.WAKE_ACTION_LOCATION_Y,
-                                -1
-                            )
-                            wakeStateChangeListeners.forEach {
-                                it.get()?.onWake(positionExtras)
+            wakeStateReceiver =
+                object : BroadcastReceiver() {
+                    override fun onReceive(context: Context, intent: Intent) {
+                        val positionExtras = Bundle()
+                        when (intent.action) {
+                            Intent.ACTION_SCREEN_ON -> {
+                                positionExtras.putInt(
+                                    LiveWallpaperEventListener.WAKE_ACTION_LOCATION_X,
+                                    -1,
+                                )
+                                positionExtras.putInt(
+                                    LiveWallpaperEventListener.WAKE_ACTION_LOCATION_Y,
+                                    -1,
+                                )
+                                wakeStateChangeListeners.forEach {
+                                    it.get()?.onWake(positionExtras)
+                                }
                             }
-                        }
 
-                        Intent.ACTION_SCREEN_OFF -> {
-                            positionExtras.putInt(
-                                LiveWallpaperEventListener.SLEEP_ACTION_LOCATION_X,
-                                -1
-                            )
-                            positionExtras.putInt(
-                                LiveWallpaperEventListener.SLEEP_ACTION_LOCATION_Y,
-                                -1
-                            )
-                            wakeStateChangeListeners.forEach {
-                                it.get()?.onSleep(positionExtras)
+                            Intent.ACTION_SCREEN_OFF -> {
+                                positionExtras.putInt(
+                                    LiveWallpaperEventListener.SLEEP_ACTION_LOCATION_X,
+                                    -1,
+                                )
+                                positionExtras.putInt(
+                                    LiveWallpaperEventListener.SLEEP_ACTION_LOCATION_Y,
+                                    -1,
+                                )
+                                wakeStateChangeListeners.forEach {
+                                    it.get()?.onSleep(positionExtras)
+                                }
                             }
                         }
                     }
                 }
-            }
             registerReceiver(wakeStateReceiver, wakeStateChangeIntentFilter)
         }
     }
@@ -121,22 +123,21 @@ abstract class LiveWallpaper : WallpaperService() {
     }
 
     /**
-     * Must be implemented to return a new instance of [TorusEngine].
-     * If you want it to subscribe to wallpaper interactions (offset, preview, zoom...) the engine
-     * should also implement [LiveWallpaperEventListener]. If you want it to subscribe to touch
-     * events, it should implement [TorusTouchListener].
+     * Must be implemented to return a new instance of [TorusEngine]. If you want it to subscribe to
+     * wallpaper interactions (offset, preview, zoom...) the engine should also implement
+     * [LiveWallpaperEventListener]. If you want it to subscribe to touch events, it should
+     * implement [TorusTouchListener].
      *
      * Note: You might have multiple Engines running at the same time (when the wallpaper is set as
-     * the active wallpaper and the user is in the wallpaper picker viewing a preview of it
-     * as well). You can track the lifecycle when *any* Engine is active using the
+     * the active wallpaper and the user is in the wallpaper picker viewing a preview of it as
+     * well). You can track the lifecycle when *any* Engine is active using the
      * is{First/Last}ActiveInstance parameters of the create/destroy methods.
-     *
      */
     abstract fun getWallpaperEngine(context: Context, surfaceHolder: SurfaceHolder): TorusEngine
 
     /**
-     * returns a new instance of [LiveWallpaperEngineWrapper].
-     * Caution: This function should not be override when extending [LiveWallpaper] class.
+     * returns a new instance of [LiveWallpaperEngineWrapper]. Caution: This function should not be
+     * override when extending [LiveWallpaper] class.
      */
     override fun onCreateEngine(): Engine {
         val wrapper = LiveWallpaperEngineWrapper()
@@ -197,8 +198,16 @@ abstract class LiveWallpaper : WallpaperService() {
         }
 
         /**
-         * Triggers the [WallpaperService] to recompute the Wallpaper Colors.
+         * Returns the information if the wallpaper is visible.
          */
+        fun isVisible(): Boolean {
+            this.wallpaperServiceEngine?.let {
+                return it.isVisible
+            }
+            return false
+        }
+
+        /** Triggers the [WallpaperService] to recompute the Wallpaper Colors. */
         fun notifyWallpaperColorsChanged() {
             this.wallpaperServiceEngine?.notifyColorsChanged()
         }
@@ -227,11 +236,11 @@ abstract class LiveWallpaper : WallpaperService() {
 
     /**
      * Implementation of [WallpaperService.Engine] that works as a wrapper. If we used a
-     * [WallpaperService.Engine] instance as the framework engine, we would find the problem
-     * that the engine will be created for preview, then destroyed and recreated again when the
-     * wallpaper is set. This behavior may cause to load assets multiple time for every time the
-     * Rendering engine is created. Also, wrapping our [TorusEngine] inside
-     * [WallpaperService.Engine] allow us to reuse [TorusEngine] in other places, like Activities.
+     * [WallpaperService.Engine] instance as the framework engine, we would find the problem that
+     * the engine will be created for preview, then destroyed and recreated again when the wallpaper
+     * is set. This behavior may cause to load assets multiple time for every time the Rendering
+     * engine is created. Also, wrapping our [TorusEngine] inside [WallpaperService.Engine] allow us
+     * to reuse [TorusEngine] in other places, like Activities.
      */
     private inner class LiveWallpaperEngineWrapper : WallpaperService.Engine() {
         private lateinit var wallpaperEngine: TorusEngine
@@ -245,11 +254,12 @@ abstract class LiveWallpaper : WallpaperService() {
              * For Android 10 (SDK 29).
              * This is needed for Foldables and multiple display devices.
              */
-            val context = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                displayContext ?: this@LiveWallpaper
-            } else {
-                this@LiveWallpaper
-            }
+            val context =
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                    displayContext ?: this@LiveWallpaper
+                } else {
+                    this@LiveWallpaper
+                }
 
             wallpaperEngine = getWallpaperEngine(context, surfaceHolder)
             numEngines++
@@ -298,7 +308,7 @@ abstract class LiveWallpaper : WallpaperService() {
             holder: SurfaceHolder?,
             format: Int,
             width: Int,
-            height: Int
+            height: Int,
         ) {
             super.onSurfaceChanged(holder, format, width, height)
             wallpaperEngine.resize(width, height)
@@ -310,7 +320,7 @@ abstract class LiveWallpaper : WallpaperService() {
             xOffsetStep: Float,
             yOffsetStep: Float,
             xPixelOffset: Int,
-            yPixelOffset: Int
+            yPixelOffset: Int,
         ) {
             super.onOffsetsChanged(
                 xOffset,
@@ -318,7 +328,7 @@ abstract class LiveWallpaper : WallpaperService() {
                 xOffsetStep,
                 yOffsetStep,
                 xPixelOffset,
-                yPixelOffset
+                yPixelOffset,
             )
 
             if (wallpaperEngine is LiveWallpaperEventListener) {
@@ -328,7 +338,7 @@ abstract class LiveWallpaper : WallpaperService() {
                         1.0f
                     } else {
                         xOffsetStep
-                    }
+                    },
                 )
             }
         }
@@ -368,7 +378,7 @@ abstract class LiveWallpaper : WallpaperService() {
             y: Int,
             z: Int,
             extras: Bundle?,
-            resultRequested: Boolean
+            resultRequested: Boolean,
         ): Bundle? {
             when (action) {
                 COMMAND_REAPPLY -> onWallpaperReapplied()
@@ -386,6 +396,11 @@ abstract class LiveWallpaper : WallpaperService() {
                 }
                 COMMAND_KEYGUARD_GOING_AWAY -> onKeyguardGoingAway()
                 COMMAND_PREVIEW_INFO -> onPreviewInfoReceived(extras)
+                COMMAND_LOCKSCREEN_LAYOUT_CHANGED -> {
+                    if (extras != null) {
+                        onLockscreenLayoutChanged(extras)
+                    }
+                }
             }
 
             if (resultRequested) return extras
@@ -406,9 +421,7 @@ abstract class LiveWallpaper : WallpaperService() {
             wallpaperEngine.onWallpaperFlagsChanged(which)
         }
 
-        /**
-         * This is overriding a hidden API [WallpaperService.shouldZoomOutWallpaper].
-         */
+        /** This is overriding a hidden API [WallpaperService.shouldZoomOutWallpaper]. */
         override fun shouldZoomOutWallpaper(): Boolean {
             if (wallpaperEngine is LiveWallpaperEventListener) {
                 return (wallpaperEngine as LiveWallpaperEventListener).shouldZoomOutWallpaper()
@@ -443,6 +456,12 @@ abstract class LiveWallpaper : WallpaperService() {
         fun onPreviewInfoReceived(extras: Bundle?) {
             if (wallpaperEngine is LiveWallpaperEventListener) {
                 (wallpaperEngine as LiveWallpaperEventListener).onPreviewInfoReceived(extras)
+            }
+        }
+
+        fun onLockscreenLayoutChanged(extras: Bundle) {
+            if (wallpaperEngine is LiveWallpaperEventListener) {
+                (wallpaperEngine as LiveWallpaperEventListener).onLockscreenLayoutChanged(extras)
             }
         }
     }
