@@ -23,8 +23,11 @@ import com.google.android.wallpaper.weathereffects.graphics.WeatherEffect
 import com.google.android.wallpaper.weathereffects.graphics.utils.MatrixUtils
 
 /** Simply draws foreground and background images with no weather effect. */
-class NoEffect(var foreground: Bitmap, var background: Bitmap, private var surfaceSize: SizeF) :
-    WeatherEffect {
+class NoEffect(
+    private var foreground: Bitmap,
+    private var background: Bitmap,
+    private var surfaceSize: SizeF,
+) : WeatherEffect {
     override fun resize(newSurfaceSize: SizeF) {
         surfaceSize = newSurfaceSize
     }
@@ -36,17 +39,17 @@ class NoEffect(var foreground: Bitmap, var background: Bitmap, private var surfa
             background,
             MatrixUtils.centerCropMatrix(
                 surfaceSize,
-                SizeF(background.width.toFloat(), background.height.toFloat())
+                SizeF(background.width.toFloat(), background.height.toFloat()),
             ),
-            null
+            null,
         )
         canvas.drawBitmap(
             foreground,
             MatrixUtils.centerCropMatrix(
                 surfaceSize,
-                SizeF(foreground.width.toFloat(), foreground.height.toFloat())
+                SizeF(foreground.width.toFloat(), foreground.height.toFloat()),
             ),
-            null
+            null,
         )
     }
 
@@ -56,8 +59,13 @@ class NoEffect(var foreground: Bitmap, var background: Bitmap, private var surfa
 
     override fun setIntensity(intensity: Float) {}
 
-    override fun setBitmaps(foreground: Bitmap, background: Bitmap) {
-        this.foreground = foreground
+    override fun setBitmaps(foreground: Bitmap?, background: Bitmap) {
+        // Only when background changes, we can infer the bitmap set changes
+        if (this.background != background) {
+            this.background.recycle()
+            this.foreground.recycle()
+        }
         this.background = background
+        this.foreground = foreground ?: background
     }
 }
