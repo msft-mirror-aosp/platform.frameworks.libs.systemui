@@ -63,7 +63,7 @@ data class RainEffectConfig(
         private const val GLASS_RAIN_LAYER_SHADER_PATH = "shaders/rain_glass_layer.agsl"
         private const val COLOR_GRADING_SHADER_PATH = "shaders/color_grading_lut.agsl"
         private const val OUTLINE_SHADER_PATH = "shaders/outline.agsl"
-        private const val LOOKUP_TABLE_TEXTURE_PATH = "textures/lut_rain_and_fog.png"
-        private const val COLOR_GRADING_INTENSITY = 0.7f
+        private const val LOOKUP_TABLE_TEXTURE_PATH = "textures/rain_lut.png"
+        private const val COLOR_GRADING_INTENSITY = 0.3f
     }
 }

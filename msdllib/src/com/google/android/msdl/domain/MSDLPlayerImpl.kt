@@ -16,6 +16,7 @@
 
 package com.google.android.msdl.domain
 
+import android.os.Build
 import android.os.VibrationAttributes
 import android.os.VibrationEffect
 import android.os.Vibrator
@@ -87,15 +88,21 @@ internal class MSDLPlayerImpl(
                     }
                 }
 
-            // 2. Deliver the haptics with attributes
+            // 2. Deliver the haptics with or without attributes
             if (effect == null || !vibrator.hasVibrator()) return
-            val attributes =
-                if (properties?.vibrationAttributes != null) {
-                    properties.vibrationAttributes
-                } else {
-                    VibrationAttributes.Builder().setUsage(VibrationAttributes.USAGE_TOUCH).build()
-                }
-            executor.execute { vibrator.vibrate(effect, attributes) }
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                val attributes =
+                    if (properties?.vibrationAttributes != null) {
+                        properties.vibrationAttributes
+                    } else {
+                        VibrationAttributes.Builder()
+                            .setUsage(VibrationAttributes.USAGE_TOUCH)
+                            .build()
+                    }
+                executor.execute { vibrator.vibrate(effect, attributes) }
+            } else {
+                executor.execute { vibrator.vibrate(effect) }
+            }
 
             // 3. Log the event
             historyLogger.addEvent(MSDLEvent(token, properties))
@@ -106,6 +113,14 @@ internal class MSDLPlayerImpl(
 
     override fun getHistory(): List<MSDLEvent> = historyLogger.getHistory()
 
+    override fun toString(): String =
+        """
+            Default MSDL player implementation.
+            Vibrator: $vibrator
+            Repository: $repository
+        """
+            .trimIndent()
+
     companion object {
         val REQUIRED_PRIMITIVES =
             listOf(
@@ -113,6 +128,7 @@ internal class MSDLPlayerImpl(
                 VibrationEffect.Composition.PRIMITIVE_THUD,
                 VibrationEffect.Composition.PRIMITIVE_TICK,
                 VibrationEffect.Composition.PRIMITIVE_CLICK,
+                VibrationEffect.Composition.PRIMITIVE_LOW_TICK,
             )
     }
 }

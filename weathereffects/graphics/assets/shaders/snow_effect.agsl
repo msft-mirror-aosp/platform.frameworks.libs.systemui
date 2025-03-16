@@ -18,14 +18,12 @@ uniform shader foreground;
 uniform shader background;
 uniform shader accumulatedSnow;
 uniform shader noise;
-uniform float2 uvOffsetFgd;
-uniform float2 uvScaleFgd;
-uniform float2 uvOffsetBgd;
-uniform float2 uvScaleBgd;
 uniform float2 gridSize;
 uniform float time;
 uniform float screenAspectRatio;
 uniform float2 screenSize;
+uniform mat3 transformMatrixBitmap;
+uniform mat3 transformMatrixWeather;
 
 #include "shaders/constants.agsl"
 #include "shaders/utils.agsl"
@@ -42,9 +40,6 @@ const float midSnowLayerIndex = 3;
 const float closestSnowLayerIndex = 0;
 
 vec4 main(float2 fragCoord) {
-    float2 uv = fragCoord / screenSize;
-    float2 uvAdjusted = vec2(uv.x, uv.y / screenAspectRatio);
-
     /**
      * The effect is consisted of 2 image textures (foreground and background) + 10 layers of
      * snow + 1 layer of snow accumulation. Below describes the rendering order (back to front):
@@ -55,10 +50,22 @@ vec4 main(float2 fragCoord) {
      * 5. Foreground snow layers (from mid layer to closest layer)
      */
 
-    // Adjusts the UVs to have the expected rect of the image.
-    float2 adjustedUvForeground = fragCoord * uvScaleFgd + uvOffsetFgd;
-    vec4 colorForeground = foreground.eval(adjustedUvForeground);
-    vec4 colorBackground = background.eval(fragCoord * uvScaleBgd + uvOffsetBgd);
+    // Apply transform matrix to fragCoord
+    float2 adjustedUv = transformPoint(transformMatrixBitmap, fragCoord);
+
+    // Calculate uv for snow based on transformed coordinates
+    float2 uv = transformPoint(transformMatrixWeather, fragCoord) / screenSize;
+    float2 uvAdjusted = vec2(uv.x, uv.y / screenAspectRatio);
+
+    vec4 colorForeground = foreground.eval(adjustedUv);
+    vec4 colorBackground = background.eval(adjustedUv);
+
+     // Adjusts contrast and brightness.
+    float noiseT = triangleNoise(fragCoord.xy + vec2(12.31, 1024.1241));
+    colorBackground.rgb =
+        imageRangeConversion(colorBackground.rgb, 0.88, 0.02, noiseT * 0.025, intensity);
+    colorForeground.rgb =
+        imageRangeConversion(colorForeground.rgb, 0.88, 0.02, noiseT * 0.025, intensity);
 
     // 1. Draw background.
     vec4 color = colorBackground;
@@ -91,7 +98,7 @@ vec4 main(float2 fragCoord) {
     float dither = abs(triangleNoise(fragCoord * 0.01));
 
     // Get the accumulated snow buffer. r contains its mask, g contains some random noise.
-    vec2 accSnow = accumulatedSnow.eval(adjustedUvForeground).rg;
+    vec2 accSnow = accumulatedSnow.eval(adjustedUv).rg;
     // Sharpen the mask of the accumulated snow, but not in excess.
     float accSnowMask = smoothstep(0.1, 0.9, /* mask= */ accSnow.r);
     // Makes the edges of the snow layer accumulation rougher.
